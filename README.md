@@ -64,7 +64,7 @@
 **第一步：安装脚本**
 
 - **一键安装（推荐）**：浏览器安装 [Tampermonkey（篡改猴）](https://www.tampermonkey.net/) 扩展后，
-  直接打开 [`pickcat-rich-editor.user.js`](https://raw.githubusercontent.com/GrantPome/pickscribe/main/pickcat-rich-editor.user.js)，
+  直接打开 [`pickcat-rich-editor.user.js`](https://raw.githubusercontent.com/GrantPome/PickScribe/main/pickcat-rich-editor.user.js)，
   Tampermonkey 会弹出安装页，点击「安装」即可。
 - **手动安装**：新建脚本，把 `pickcat-rich-editor.user.js` 的内容整段粘贴进去，保存。
 
