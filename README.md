@@ -5,7 +5,7 @@
 > 一个注入到 Pickcat 帖子编辑页的油猴脚本：把「写 Markdown 源码」变成「像 Word 一样排版」，
 > 排版所见即所得，同时和原生 Markdown 源码**双向实时同步**，不改后台、不改提交逻辑，安心用。
 
-[![版本](https://img.shields.io/badge/version-1.1.4-blue.svg)](pickcat-rich-editor.user.js)
+[![版本](https://img.shields.io/badge/version-1.1.8-blue.svg)](pickcat-rich-editor.user.js)
 [![用户脚本](https://img.shields.io/badge/Tampermonkey-UserScript-2ea44f.svg)](https://www.tampermonkey.net/)
 
 ---

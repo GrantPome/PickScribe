@@ -2,7 +2,7 @@
 // @name         Pickcat 富文本可视化编辑器
 // @name:zh-CN   Pickcat 富文本可视化编辑器（所见即所得）
 // @namespace    https://cdsq.dao3.fun/
-// @version      1.1.4
+// @version      1.1.8
 // @description  在 Pickcat 帖子编辑页注入类 Word 的可视化富文本编辑器：与 Markdown 源码双向实时同步，完整适配站点原生编辑器全部功能（Kitten 作品分享 / 表情包 / 图片 / 表格 / 链接 / 公式 / 任务列表等），复用站点原生图标，粘贴自动净化，降低新手发帖门槛。
 // @author       Trae
 // @match        https://cdsq.dao3.fun/forum/editor*
@@ -706,7 +706,10 @@
   function injectStyle() {
     if (document.getElementById(NS + '-style')) return;
     const css = `
-.${NS}-root{
+/* CSS 变量定义在 :root 上：帮助浮层 / 提示条等是挂到 body 的，
+   不在 .pcr-root 内部，只有定义在 :root 才能取到这些变量，
+   否则 var(--pcr-surface) 失效会导致背景透明。 */
+:root{
   --pcr-accent: var(--ui-accent, #f03e46);
   --pcr-accent-soft: var(--ui-accent-soft, rgba(240,62,70,.12));
   --pcr-border: var(--ui-border, #d4dbe4);
@@ -718,6 +721,8 @@
   --pcr-r-surface: var(--radius-surface, .5rem);
   --pcr-r-control: var(--radius-control, .375rem);
   --pcr-font: var(--font-family-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+}
+.${NS}-root{
   font-family: var(--pcr-font);
   color: var(--pcr-text);
   margin-bottom: 12px;
@@ -768,6 +773,9 @@
 /* —— 编辑区 —— */
 .${NS}-editor-wrap{background:var(--pcr-surface);border:1px solid var(--pcr-border);
   border-radius:0 0 var(--pcr-r-surface) var(--pcr-r-surface);overflow:hidden;}
+/* 切换视图时给编辑区一个轻微淡入，避免内容“硬切” */
+@keyframes ${NS}FadeIn{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:translateY(0);}}
+.${NS}-fade{animation:${NS}FadeIn .18s cubic-bezier(.22,1,.36,1) both;}
 .${NS}-editor{min-height:320px;max-height:640px;overflow:auto;padding:16px 18px;outline:none;
   font-size:15px;line-height:1.75;color:var(--pcr-text);word-break:break-word;}
 .${NS}-editor:empty::before{content:attr(data-placeholder);color:var(--pcr-subtle);opacity:.75;pointer-events:none;}
@@ -818,14 +826,21 @@
 /* —— 新手提示条 —— */
 .${NS}-hint{display:flex;align-items:flex-start;gap:8px;margin-top:8px;padding:8px 12px;
   font-size:12.5px;color:var(--pcr-subtle);background:var(--pcr-canvas);
-  border:1px dashed var(--pcr-border);border-radius:var(--pcr-r-control);}
+  border:1px dashed var(--pcr-border);border-radius:var(--pcr-r-control);
+  animation:${NS}PopIn .22s cubic-bezier(.22,1,.36,1) both;}
 .${NS}-hint b{color:var(--pcr-text);font-weight:600;}
 .${NS}-hint-close{margin-left:auto;border:0;background:transparent;color:var(--pcr-subtle);
   cursor:pointer;font-size:15px;line-height:1;padding:0 2px;}
 
+/* —— 浮层统一入场动画：淡入 + 轻微下落 + 缩放，非线性缓动更顺滑 —— */
+@keyframes ${NS}PopIn{
+  from{opacity:0;transform:translateY(-5px) scale(.97);}
+  to{opacity:1;transform:translateY(0) scale(1);}
+}
 /* —— 调色板 / 帮助浮层 —— */
 .${NS}-pop{position:absolute;z-index:70;background:var(--pcr-surface);border:1px solid var(--pcr-border);
-  border-radius:var(--pcr-r-surface);box-shadow:0 8px 28px rgba(0,0,0,.16);padding:8px;}
+  border-radius:var(--pcr-r-surface);box-shadow:0 8px 28px rgba(0,0,0,.16);padding:8px;
+  transform-origin:top right;animation:${NS}PopIn .16s cubic-bezier(.22,1,.36,1) both;}
 .${NS}-swatches{display:grid;grid-template-columns:repeat(6,20px);gap:6px;}
 .${NS}-swatch{width:20px;height:20px;border-radius:5px;border:1px solid rgba(0,0,0,.12);cursor:pointer;
   transition:transform .14s cubic-bezier(.22,1,.36,1);}
@@ -836,7 +851,8 @@
 
 /* —— 选中浮动菜单 —— */
 .${NS}-float{position:absolute;z-index:80;display:flex;align-items:center;gap:2px;padding:4px;
-  background:#1f2328;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.28);}
+  background:#1f2328;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.28);
+  transform-origin:bottom center;animation:${NS}PopIn .16s cubic-bezier(.22,1,.36,1) both;}
 .${NS}-float button{width:28px;height:28px;border:0;background:transparent;color:#e6e8eb;cursor:pointer;
   border-radius:6px;font:inherit;display:inline-flex;align-items:center;justify-content:center;
   transition:background .15s;}
@@ -871,6 +887,8 @@
   let origWrapper = null;  // 站点原生编辑器容器（工具栏 + textarea + 字数统计）
   let mode = 'rich';       // rich | split | source
   let lock = false;        // 同步锁，防止双向同步互相触发形成死循环
+  let pendingBack = null;  // 站点弹窗完成后「自动切回可视化」的一次性监听，切视图时需清理
+  let lastTaValue = null;  // 最近一次「脚本自己写入」的 textarea 值，用于识别外部（框架）改写
 
   /** 工具按钮工厂 */
   function makeBtn(opts) {
@@ -1169,40 +1187,44 @@
   /**
    * 委托点击站点原生按钮，复用其上传 / 图盘 / 选择器逻辑，不重复造轮子。
    *
-   * 站点弹窗分两类，处理方式不同：
-   *  - 表情 / 图片：teleport 到 body 的独立浮层（role=dialog 等），与原生容器无关，
-   *    可视化模式下直接点击即可，不需要切换视图。
-   *  - 作品分享：内联渲染在原生编辑器容器内部（position:static），必须让容器完整
-   *    显示才能正确定位，因此先切到源码视图，选完（textarea 触发 input）再自动切回。
-   * needsNative=true 表示属于后者。
+   * 站点弹窗（作品分享 / 表情 / 图片）都挂在原生编辑器容器内、按原生按钮坐标定位，
+   * 可视化模式下容器被隐藏，弹窗会定位错误 / 不可见。因此统一切到源码视图后再点击，
+   * 让原生编辑器完整显示、弹窗定位正确；插入内容后（textarea 触发 input）自动切回。
+   *
+   * 两个关键点（之前「跳过去不弹窗 / 回来后再点没反应」就是这里出的问题）：
+   *  1. 切换视图会让 Vue 重渲染原生工具栏，之前抓到的按钮节点已失效 —— 所以必须
+   *     在切换之后「重新查找」按钮再点击，不能复用旧引用。
+   *  2. setMode 内部会异步 focus 原生输入框，会打断刚打开的弹窗 —— 所以点击要
+   *     延后到 focus 执行完之后。
    */
-  function delegateSiteAction(labels, friendlyName, needsNative) {
-    const btn = findSiteButton(labels);
-    if (!btn) {
-      console.warn('[Pickcat 富文本编辑器] 未找到站点原生按钮：' + friendlyName,
-        '\n候选标签=', labels, '\n页面可用按钮文案=', listSiteButtonLabels());
-      toast('未找到站点的「' + friendlyName + '」按钮，请改用站点原生工具栏');
-      return;
-    }
-
-    if (needsNative) {
-      const needSwitch = (mode === 'rich');
-      if (needSwitch) {
-        setMode('source');   // 完整显示原生编辑器，内联弹窗才能正确定位
-        toast('已切到源码视图以显示「' + friendlyName + '」窗口，选择完成后会自动返回可视化');
-        const back = () => {
-          textarea.removeEventListener('input', back);
-          setTimeout(() => { if (mode === 'source') setMode('rich'); }, 500);
-        };
-        textarea.addEventListener('input', back);
+  function delegateSiteAction(labels, friendlyName) {
+    const clickNative = () => {
+      const btn = findSiteButton(labels);   // 每次重新查找，避免用到已被重渲染替换的旧节点
+      if (!btn) {
+        console.warn('[Pickcat 富文本编辑器] 未找到站点原生按钮：' + friendlyName,
+          '\n候选标签=', labels, '\n页面可用按钮文案=', listSiteButtonLabels());
+        toast('未找到站点的「' + friendlyName + '」按钮，请改用站点原生工具栏');
+        return;
       }
-      syncCaretToTextarea(needSwitch);
+      syncCaretToTextarea(true);            // 让站点把内容插入到文末
       btn.click();
-      return;
-    }
+    };
 
-    syncCaretToTextarea(false);
-    btn.click();
+    // 已经是源码 / 分屏视图时，原生编辑器可见，直接点击即可
+    if (mode !== 'rich') { clickNative(); return; }
+
+    setMode('source');
+    toast('已切到源码视图以显示「' + friendlyName + '」窗口，选择完成后会自动返回可视化');
+    // 等 setMode 的异步 focus 执行完再点击，避免弹窗刚打开就被焦点变化打断
+    setTimeout(clickNative, 80);
+    // 站点把内容写回 textarea 后会触发 input，捕获到就自动切回可视化（一次性）
+    const back = () => {
+      textarea.removeEventListener('input', back);
+      if (pendingBack === back) pendingBack = null;
+      setTimeout(() => { if (mode === 'source') setMode('rich'); }, 500);
+    };
+    pendingBack = back;
+    textarea.addEventListener('input', back);
   }
 
   // ============================ 5.2 插入类命令 ============================
@@ -1322,11 +1344,9 @@
     addSep();
 
     // —— 作品 / 表情 / 图片（复用站点原生选择器，保证上传与图盘逻辑一致）——
-    // 作品分享弹窗内联在原生容器内，需要切到源码视图才能正确定位（needsNative=true）；
-    // 表情 / 图片是独立浮层，直接点击即可，无需切换视图。
-    add(makeBtn({ key: 'work', html: I(SITE_LABELS.work, ICONS.image), tip: 'Kitten 作品分享', onClick: () => delegateSiteAction(SITE_LABELS.work, 'Kitten 作品分享', true) }));
-    add(makeBtn({ key: 'emoji', html: I(SITE_LABELS.emoji, ICONS.text('☺')), tip: '添加表情', onClick: () => delegateSiteAction(SITE_LABELS.emoji, '添加表情', false) }));
-    add(makeBtn({ key: 'image', html: I(SITE_LABELS.image, ICONS.image), tip: '插入图片', onClick: () => delegateSiteAction(SITE_LABELS.image, '插入图片', false) }));
+    add(makeBtn({ key: 'work', html: I(SITE_LABELS.work, ICONS.image), tip: 'Kitten 作品分享', onClick: () => delegateSiteAction(SITE_LABELS.work, 'Kitten 作品分享') }));
+    add(makeBtn({ key: 'emoji', html: I(SITE_LABELS.emoji, ICONS.text('☺')), tip: '添加表情', onClick: () => delegateSiteAction(SITE_LABELS.emoji, '添加表情') }));
+    add(makeBtn({ key: 'image', html: I(SITE_LABELS.image, ICONS.image), tip: '插入图片', onClick: () => delegateSiteAction(SITE_LABELS.image, '插入图片') }));
     addSep();
 
     // —— 行内样式 ——
@@ -1510,17 +1530,10 @@
     if (floatEl) { floatEl.remove(); floatEl = null; }
   }
 
-  function updateFloatMenu() {
-    closeFloatMenu();
-    if (mode === 'source') return;
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
-    if (!editor.contains(sel.anchorNode)) return;
-    const text = sel.toString();
-    if (!text.trim()) return;
-
-    floatEl = document.createElement('div');
-    floatEl.className = NS + '-float';
+  /** 创建浮动菜单。只在选中出现时创建一次并复用，避免拖动选择时反复重建导致入场动画闪烁。 */
+  function buildFloatMenu() {
+    const el = document.createElement('div');
+    el.className = NS + '-float';
     const mk = (html, tip, fn) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -1530,21 +1543,34 @@
       b.addEventListener('click', (e) => { e.preventDefault(); fn(); closeFloatMenu(); });
       return b;
     };
-    floatEl.appendChild(mk(ICONS.text('B'), '加粗', () => exec('bold')));
-    floatEl.appendChild(mk(ICONS.text('I', 'font-style:italic'), '斜体', () => exec('italic')));
-    floatEl.appendChild(mk(ICONS.text('U', 'text-decoration:underline;text-underline-offset:2px'), '下划线', () => exec('underline')));
-    floatEl.appendChild(mk(ICONS.text('S', 'text-decoration:line-through'), '删除线', () => exec('strikeThrough')));
-    const sp = document.createElement('span'); sp.className = 'sep'; floatEl.appendChild(sp);
-    floatEl.appendChild(mk(ICONS.link, '插入链接', () => {
+    el.appendChild(mk(ICONS.text('B'), '加粗', () => exec('bold')));
+    el.appendChild(mk(ICONS.text('I', 'font-style:italic'), '斜体', () => exec('italic')));
+    el.appendChild(mk(ICONS.text('U', 'text-decoration:underline;text-underline-offset:2px'), '下划线', () => exec('underline')));
+    el.appendChild(mk(ICONS.text('S', 'text-decoration:line-through'), '删除线', () => exec('strikeThrough')));
+    const sp = document.createElement('span'); sp.className = 'sep'; el.appendChild(sp);
+    el.appendChild(mk(ICONS.link, '插入链接', () => {
       const url = window.prompt('请输入链接地址：', 'https://');
       if (!url) return;
       const u = safeUrl(url);
       if (!u) { toast('链接地址不合法，请检查后重试'); return; }
       exec('createLink', u);
     }));
-    floatEl.appendChild(mk(ICONS.clear, '清除格式', () => exec('removeFormat')));
+    el.appendChild(mk(ICONS.clear, '清除格式', () => exec('removeFormat')));
+    return el;
+  }
 
-    document.body.appendChild(floatEl);
+  function updateFloatMenu() {
+    if (mode === 'source') { closeFloatMenu(); return; }
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) { closeFloatMenu(); return; }
+    if (!editor.contains(sel.anchorNode)) { closeFloatMenu(); return; }
+    if (!sel.toString().trim()) { closeFloatMenu(); return; }
+
+    // 同一个选中过程里复用同一个节点：入场动画只在它首次出现时播一次
+    if (!floatEl) {
+      floatEl = buildFloatMenu();
+      document.body.appendChild(floatEl);
+    }
 
     // 定位到选区上方
     const rect = sel.getRangeAt(0).getBoundingClientRect();
@@ -1567,6 +1593,7 @@
     else textarea.value = val;
     // 派发 input 事件，让框架把新值同步进组件状态（提交时才会用最新内容）
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    lastTaValue = val;   // 记下这是脚本自己写入的，避免被外部变化检测误判
   }
 
   /** 富文本 → Markdown 源码 */
@@ -1595,12 +1622,24 @@
 
   /** 切换视图模式 */
   function setMode(next) {
+    // 任何视图切换都先清掉上一轮遗留的「自动切回」监听，避免之后被意外触发
+    if (pendingBack) {
+      textarea && textarea.removeEventListener('input', pendingBack);
+      pendingBack = null;
+    }
     mode = next;
     if (!root) return;
     root.querySelectorAll('.' + NS + '-tab').forEach((t) => t.classList.toggle('is-on', t.dataset.mode === next));
     const showToolbar = next !== 'source';
     root.querySelector('.' + NS + '-toolbar').classList.toggle(NS + '-hidden', !showToolbar);
-    root.querySelector('.' + NS + '-editor-wrap').classList.toggle(NS + '-hidden', !showToolbar);
+    const wrap = root.querySelector('.' + NS + '-editor-wrap');
+    wrap.classList.toggle(NS + '-hidden', !showToolbar);
+    // 重播一次淡入动画（先移除再强制回流后加回，保证每次切换都能触发）
+    if (showToolbar) {
+      wrap.classList.remove(NS + '-fade');
+      void wrap.offsetWidth;
+      wrap.classList.add(NS + '-fade');
+    }
     // 站点原生编辑器容器：可视化模式下整体隐藏（避免残留白色色块），
     // 需要用到站点弹窗时由 delegateSiteAction 临时切到源码视图再显示。
     if (origWrapper) origWrapper.classList.toggle(NS + '-native-collapsed', next === 'rich');
@@ -1631,21 +1670,42 @@
   function mount() {
     if (!isEditorPage()) return;
     const ta = findTextarea();
-    if (!ta || ta.dataset[MOUNT_FLAG] === '1') return;
+    if (!ta) return;
     if (ta.offsetParent === null && !ta.closest('form')) return; // 尚未真正渲染
 
+    const wired = ta.dataset[MOUNT_FLAG] === '1';
+    const panelAlive = root && document.body.contains(root);
+    if (wired && panelAlive) return;   // 已挂载且面板健在，无需处理
+
     textarea = ta;
-    ta.dataset[MOUNT_FLAG] = '1';
 
-    injectStyle();
+    if (!wired) {
+      // 首次为这个 textarea 挂载：注入样式、统一编辑行为、绑定一次性事件
+      ta.dataset[MOUNT_FLAG] = '1';
+      injectStyle();
 
-    // 统一编辑行为：回车生成 <p>（利于转成 Markdown 段落），颜色类命令用 span 内联样式
-    try {
-      document.execCommand('defaultParagraphSeparator', false, 'p');
-      document.execCommand('styleWithCSS', false, true);
-    } catch (e) { /* noop */ }
+      // 统一编辑行为：回车生成 <p>（利于转成 Markdown 段落），颜色类命令用 span 内联样式
+      try {
+        document.execCommand('defaultParagraphSeparator', false, 'p');
+        document.execCommand('styleWithCSS', false, true);
+      } catch (e) { /* noop */ }
 
-    // 定位站点原生编辑器容器（工具栏 + 输入框 + 字数统计 的公共父级）
+      // 源码侧输入 → 同步到富文本。
+      // 注意：站点原生功能（作品分享 / 表情 / 图片等）会在任意模式下把内容写回 textarea，
+      // 所以这里不按 mode 过滤，统一同步回富文本；sourceToRich 内部有 lock 保护。
+      ta.addEventListener('input', () => { lastTaValue = ta.value; sourceToRich(); });
+
+      // 提交前兜底：确保 Markdown 已写入 textarea
+      const form = ta.closest('form');
+      if (form) form.addEventListener('submit', () => { richToSource(); }, true);
+    } else {
+      // 已挂载过，但面板被站点重渲染移除了（编辑帖子页加载内容后很常见）——
+      // 清掉旧节点，下面重建一个新的，否则会表现为「脚本完全不生效」。
+      if (root && root.parentElement) root.parentElement.removeChild(root);
+      root = null;
+    }
+
+    // 定位站点原生编辑器容器（工具栏 + 输入框 的公共父级）
     origWrapper = ta.parentElement && ta.parentElement.parentElement ? ta.parentElement.parentElement : ta.parentElement;
     if (origWrapper && !origWrapper.querySelector('[role="toolbar"]')) {
       // 结构不符时退回到直接父级，保证“插到编辑器上方”依然成立
@@ -1660,24 +1720,9 @@
       ta.parentElement.insertBefore(panel, ta);
     }
 
-    // 首次进入：若已有草稿内容，则从源码渲染到富文本
-    if (textarea.value && textarea.value.trim()) {
-      editor.innerHTML = mdToHtml(textarea.value);
-    }
-
-    // 源码侧输入 → 同步到富文本。
-    // 注意：站点原生功能（作品分享 / 表情 / 图片等）会在任意模式下把内容写回 textarea，
-    // 所以这里不按 mode 过滤，统一同步回富文本；sourceToRich 内部有 lock 保护，
-    // 不会与 richToSource 互相触发形成死循环。
-    textarea.addEventListener('input', () => {
-      sourceToRich();
-    });
-
-    // 提交前兜底：确保 Markdown 已写入 textarea
-    const form = ta.closest('form');
-    if (form) {
-      form.addEventListener('submit', () => { richToSource(); }, true);
-    }
+    // 用当前 textarea 内容渲染富文本（编辑页会带出已有帖子内容）
+    editor.innerHTML = ta.value && ta.value.trim() ? mdToHtml(ta.value) : '';
+    lastTaValue = ta.value;
 
     // 默认进入可视化模式
     setMode('rich');
@@ -1696,6 +1741,24 @@
     mount();
   }, 300));
   observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  // 常驻看护 1：面板被站点重渲染移除时自动重建。
+  // 编辑帖子页会先加载帖子数据再渲染编辑器，Vue 重渲染容易把注入的节点冲掉，
+  // 只靠「已挂载」标记会导致面板消失后不再恢复（表现为脚本完全不生效）。
+  setInterval(() => {
+    if (!isEditorPage()) return;
+    if (!root || !document.body.contains(root)) mount();
+  }, 1200);
+
+  // 常驻看护 2：框架（Vue v-model）可能直接改写 textarea.value 且不派发 input，
+  // 这里做兜底同步；脚本自己写入的值记录在 lastTaValue，不会被误判为外部变化。
+  setInterval(() => {
+    if (!textarea || !editor) return;
+    if (textarea.value !== lastTaValue) {
+      lastTaValue = textarea.value;
+      if (mode !== 'source') sourceToRich();
+    }
+  }, 700);
 
   // 初始尝试
   mount();
