@@ -21,6 +21,7 @@
   const NS = 'pcr';                       // 样式与类名统一前缀，避免污染站点样式
   const MOUNT_FLAG = 'pcrMounted';        // textarea 上的挂载标记，防止重复注入
   const HINT_KEY = 'pcr_hint_closed';     // 新手提示是否已关闭
+  const TOOLBAR_KEY = 'pcr_toolbar_style'; // 工具栏布局：compact（默认，紧凑单行）| groups（仿 Word 功能组）
 
   /** 该页面是否是帖子编辑页（SPA 路由变化时用于兜底判断） */
   const isEditorPage = () => /\/forum\/editor(\/|$|\?)/.test(location.pathname + location.search);
@@ -685,6 +686,7 @@
     mathBlock: svg('<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M6.5 9.5h6M6.5 12.5h9M6.5 15.5h6"/>'),
     fullscreen: svg('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
     clear: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+    layout: svg('<rect x="3" y="4.5" width="18" height="6" rx="1.6"/><rect x="3" y="13.5" width="18" height="6" rx="1.6"/>'),
     help: svg('<circle cx="12" cy="12" r="9"/><path d="M9.4 9.2a2.6 2.6 0 1 1 3.6 2.4c-.7.4-1 .9-1 1.7v.2"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>'),
     rich: svg('<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/>'),
     split: svg('<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M12 4.5v15"/>'),
@@ -735,16 +737,30 @@
 .${NS}-synced .dot{width:6px;height:6px;border-radius:50%;background:#37c26b;box-shadow:0 0 0 3px rgba(55,194,107,.16);}
 .${NS}-synced.is-busy .dot{background:var(--pcr-accent);box-shadow:0 0 0 3px var(--pcr-accent-soft);}
 
-/* —— 工具栏：仿 Word 功能组，组间以细线分隔、组名以小字居中显示在下方 —— */
-.${NS}-toolbar{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;padding:6px 4px 2px;
+/* —— 工具栏 ——
+   默认「紧凑」：单行按钮、组间留一点空隙做轻分组，不显示组名；
+   切到「功能组」（.pcr-tb-groups）时显示组名、组间细线、组高对齐，仿 Word 功能区。
+   两种布局只切换根节点类名，不重建 DOM，切换无闪烁。 */
+.${NS}-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:5px 6px;
   background:var(--pcr-surface);border:1px solid var(--pcr-border);border-bottom:0;
   border-radius:var(--pcr-r-surface) var(--pcr-r-surface) 0 0;}
-.${NS}-group{display:flex;flex-direction:column;justify-content:space-between;align-items:center;
-  padding:0 6px 2px;border-right:1px solid var(--pcr-border);}
-.${NS}-group:last-child{border-right:0;}
-.${NS}-group-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px;}
-.${NS}-group-label{font-size:10.5px;line-height:1;color:var(--pcr-subtle);opacity:.8;
-  padding-top:4px;letter-spacing:.02em;user-select:none;pointer-events:none;}
+.${NS}-group{display:flex;align-items:center;padding:0 4px;}
+.${NS}-group-row{display:flex;align-items:center;gap:1px;}
+.${NS}-group-label{display:none;}
+
+/* 切换布局时给工具栏一次轻量淡入，避免硬切 */
+@keyframes ${NS}TbSwap{from{opacity:.4;transform:translateY(-2px);}to{opacity:1;transform:none;}}
+.${NS}-tb-anim{animation:${NS}TbSwap .32s cubic-bezier(.16,1,.3,1);}
+
+/* 功能组：仿 Word 功能区 —— 组名在按钮下方、组间细线、组高对齐 */
+.${NS}-root.${NS}-tb-groups .${NS}-toolbar{align-items:stretch;gap:0;padding:6px 4px 2px;}
+.${NS}-root.${NS}-tb-groups .${NS}-group{flex-direction:column;justify-content:space-between;
+  align-items:center;padding:0 6px 2px;border-right:1px solid var(--pcr-border);}
+.${NS}-root.${NS}-tb-groups .${NS}-group:last-child{border-right:0;}
+.${NS}-root.${NS}-tb-groups .${NS}-group-row{justify-content:center;}
+.${NS}-root.${NS}-tb-groups .${NS}-group-label{display:block;font-size:10.5px;line-height:1;
+  color:var(--pcr-subtle);opacity:.8;padding-top:4px;letter-spacing:.02em;
+  user-select:none;pointer-events:none;}
 .${NS}-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;
   width:32px;height:32px;border:0;border-radius:var(--pcr-r-control);background:transparent;
   color:var(--pcr-subtle);cursor:pointer;font:inherit;
@@ -1280,9 +1296,43 @@
   }
 
   /** 构建整个面板 DOM */
+  /** 读取已保存的工具栏布局（默认紧凑） */
+  function readToolbarStyle() {
+    try { return localStorage.getItem(TOOLBAR_KEY) === 'groups' ? 'groups' : 'compact'; }
+    catch (e) { return 'compact'; }
+  }
+
+  /** 应用工具栏布局：compact 紧凑单行（默认）/ groups 仿 Word 功能组 */
+  function setToolbarStyle(style, persist) {
+    const s = style === 'groups' ? 'groups' : 'compact';
+    if (root) root.classList.toggle(NS + '-tb-groups', s === 'groups');
+    if (persist) { try { localStorage.setItem(TOOLBAR_KEY, s); } catch (e) {} }
+    syncLayoutBtn();
+    return s;
+  }
+
+  /** 同步布局按钮的选中态与提示文案，让用户一眼看出当前用的是哪种布局 */
+  function syncLayoutBtn() {
+    const b = root && root.querySelector('.' + NS + '-btn[data-key="layout"]');
+    if (!b) return;
+    const g = readToolbarStyle() === 'groups';
+    b.classList.toggle('is-on', g);
+    b.setAttribute('data-tip', g ? '工具栏：功能组（点击切回紧凑）' : '工具栏：紧凑（点击切换功能组）');
+  }
+
+  /** 在「紧凑」和「功能组」两种工具栏布局之间切换，并记忆选择 */
+  function toggleToolbarStyle() {
+    const next = readToolbarStyle() === 'groups' ? 'compact' : 'groups';
+    setToolbarStyle(next, true);
+    const bar = root && root.querySelector('.' + NS + '-toolbar');
+    if (bar) { bar.classList.remove(NS + '-tb-anim'); void bar.offsetWidth; bar.classList.add(NS + '-tb-anim'); }
+    toast(next === 'groups' ? '工具栏已切换为「功能组」（仿 Word）' : '工具栏已切换为「紧凑」单行');
+  }
+
   function buildPanel() {
     root = document.createElement('div');
     root.className = NS + '-root';
+    setToolbarStyle(readToolbarStyle(), false);   // 恢复上次选择的工具栏布局
 
     // —— 顶部：模式切换 + 同步状态 + 帮助 ——
     const head = document.createElement('div');
@@ -1311,12 +1361,15 @@
     synced.className = NS + '-synced';
     synced.innerHTML = '<span class="dot"></span><span>已与 Markdown 实时同步</span>';
     headRight.appendChild(synced);
+    const layoutBtn = makeBtn({ key: 'layout', html: ICONS.layout, tip: '工具栏布局', onClick: () => toggleToolbarStyle() });
+    headRight.appendChild(layoutBtn);
     const helpBtn = makeBtn({ html: ICONS.help, tip: '新手帮助', onClick: (b) => openHelp(b) });
     headRight.appendChild(helpBtn);
     head.appendChild(headRight);
     root.appendChild(head);
+    syncLayoutBtn();   // 布局按钮建好后，同步它的选中态与提示
 
-    // —— 工具栏：按 Word 的「功能组」组织，按钮顺序沿用站点原有习惯 ——
+    // —— 工具栏：按钮顺序沿用站点原有习惯；默认紧凑单行，可一键切成仿 Word 功能组 ——
     const bar = document.createElement('div');
     bar.className = NS + '-toolbar';
     bar.setAttribute('role', 'toolbar');
