@@ -111,6 +111,13 @@
         (title ? ' title="' + escapeAttr(title) + '"' : '') + '>');
     });
 
+    // 5b) 站点自定义图片引用：![<id>]（无网址，由站点渲染时解析）。
+    //     必须转成占位元素并原样保留 —— 若当普通文字处理，提交时方括号会被转义成 \!\[…\]，
+    //     站点就再也认不出这个图片标记，图片会直接消失。
+    s = s.replace(/!\[([0-9A-Za-z_-]{8,})\]/g, (m, id) =>
+      keep('<span class="' + NS + '-img-ref" contenteditable="false" data-ref="' + escapeAttr(id) + '"' +
+        ' title="图片引用：' + escapeAttr(id) + '（提交后由站点渲染）">图片</span>'));
+
     // 6) 链接：[text](url "title")
     s = s.replace(/\[([^\]]+)\]\(\s*([^)\s]+)(?:\s+"([^"]*)")?\s*\)/g, (m, txt, url, title) => {
       const u = safeUrl(url);
@@ -311,6 +318,12 @@
     // 行内公式
     if (node.classList && node.classList.contains('pcr-math-inline')) {
       return '$' + (node.textContent || '') + '$';
+    }
+
+    // 站点自定义图片引用：原样写回 ![<id>]，绝不能转义，否则站点无法再识别
+    if (node.classList && node.classList.contains(NS + '-img-ref')) {
+      const ref = node.getAttribute('data-ref') || '';
+      return ref ? '![' + ref + ']' : '';
     }
 
     if (tag === 'br') return '  \n';
@@ -596,6 +609,19 @@
       return img;
     }
 
+    // 站点图片引用占位块：保留引用 id，复制粘贴后依然能原样写回 ![<id>]
+    if (tag === 'span' && node.classList && node.classList.contains(NS + '-img-ref')) {
+      const ref = node.getAttribute('data-ref') || '';
+      if (!ref) return doc.createDocumentFragment();
+      const chip = doc.createElement('span');
+      chip.className = NS + '-img-ref';
+      chip.setAttribute('contenteditable', 'false');
+      chip.setAttribute('data-ref', ref);
+      chip.setAttribute('title', '图片引用：' + ref + '（提交后由站点渲染）');
+      chip.textContent = '图片';
+      return chip;
+    }
+
     const el = doc.createElement(tag);
 
     // 保留白名单属性
@@ -810,6 +836,12 @@
 .${NS}-editor ul,.${NS}-editor ol{margin:.45em 0;padding-left:1.6em;}
 .${NS}-editor li{margin:.2em 0;}
 .${NS}-editor img{max-width:100%;border-radius:var(--pcr-r-control);}
+/* 站点自定义图片引用 ![<id>]（无网址，由站点渲染时解析）：编辑器里显示为占位块，提交时原样写回 */
+.${NS}-editor .${NS}-img-ref{display:inline-flex;align-items:center;gap:5px;max-width:100%;
+  padding:2px 9px;border:1px dashed var(--pcr-border);border-radius:var(--pcr-r-control);
+  background:var(--pcr-surface-hover);color:var(--pcr-subtle);font-size:12px;line-height:1.7;
+  vertical-align:baseline;}
+.${NS}-editor .${NS}-img-ref svg{flex:none;}
 .${NS}-editor hr{border:0;border-top:1px solid var(--pcr-border);margin:1em 0;}
 .${NS}-editor a{color:var(--pcr-accent);text-decoration:underline;}
 .${NS}-editor table{border-collapse:collapse;margin:.6em 0;width:100%;}
