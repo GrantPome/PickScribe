@@ -70,13 +70,14 @@
 
 **第一步：安装扩展（二选一）**
 
-**方式 A · 安装 `.crx`（最省事）**
+**方式 A · 下载打包好的 `.zip`（推荐）**
 
-1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载 `pickcat-rich-editor-extension.crx`
-2. 打开 `chrome://extensions/`，右上角开启「**开发者模式**」
-3. 把 `.crx` 文件拖入该页面，按提示确认安装
+1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载 `pickcat-rich-editor-extension.zip`
+2. 解压到任意目录，得到一个包含 `manifest.json` 的文件夹
+3. 打开 `chrome://extensions/`，右上角开启「**开发者模式**」
+4. 点「**加载已解压的扩展程序**」，选择第 2 步解压出的文件夹
 
-**方式 B · 加载已解压的扩展**
+**方式 B · 克隆 / 下载仓库源码**
 
 1. 下载或克隆本仓库，找到 `pickcat-rich-editor-extension` 文件夹
 2. 打开 `chrome://extensions/`，右上角开启「**开发者模式**」
