@@ -5,11 +5,10 @@
 > 一个注入到 Pickcat 帖子编辑页的富文本可视化编辑器：把「写 Markdown 源码」变成「像 Word 一样排版」，
 > 排版所见即所得，同时和原生 Markdown 源码**双向实时同步**，不改后台、不改提交逻辑，安心用。
 
-[![版本](https://img.shields.io/badge/version-2.0.1-blue.svg)](pickcat-rich-editor-extension/manifest.json)
 [![Chrome 扩展](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4.svg)](https://developer.chrome.com/docs/extensions)
 
-> **2.0.1 起，PickScribe 从油猴脚本升级为标准 Chrome 扩展（Manifest V3）**，不再需要 Tampermonkey。
-> 旧的油猴脚本 `pickcat-rich-editor.user.js` 仍保留，但推荐改用扩展版。
+> PickScribe 是一个 **Chrome 扩展（Manifest V3）**，不再需要 Tampermonkey。
+> 仓库里仍保留早期油猴脚本 `pickcat-rich-editor.user.js`，但推荐使用扩展版。
 > ⚠️ 扩展与油猴脚本**请勿同时启用**，否则会注入两个编辑面板。
 
 ---
@@ -27,17 +26,6 @@
 - 好不容易写完，预览才发现层级、列表、链接全错了，来回改到崩溃。
 
 **PickScribe 就是为「发帖新手」准备的。** 打开编辑页就能用，零学习成本。
-
----
-
-## 🆕 2.0.1 更新亮点
-
-- 📦 **迁移为 Chrome 扩展（Manifest V3）**：在 `chrome://extensions/` 加载一次即可，不再依赖篡改猴
-- 🌐 **匹配范围放宽到 `/forum/*`**：站内点「发帖 / 编辑」这类不刷新的跳转也能立刻生效
-- 🎬 **全新动效体系**：浮层 / 提示 / 视图切换加入场动画，时长放慢、统一 `cubic-bezier(.16,1,.3,1)` 长尾缓动
-- 🐛 修复编辑页不生效（面板被 Vue 重渲染冲掉后自动重建）、新手帮助浮层无背景、浮动菜单拖动选择时闪烁等问题
-
-> 完整更新日志见 [`PickScribe-2.0.1-更新日志.md`](PickScribe-2.0.1-更新日志.md)。
 
 ---
 
@@ -77,16 +65,27 @@
 
 ## 🚀 怎么用
 
-**第一步：安装扩展（三选一）**
+> **安装前须知**：PickScribe 目前**未上架 Chrome 网上应用店**，需要手动加载安装，
+> 因此**必须先开启「开发者模式」**。
 
-- **加载已解压的扩展（推荐）**：打开 `chrome://extensions/` → 右上角开启「**开发者模式**」→
-  点「**加载已解压的扩展程序**」→ 选择本仓库的 `pickcat-rich-editor-extension` 文件夹。
-- **安装打包好的 `.crx`**：到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载
-  `pickcat-rich-editor-extension.crx`，拖入 `chrome://extensions/` 页面安装（同样需开启开发者模式）。
-- **旧版油猴脚本（不推荐）**：安装 [Tampermonkey（篡改猴）](https://www.tampermonkey.net/) 后，
-  打开 [`pickcat-rich-editor.user.js`](https://raw.githubusercontent.com/GrantPome/PickScribe/main/pickcat-rich-editor.user.js) 一键安装。
+**第一步：安装扩展（二选一）**
 
-> ⚠️ 如果之前装过油猴版脚本，请先在篡改猴里**禁用或删除**它，再装扩展，避免双重注入。
+**方式 A · 安装 `.crx`（最省事）**
+
+1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载 `pickcat-rich-editor-extension.crx`
+2. 打开 `chrome://extensions/`，右上角开启「**开发者模式**」
+3. 把 `.crx` 文件拖入该页面，按提示确认安装
+
+**方式 B · 加载已解压的扩展**
+
+1. 下载或克隆本仓库，找到 `pickcat-rich-editor-extension` 文件夹
+2. 打开 `chrome://extensions/`，右上角开启「**开发者模式**」
+3. 点「**加载已解压的扩展程序**」，选择该文件夹
+
+> ⚠️ 开发者模式下，Chrome 每次启动可能提示「请停用以开发者模式运行的扩展程序」，
+> 这是加载非商店扩展的正常现象，忽略即可。
+>
+> 如果你之前装过油猴版脚本，请先在篡改猴里**禁用或删除**它，再装扩展，避免双重注入。
 
 打开任意 Pickcat 帖子编辑页，面板会自动出现在原生编辑器上方。
 
@@ -123,8 +122,8 @@ pickscribe/
 │   ├── manifest.json                    # Manifest V3 清单
 │   ├── content.js                       # 编辑器主体逻辑
 │   └── icons/                           # 扩展图标
-├── pickcat-rich-editor.user.js          # 旧版油猴脚本（保留兼容）
-├── PickScribe-2.0.1-更新日志.md          # 更新日志
+├── pickcat-rich-editor.user.js          # 早期油猴脚本（保留兼容）
+├── CHANGELOG.md                         # 更新日志
 ├── Pickcat富文本编辑器-产品说明.md        # 早期产品说明
 ├── assets/
 │   └── pickscribe-banner.png            # 宣传图
