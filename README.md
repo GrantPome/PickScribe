@@ -2,11 +2,15 @@
 
 # 🐱 PickScribe · Pickcat 富文本可视化编辑器
 
-> 一个注入到 Pickcat 帖子编辑页的油猴脚本：把「写 Markdown 源码」变成「像 Word 一样排版」，
+> 一个注入到 Pickcat 帖子编辑页的富文本可视化编辑器：把「写 Markdown 源码」变成「像 Word 一样排版」，
 > 排版所见即所得，同时和原生 Markdown 源码**双向实时同步**，不改后台、不改提交逻辑，安心用。
 
-[![版本](https://img.shields.io/badge/version-1.1.8-blue.svg)](pickcat-rich-editor.user.js)
-[![用户脚本](https://img.shields.io/badge/Tampermonkey-UserScript-2ea44f.svg)](https://www.tampermonkey.net/)
+[![版本](https://img.shields.io/badge/version-2.0.1-blue.svg)](pickcat-rich-editor-extension/manifest.json)
+[![Chrome 扩展](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4.svg)](https://developer.chrome.com/docs/extensions)
+
+> **2.0.1 起，PickScribe 从油猴脚本升级为标准 Chrome 扩展（Manifest V3）**，不再需要 Tampermonkey。
+> 旧的油猴脚本 `pickcat-rich-editor.user.js` 仍保留，但推荐改用扩展版。
+> ⚠️ 扩展与油猴脚本**请勿同时启用**，否则会注入两个编辑面板。
 
 ---
 
@@ -22,7 +26,18 @@
 - 从 Word / 网页复制内容进来，带了一堆乱七八糟的字体、颜色、背景，排版全乱。
 - 好不容易写完，预览才发现层级、列表、链接全错了，来回改到崩溃。
 
-**这个脚本就是为「发帖新手」准备的。** 打开编辑页就能用，零学习成本。
+**PickScribe 就是为「发帖新手」准备的。** 打开编辑页就能用，零学习成本。
+
+---
+
+## 🆕 2.0.1 更新亮点
+
+- 📦 **迁移为 Chrome 扩展（Manifest V3）**：在 `chrome://extensions/` 加载一次即可，不再依赖篡改猴
+- 🌐 **匹配范围放宽到 `/forum/*`**：站内点「发帖 / 编辑」这类不刷新的跳转也能立刻生效
+- 🎬 **全新动效体系**：浮层 / 提示 / 视图切换加入场动画，时长放慢、统一 `cubic-bezier(.16,1,.3,1)` 长尾缓动
+- 🐛 修复编辑页不生效（面板被 Vue 重渲染冲掉后自动重建）、新手帮助浮层无背景、浮动菜单拖动选择时闪烁等问题
+
+> 完整更新日志见 [`PickScribe-2.0.1-更新日志.md`](PickScribe-2.0.1-更新日志.md)。
 
 ---
 
@@ -36,14 +51,15 @@
 | 🎨 图标用站点原版 | 工具栏图标运行时读取站点原生图标，风格和你熟悉的编辑器**一模一样** |
 | 🌗 自动适配深浅色 | 直接复用站点设计变量，浅色 / 深色主题自动跟随，不突兀 |
 | 🧹 粘贴自动净化 | 从 Word / 网页粘贴，自动清理冗余样式、剔除危险内容，只留干净排版 |
+| 🎬 动效优雅 | 浮层、提示、视图切换都带入场动画，长尾缓动、收放自然 |
 | 🪶 零依赖轻量 | 纯原生实现，无任何第三方库，加载快、体积小，不拖慢页面 |
-| 🛡️ 安全无侵入 | 只在帖子编辑页生效，不改后端、复用站点原生提交逻辑，禁用即恢复原样 |
+| 🛡️ 安全无侵入 | 只在编辑页挂载面板，不改后端、复用站点原生提交逻辑，停用即恢复原样 |
 
 ---
 
 ## 🧰 完整适配原有编辑器的全部功能
 
-脚本不是「另起炉灶」，而是把站点原生编辑器能做的**全部**搬到了可视化工具栏里，
+不是「另起炉灶」，而是把站点原生编辑器能做的**全部**搬到了可视化工具栏里，
 点哪个按钮，背后走的就是站点原有的那套逻辑：
 
 - **Kitten 作品分享** —— 一键唤起站点原生作品选择器，上传 / 选图盘逻辑完全一致
@@ -61,14 +77,18 @@
 
 ## 🚀 怎么用
 
-**第一步：安装脚本**
+**第一步：安装扩展（三选一）**
 
-- **一键安装（推荐）**：浏览器安装 [Tampermonkey（篡改猴）](https://www.tampermonkey.net/) 扩展后，
-  直接打开 [`pickcat-rich-editor.user.js`](https://raw.githubusercontent.com/GrantPome/PickScribe/main/pickcat-rich-editor.user.js)，
-  Tampermonkey 会弹出安装页，点击「安装」即可。
-- **手动安装**：新建脚本，把 `pickcat-rich-editor.user.js` 的内容整段粘贴进去，保存。
+- **加载已解压的扩展（推荐）**：打开 `chrome://extensions/` → 右上角开启「**开发者模式**」→
+  点「**加载已解压的扩展程序**」→ 选择本仓库的 `pickcat-rich-editor-extension` 文件夹。
+- **安装打包好的 `.crx`**：到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载
+  `pickcat-rich-editor-extension.crx`，拖入 `chrome://extensions/` 页面安装（同样需开启开发者模式）。
+- **旧版油猴脚本（不推荐）**：安装 [Tampermonkey（篡改猴）](https://www.tampermonkey.net/) 后，
+  打开 [`pickcat-rich-editor.user.js`](https://raw.githubusercontent.com/GrantPome/PickScribe/main/pickcat-rich-editor.user.js) 一键安装。
 
-打开任意 Pickcat 帖子编辑页，脚本会自动在原生编辑器上方注入可视化面板。
+> ⚠️ 如果之前装过油猴版脚本，请先在篡改猴里**禁用或删除**它，再装扩展，避免双重注入。
+
+打开任意 Pickcat 帖子编辑页，面板会自动出现在原生编辑器上方。
 
 **第二步：三种视图，随心切换**
 
@@ -78,7 +98,7 @@
 
 **第三步：写完正常提交即可**
 
-提交时脚本会把最新内容写回原生输入框，走的还是站点原来的提交逻辑，放心。
+提交时会把最新内容写回原生输入框，走的还是站点原来的提交逻辑，放心。
 
 ---
 
@@ -99,10 +119,15 @@
 
 ```
 pickscribe/
-├── pickcat-rich-editor.user.js      # 油猴脚本本体（安装这个）
-├── Pickcat富文本编辑器-产品说明.md    # 详细产品说明
+├── pickcat-rich-editor-extension/       # Chrome 扩展（安装这个）
+│   ├── manifest.json                    # Manifest V3 清单
+│   ├── content.js                       # 编辑器主体逻辑
+│   └── icons/                           # 扩展图标
+├── pickcat-rich-editor.user.js          # 旧版油猴脚本（保留兼容）
+├── PickScribe-2.0.1-更新日志.md          # 更新日志
+├── Pickcat富文本编辑器-产品说明.md        # 早期产品说明
 ├── assets/
-│   └── pickscribe-banner.png        # 宣传图
+│   └── pickscribe-banner.png            # 宣传图
 └── README.md
 ```
 
@@ -112,21 +137,24 @@ pickscribe/
 
 **Q：会不会影响网站其他页面？**
 
-A：不会。脚本只匹配帖子编辑页，其他页面完全不注入、不运行。
+A：不会。扩展虽然匹配 `/forum/*`，但只在编辑页挂载面板，其他页面即使注入也不做任何事，不干扰站点。
 
 **Q：提交的内容会不会和以前不一样？**
 
 A：不会。最终提交的仍是标准 Markdown，和站点原生编辑器完全一致，只是帮你把排版过程变简单了。
 
+**Q：从油猴脚本换到扩展，我原来的内容会丢吗？**
+
+A：不会。编辑器读写的始终是站点原生输入框，扩展只是换了种加载方式，内容不受影响。
+
 **Q：粘贴 Word / 网页内容为什么格式变干净了？**
 
-A：这是刻意的。脚本会白名单过滤掉冗余字体、背景、隐藏元素等，只保留标题、加粗、颜色、链接等有效排版，避免排版错乱。
+A：这是刻意的。会白名单过滤掉冗余字体、背景、隐藏元素等，只保留标题、加粗、颜色、链接等有效排版，避免排版错乱。
 
 **Q：我不想用了怎么办？**
 
-A：在 Tampermonkey 里禁用或删除脚本，编辑页立刻恢复站点原样，不留任何痕迹。
+A：在 `chrome://extensions/` 里停用或移除扩展，编辑页立刻恢复站点原样，不留任何痕迹。
 
 ---
 
-
-觉得好用的话，欢迎在楼下反馈，也欢迎把脚本分享给身边被 Markdown 劝退的朋友 🐾
+觉得好用的话，欢迎在楼下反馈，也欢迎把 PickScribe 分享给身边被 Markdown 劝退的朋友 🐾
