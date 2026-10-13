@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Pickcat 富文本可视化编辑器",
-  "version": "2.0.3",
+  "version": "2.0.5",
   "description": "在 Pickcat 帖子编辑页注入类 Word 的可视化富文本编辑器：与 Markdown 源码双向实时同步，完整适配站点原生编辑器全部功能（作品分享 / 表情包 / 图片 / 表格 / 链接 / 公式 / 任务列表等），复用站点原生图标，粘贴自动净化。",
   "icons": {
     "16": "icons/icon16.png",

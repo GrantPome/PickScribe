@@ -21,7 +21,7 @@
   const NS = 'pcr';                       // 样式与类名统一前缀，避免污染站点样式
   const MOUNT_FLAG = 'pcrMounted';        // textarea 上的挂载标记，防止重复注入
   const HINT_KEY = 'pcr_hint_closed';     // 新手提示是否已关闭
-  const TOOLBAR_KEY = 'pcr_toolbar_style'; // 工具栏布局：compact（默认，紧凑单行）| groups（仿 Word 功能组）
+  const TOOLBAR_KEY = 'pcr_toolbar_style'; // 工具栏布局：compact（默认，紧凑单行）| line（仅分割线）| groups（仿 Word 功能组）
 
   /** 该页面是否是帖子编辑页（SPA 路由变化时用于兜底判断） */
   const isEditorPage = () => /\/forum\/editor(\/|$|\?)/.test(location.pathname + location.search);
@@ -687,6 +687,7 @@
     fullscreen: svg('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
     clear: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
     layout: svg('<rect x="3" y="4.5" width="18" height="6" rx="1.6"/><rect x="3" y="13.5" width="18" height="6" rx="1.6"/>'),
+    search: svg('<circle cx="10.7" cy="10.7" r="6.1"/><path d="m15.3 15.3 4.3 4.3"/>'),
     help: svg('<circle cx="12" cy="12" r="9"/><path d="M9.4 9.2a2.6 2.6 0 1 1 3.6 2.4c-.7.4-1 .9-1 1.7v.2"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>'),
     rich: svg('<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/>'),
     split: svg('<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M12 4.5v15"/>'),
@@ -738,9 +739,10 @@
 .${NS}-synced.is-busy .dot{background:var(--pcr-accent);box-shadow:0 0 0 3px var(--pcr-accent-soft);}
 
 /* —— 工具栏 ——
-   默认「紧凑」：单行按钮、组间留一点空隙做轻分组，不显示组名；
-   切到「功能组」（.pcr-tb-groups）时显示组名、组间细线、组高对齐，仿 Word 功能区。
-   两种布局只切换根节点类名，不重建 DOM，切换无闪烁。 */
+   三种布局，只切换根节点类名、不重建 DOM，切换无闪烁：
+   · 紧凑（默认）          ：单行按钮，组间只留一点空隙，无组名、无分割线
+   · 分组线（tb-grouped）  ：组间细线 + 组高对齐，但不显示组名
+   · 功能组（tb-grouped + tb-labels）：在分组线基础上再显示组名，仿 Word 功能区 */
 .${NS}-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:5px 6px;
   background:var(--pcr-surface);border:1px solid var(--pcr-border);border-bottom:0;
   border-radius:var(--pcr-r-surface) var(--pcr-r-surface) 0 0;}
@@ -752,13 +754,16 @@
 @keyframes ${NS}TbSwap{from{opacity:.4;transform:translateY(-2px);}to{opacity:1;transform:none;}}
 .${NS}-tb-anim{animation:${NS}TbSwap .32s cubic-bezier(.16,1,.3,1);}
 
-/* 功能组：仿 Word 功能区 —— 组名在按钮下方、组间细线、组高对齐 */
-.${NS}-root.${NS}-tb-groups .${NS}-toolbar{align-items:stretch;gap:0;padding:6px 4px 2px;}
-.${NS}-root.${NS}-tb-groups .${NS}-group{flex-direction:column;justify-content:space-between;
-  align-items:center;padding:0 6px 2px;border-right:1px solid var(--pcr-border);}
-.${NS}-root.${NS}-tb-groups .${NS}-group:last-child{border-right:0;}
-.${NS}-root.${NS}-tb-groups .${NS}-group-row{justify-content:center;}
-.${NS}-root.${NS}-tb-groups .${NS}-group-label{display:block;font-size:10.5px;line-height:1;
+/* 分组布局（分组线 / 功能组共用）：组间细线、组高对齐、窗口变窄时按组换行 */
+.${NS}-root.${NS}-tb-grouped .${NS}-toolbar{align-items:stretch;gap:0;padding:6px 4px;}
+.${NS}-root.${NS}-tb-grouped .${NS}-group{flex-direction:column;justify-content:space-between;
+  align-items:center;padding:0 6px;border-right:1px solid var(--pcr-border);}
+.${NS}-root.${NS}-tb-grouped .${NS}-group:last-child{border-right:0;}
+.${NS}-root.${NS}-tb-grouped .${NS}-group-row{justify-content:center;}
+/* 组名只在「功能组」下显示；「分组线」模式去掉分类文字，只保留分割线 */
+.${NS}-root.${NS}-tb-grouped.${NS}-tb-labels .${NS}-toolbar{padding:6px 4px 2px;}
+.${NS}-root.${NS}-tb-grouped.${NS}-tb-labels .${NS}-group{padding:0 6px 2px;}
+.${NS}-root.${NS}-tb-grouped.${NS}-tb-labels .${NS}-group-label{display:block;font-size:10.5px;line-height:1;
   color:var(--pcr-subtle);opacity:.8;padding-top:4px;letter-spacing:.02em;
   user-select:none;pointer-events:none;}
 .${NS}-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;
@@ -847,8 +852,9 @@
   from{opacity:0;transform:translateY(-7px) scale(.96);}
   to{opacity:1;transform:translateY(0) scale(1);}
 }
-/* —— 调色板 / 帮助浮层 —— */
-.${NS}-pop{position:absolute;z-index:70;background:var(--pcr-surface);border:1px solid var(--pcr-border);
+/* —— 调色板 / 帮助 / 查找浮层 ——
+   z-index 高于全屏编辑（9999），否则全屏时浮层会被面板盖住。 */
+.${NS}-pop{position:absolute;z-index:10001;background:var(--pcr-surface);border:1px solid var(--pcr-border);
   border-radius:var(--pcr-r-surface);box-shadow:0 8px 28px rgba(0,0,0,.16);padding:8px;
   transform-origin:top right;animation:${NS}PopIn .34s cubic-bezier(.16,1,.3,1) both;}
 .${NS}-swatches{display:grid;grid-template-columns:repeat(6,20px);gap:6px;}
@@ -859,8 +865,34 @@
 .${NS}-pop-help b{color:var(--pcr-text);}
 .${NS}-pop-help ul{margin:6px 0 0;padding-left:1.1em;}
 
+/* —— 查找替换浮层 —— */
+.${NS}-find{width:314px;padding:10px;transform-origin:top left;}
+.${NS}-find-row{display:flex;align-items:center;gap:6px;}
+.${NS}-find-row + .${NS}-find-row{margin-top:6px;}
+.${NS}-find-input,.${NS}-find-repl{flex:1;min-width:0;height:30px;padding:0 9px;font:inherit;font-size:13px;
+  color:var(--pcr-text);background:var(--pcr-canvas);border:1px solid var(--pcr-border);
+  border-radius:var(--pcr-r-control);outline:none;
+  transition:border-color .24s cubic-bezier(.22,1,.36,1),background .24s;}
+.${NS}-find-input:focus,.${NS}-find-repl:focus{border-color:var(--pcr-accent);background:var(--pcr-surface);}
+.${NS}-find-count{flex:none;min-width:44px;text-align:right;font-size:11.5px;color:var(--pcr-subtle);
+  font-variant-numeric:tabular-nums;}
+.${NS}-find-acts{display:flex;gap:6px;margin-top:8px;}
+.${NS}-find-btn{flex:1;height:30px;border:1px solid var(--pcr-border);background:var(--pcr-surface);
+  color:var(--pcr-text);font:inherit;font-size:12.5px;border-radius:var(--pcr-r-control);cursor:pointer;
+  transition:background .22s cubic-bezier(.22,1,.36,1),border-color .22s,color .22s,transform .18s;}
+.${NS}-find-btn:hover{background:var(--pcr-surface-hover);}
+.${NS}-find-btn:active{transform:scale(.96);}
+.${NS}-find-btn.is-primary{background:var(--pcr-accent);border-color:var(--pcr-accent);color:#fff;}
+.${NS}-find-btn.is-primary:hover{background:var(--pcr-accent);filter:brightness(1.07);}
+.${NS}-find-opt{display:inline-flex;align-items:center;gap:5px;margin-top:8px;font-size:12px;
+  color:var(--pcr-subtle);cursor:pointer;user-select:none;}
+.${NS}-find-opt input{margin:0;accent-color:var(--pcr-accent);}
+/* 查找高亮：用 CSS Custom Highlight API 画在文字上，不改动 DOM，因此不影响 Markdown 转换 */
+::highlight(${NS}-find-all){background-color:rgba(240,62,70,.2);}
+::highlight(${NS}-find-cur){background-color:rgba(240,62,70,.55);color:#fff;}
+
 /* —— 选中浮动菜单 —— */
-.${NS}-float{position:absolute;z-index:80;display:flex;align-items:center;gap:2px;padding:4px;
+.${NS}-float{position:absolute;z-index:10002;display:flex;align-items:center;gap:2px;padding:4px;
   background:#1f2328;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.28);
   transform-origin:bottom center;animation:${NS}PopIn .32s cubic-bezier(.16,1,.3,1) both;}
 .${NS}-float button{width:28px;height:28px;border:0;background:transparent;color:#e6e8eb;cursor:pointer;
@@ -873,7 +905,7 @@
 .${NS}-toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%) translateY(10px);
   background:#1f2328;color:#fff;font-size:13px;line-height:1.5;max-width:80vw;text-align:center;
   padding:9px 16px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.24);
-  opacity:0;pointer-events:none;transition:opacity .32s,transform .32s cubic-bezier(.16,1,.3,1);z-index:90;}
+  opacity:0;pointer-events:none;transition:opacity .32s,transform .32s cubic-bezier(.16,1,.3,1);z-index:10003;}
 .${NS}-toast.is-show{opacity:1;transform:translateX(-50%) translateY(0);}
 .${NS}-hidden{display:none !important;}
 
@@ -1069,6 +1101,13 @@
 
   function closePopups() {
     document.querySelectorAll('.' + NS + '-pop, .' + NS + '-float').forEach((el) => el.remove());
+    // 浮层被统一清掉时同步重置查找状态，避免残留高亮与悬空的定时器
+    if (findTimer) { clearTimeout(findTimer); findTimer = null; }
+    findPop = null;
+    findMatches = [];
+    findIndex = -1;
+    clearFindHighlights();
+    syncFindBtn();
   }
 
   /** 轻量非阻塞提示（替代 alert，体验更顺滑） */
@@ -1088,7 +1127,335 @@
     toastTimer = setTimeout(() => el.classList.remove('is-show'), 2600);
   }
 
-  // ============================ 5.1 站点原生能力复用 ============================
+  // ============================ 5.1 查找替换 ============================
+
+  let findPop = null;        // 查找替换浮层（挂在 body 上，和调色板 / 帮助同一套样式）
+  let findMatches = [];      // 当前匹配集合：[{ start, end }]，偏移基于「编辑区纯文本」
+  let findIndex = -1;        // 当前定位到的匹配序号（-1 表示没有定位）
+  let findTimer = null;      // 输入防抖
+  const FIND_ALL = NS + '-find-all';   // 全部匹配的 CSS 高亮注册名
+  const FIND_CUR = NS + '-find-cur';   // 当前匹配的 CSS 高亮注册名
+
+  /** 收集富文本区内的文本节点，拼成纯文本，并记录每个节点对应的字符区间 */
+  function collectTextNodes(rootEl) {
+    const nodes = [];
+    let text = '';
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.nodeValue ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
+    });
+    let n;
+    while ((n = walker.nextNode())) {
+      nodes.push({ node: n, start: text.length, end: text.length + n.nodeValue.length });
+      text += n.nodeValue;
+    }
+    return { nodes, text };
+  }
+
+  /** 把纯文本偏移区间还原成 DOM Range（跨节点的匹配也能还原） */
+  function rangeFromOffsets(seg, start, end) {
+    let a = null, b = null;
+    for (let i = 0; i < seg.nodes.length; i++) {
+      const s = seg.nodes[i];
+      if (!a && start >= s.start && start < s.end) a = { node: s.node, offset: start - s.start };
+      if (!b && end > s.start && end <= s.end) b = { node: s.node, offset: end - s.start };
+      if (a && b) break;
+    }
+    if (!a || !b) return null;
+    try {
+      const r = document.createRange();
+      r.setStart(a.node, a.offset);
+      r.setEnd(b.node, b.offset);
+      return r;
+    } catch (e) { return null; }
+  }
+
+  /** 在文本里找出全部匹配（不重叠；大小写可选） */
+  function matchAll(text, query, caseSensitive) {
+    const out = [];
+    if (!text || !query) return out;
+    const hay = caseSensitive ? text : text.toLowerCase();
+    const needle = caseSensitive ? query : query.toLowerCase();
+    let i = hay.indexOf(needle);
+    while (i >= 0) {
+      out.push({ start: i, end: i + needle.length });
+      i = hay.indexOf(needle, i + needle.length);
+    }
+    return out;
+  }
+
+  /** 读取浮层里的查询词 / 替换词 / 选项 */
+  function findInputs() {
+    if (!findPop) return null;
+    const q = findPop.querySelector('.' + NS + '-find-input');
+    const c = findPop.querySelector('.' + NS + '-find-case');
+    return {
+      query: q ? q.value : '',
+      repl: (findPop.querySelector('.' + NS + '-find-repl') || { value: '' }).value,
+      caseSensitive: !!(c && c.checked)
+    };
+  }
+
+  /** 按当前视图扫描一遍：源码视图查原生输入框，其余视图查富文本区 */
+  function findScan() {
+    const opt = findInputs();
+    if (!opt) return null;
+    if (mode === 'source' && textarea) {
+      return { kind: 'textarea', text: textarea.value, matches: matchAll(textarea.value, opt.query, opt.caseSensitive), opt };
+    }
+    if (!editor) return null;
+    const seg = collectTextNodes(editor);
+    return { kind: 'rich', seg, text: seg.text, matches: matchAll(seg.text, opt.query, opt.caseSensitive), opt };
+  }
+
+  /** 浏览器是否支持 CSS Custom Highlight API（Chrome 105+） */
+  function canHighlight() {
+    return !!(window.CSS && CSS.highlights && typeof window.Highlight === 'function');
+  }
+
+  /** 用 CSS Custom Highlight API 画高亮：只画不改 DOM，所以不会污染 Markdown 转换 */
+  function paintHighlights(seg, matches, current) {
+    if (!canHighlight()) return;
+    try {
+      CSS.highlights.delete(FIND_ALL);
+      CSS.highlights.delete(FIND_CUR);
+      if (!seg || !matches.length) return;
+      const others = [];
+      let cur = null;
+      matches.forEach((m, i) => {
+        const r = rangeFromOffsets(seg, m.start, m.end);
+        if (!r) return;
+        if (i === current) cur = r; else others.push(r);
+      });
+      if (others.length) CSS.highlights.set(FIND_ALL, new Highlight(...others));
+      if (cur) CSS.highlights.set(FIND_CUR, new Highlight(cur));
+    } catch (e) { /* 不支持就静默降级，只是没有高亮 */ }
+  }
+
+  function clearFindHighlights() {
+    if (!canHighlight()) return;
+    try { CSS.highlights.delete(FIND_ALL); CSS.highlights.delete(FIND_CUR); } catch (e) { /* noop */ }
+  }
+
+  /** 把富文本区的匹配滚动到可视范围 */
+  function scrollRichMatch(seg, m) {
+    const r = rangeFromOffsets(seg, m.start, m.end);
+    if (!r) return;
+    const host = r.startContainer.nodeType === 1 ? r.startContainer : r.startContainer.parentElement;
+    if (host && host.scrollIntoView) {
+      try { host.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* noop */ }
+    }
+  }
+
+  /** 在源码视图里选中并滚动到匹配；focus=false 时只设置选区、不抢焦点 */
+  function revealTextareaMatch(m, focus) {
+    if (!textarea) return;
+    try {
+      if (focus) textarea.focus({ preventScroll: true });
+      textarea.setSelectionRange(m.start, m.end);
+    } catch (e) { /* noop */ }
+    const line = textarea.value.slice(0, m.start).split('\n').length - 1;
+    const lh = parseFloat(getComputedStyle(textarea).lineHeight) || 22;
+    textarea.scrollTop = Math.max(0, line * lh - textarea.clientHeight / 2);
+  }
+
+  /**
+   * 渲染一次查找结果：计数、高亮、滚动定位。
+   * quiet=true 只更新计数与高亮，不动滚动与选区 —— 用于「编辑区内容变化后的自动刷新」，
+   * 否则会把用户正在输入的光标位置抢走；focusTa=true 才把焦点交给源码视图的原生输入框。
+   */
+  function renderFind(scan, idx, opts) {
+    const quiet = !!(opts && opts.quiet);
+    const focusTa = !!(opts && opts.focusTa);
+    findMatches = scan.matches;
+    const n = findMatches.length;
+    findIndex = n ? ((idx % n) + n) % n : -1;
+    const count = findPop && findPop.querySelector('.' + NS + '-find-count');
+    if (count) {
+      count.textContent = !scan.opt.query ? '0/0' : (n ? (findIndex + 1) + '/' + n : '无结果');
+    }
+    if (scan.kind === 'rich') {
+      paintHighlights(scan.seg, findMatches, findIndex);
+      if (!quiet && findIndex >= 0) scrollRichMatch(scan.seg, findMatches[findIndex]);
+    } else {
+      clearFindHighlights();
+      if (!quiet && findIndex >= 0) revealTextareaMatch(findMatches[findIndex], focusTa);
+    }
+  }
+
+  /** 重新扫描并刷新；reset=true 时回到第一个匹配（输入查询词时用） */
+  function runFind(reset, opts) {
+    if (!findPop) return null;
+    const scan = findScan();
+    if (!scan) return null;
+    const keep = !reset && findIndex >= 0 && findIndex < scan.matches.length;
+    renderFind(scan, keep ? findIndex : 0, opts);
+    return scan;
+  }
+
+  /** 上一个 / 下一个（循环）；显式导航时才把焦点交给源码输入框 */
+  function stepFind(delta) {
+    if (!findPop) return;
+    const scan = findScan();
+    if (!scan) return;
+    if (!scan.matches.length) { renderFind(scan, -1, { quiet: true }); return; }
+    const base = findIndex < 0 ? (delta > 0 ? -1 : 0) : findIndex;
+    renderFind(scan, base + delta, { focusTa: true });
+  }
+
+  /** 替换当前匹配 */
+  function replaceCurrent() {
+    if (!findPop) return;
+    const scan = findScan();
+    if (!scan || !scan.matches.length) { toast('没有可替换的内容'); return; }
+    const m = scan.matches[findIndex < 0 ? 0 : findIndex];
+    const text = scan.opt.repl;
+    if (scan.kind === 'textarea') {
+      const v = textarea.value;
+      setTextareaValue(v.slice(0, m.start) + text + v.slice(m.end));
+    } else {
+      const r = rangeFromOffsets(scan.seg, m.start, m.end);
+      if (!r) return;
+      r.deleteContents();
+      if (text) r.insertNode(document.createTextNode(text));
+      richToSource();
+    }
+    runFind(false, { quiet: true });
+    toast('已替换 1 处');
+  }
+
+  /** 全部替换：从后往前改，保证前面的偏移始终有效 */
+  function replaceAll() {
+    if (!findPop) return 0;
+    const scan = findScan();
+    if (!scan || !scan.matches.length) { toast('没有可替换的内容'); return 0; }
+    const text = scan.opt.repl;
+    let n = 0;
+    if (scan.kind === 'textarea') {
+      let v = textarea.value;
+      for (let i = scan.matches.length - 1; i >= 0; i--) {
+        const m = scan.matches[i];
+        v = v.slice(0, m.start) + text + v.slice(m.end);
+        n++;
+      }
+      setTextareaValue(v);
+    } else {
+      for (let i = scan.matches.length - 1; i >= 0; i--) {
+        const m = scan.matches[i];
+        const r = rangeFromOffsets(scan.seg, m.start, m.end);
+        if (!r) continue;
+        r.deleteContents();
+        if (text) r.insertNode(document.createTextNode(text));
+        n++;
+      }
+      richToSource();
+    }
+    runFind(true, { quiet: true });
+    toast('已替换 ' + n + ' 处');
+    return n;
+  }
+
+  /** 同步查找按钮的选中态（浮层开着时按钮高亮） */
+  function syncFindBtn() {
+    const b = root && root.querySelector('.' + NS + '-btn[data-key="find"]');
+    if (b) b.classList.toggle('is-on', !!findPop);
+  }
+
+  /** 打开 / 收起查找替换浮层 */
+  function openFind(anchorBtn) {
+    if (findPop) { closeFind(); return; }   // 再点一次即收起
+    closePopups();
+    const pop = document.createElement('div');
+    pop.className = NS + '-pop ' + NS + '-find';
+    pop.innerHTML =
+      '<div class="' + NS + '-find-row">' +
+        '<input type="text" class="' + NS + '-find-input" placeholder="查找内容" spellcheck="false">' +
+        '<span class="' + NS + '-find-count">0/0</span>' +
+      '</div>' +
+      '<div class="' + NS + '-find-row">' +
+        '<input type="text" class="' + NS + '-find-repl" placeholder="替换为（留空即删除）" spellcheck="false">' +
+      '</div>' +
+      '<div class="' + NS + '-find-acts">' +
+        '<button type="button" class="' + NS + '-find-btn" data-act="prev">上一个</button>' +
+        '<button type="button" class="' + NS + '-find-btn" data-act="next">下一个</button>' +
+        '<button type="button" class="' + NS + '-find-btn" data-act="replace">替换</button>' +
+        '<button type="button" class="' + NS + '-find-btn is-primary" data-act="replace-all">全部替换</button>' +
+      '</div>' +
+      '<label class="' + NS + '-find-opt">' +
+        '<input type="checkbox" class="' + NS + '-find-case"><span>区分大小写</span>' +
+      '</label>';
+    document.body.appendChild(pop);
+    findPop = pop;
+
+    // 定位到工具栏按钮正下方，并夹在可视范围内
+    const r = anchorBtn.getBoundingClientRect();
+    const w = pop.offsetWidth || 314;
+    pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(
+      window.scrollX + r.left,
+      window.scrollX + document.documentElement.clientWidth - w - 8
+    )) + 'px';
+
+    const q = pop.querySelector('.' + NS + '-find-input');
+    const cs = pop.querySelector('.' + NS + '-find-case');
+    // 输入防抖：边打字边高亮
+    q.addEventListener('input', () => {
+      clearTimeout(findTimer);
+      findTimer = setTimeout(() => runFind(true), 120);
+    });
+    cs.addEventListener('change', () => runFind(true));
+    pop.querySelectorAll('.' + NS + '-find-btn').forEach((b) => {
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        const act = b.dataset.act;
+        if (act === 'prev') stepFind(-1);
+        else if (act === 'next') stepFind(1);
+        else if (act === 'replace') replaceCurrent();
+        else replaceAll();
+      });
+    });
+
+    // 编辑区里有选中文字时，直接带进来当查询词（和浏览器 Ctrl+F 习惯一致）
+    const sel = getSelectedText();
+    if (sel && sel.length <= 80 && !/\n/.test(sel)) q.value = sel;
+
+    syncFindBtn();
+    q.focus();
+    q.select();
+    if (q.value) runFind(true);
+  }
+
+  /** 收起查找浮层并清理高亮 / 状态 */
+  function closeFind() {
+    if (findTimer) { clearTimeout(findTimer); findTimer = null; }
+    if (findPop) { findPop.remove(); findPop = null; }
+    findMatches = [];
+    findIndex = -1;
+    clearFindHighlights();
+    syncFindBtn();
+  }
+
+  /** 内容变化时延迟刷新匹配（浮层没开就什么都不做） */
+  function refreshFindSoon() {
+    if (!findPop) return;
+    clearTimeout(findTimer);
+    findTimer = setTimeout(() => runFind(false, { quiet: true }), 160);
+  }
+
+  // 浮层打开时接管回车 / Esc：浮层内输入框、源码视图的原生输入框都生效；
+  // 可视化编辑区里的回车不接管，正常换行。
+  document.addEventListener('keydown', (e) => {
+    if (!findPop) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeFind(); return; }
+    if (e.key !== 'Enter') return;
+    const t = e.target;
+    const inFind = !!(t && t.closest && t.closest('.' + NS + '-find'));
+    if (!inFind && t !== textarea) return;
+    e.preventDefault();
+    stepFind(e.shiftKey ? -1 : 1);
+  }, true);
+
+  // ============================ 5.2 站点原生能力复用 ============================
 
   /**
    * 站点按钮候选标签。
@@ -1296,16 +1663,29 @@
   }
 
   /** 构建整个面板 DOM */
+  // 三种工具栏布局的固定循环顺序：紧凑 → 分组线 → 功能组 → 紧凑
+  const TB_MODES = ['compact', 'line', 'groups'];
+  const TB_TIPS = {
+    compact: '紧凑',
+    line: '分组线（仅分割线）',
+    groups: '功能组（仿 Word）'
+  };
+
   /** 读取已保存的工具栏布局（默认紧凑） */
   function readToolbarStyle() {
-    try { return localStorage.getItem(TOOLBAR_KEY) === 'groups' ? 'groups' : 'compact'; }
-    catch (e) { return 'compact'; }
+    try {
+      const v = localStorage.getItem(TOOLBAR_KEY);
+      return TB_MODES.indexOf(v) > -1 ? v : 'compact';
+    } catch (e) { return 'compact'; }
   }
 
-  /** 应用工具栏布局：compact 紧凑单行（默认）/ groups 仿 Word 功能组 */
+  /** 应用工具栏布局：compact 紧凑单行（默认）/ line 只留组间分割线 / groups 仿 Word 功能组 */
   function setToolbarStyle(style, persist) {
-    const s = style === 'groups' ? 'groups' : 'compact';
-    if (root) root.classList.toggle(NS + '-tb-groups', s === 'groups');
+    const s = TB_MODES.indexOf(style) > -1 ? style : 'compact';
+    if (root) {
+      root.classList.toggle(NS + '-tb-grouped', s !== 'compact');  // 分组线 / 功能组共用：组间细线 + 组高对齐
+      root.classList.toggle(NS + '-tb-labels', s === 'groups');    // 仅功能组显示组名
+    }
     if (persist) { try { localStorage.setItem(TOOLBAR_KEY, s); } catch (e) {} }
     syncLayoutBtn();
     return s;
@@ -1315,18 +1695,20 @@
   function syncLayoutBtn() {
     const b = root && root.querySelector('.' + NS + '-btn[data-key="layout"]');
     if (!b) return;
-    const g = readToolbarStyle() === 'groups';
-    b.classList.toggle('is-on', g);
-    b.setAttribute('data-tip', g ? '工具栏：功能组（点击切回紧凑）' : '工具栏：紧凑（点击切换功能组）');
+    const s = readToolbarStyle();
+    const next = TB_MODES[(TB_MODES.indexOf(s) + 1) % TB_MODES.length];
+    b.classList.toggle('is-on', s !== 'compact');
+    b.setAttribute('data-tip', '工具栏：' + TB_TIPS[s] + '（点击切换「' + TB_TIPS[next] + '」）');
   }
 
-  /** 在「紧凑」和「功能组」两种工具栏布局之间切换，并记忆选择 */
+  /** 在「紧凑 → 分组线 → 功能组」三种工具栏布局之间循环切换，并记忆选择 */
   function toggleToolbarStyle() {
-    const next = readToolbarStyle() === 'groups' ? 'compact' : 'groups';
+    const s = readToolbarStyle();
+    const next = TB_MODES[(TB_MODES.indexOf(s) + 1) % TB_MODES.length];
     setToolbarStyle(next, true);
     const bar = root && root.querySelector('.' + NS + '-toolbar');
     if (bar) { bar.classList.remove(NS + '-tb-anim'); void bar.offsetWidth; bar.classList.add(NS + '-tb-anim'); }
-    toast(next === 'groups' ? '工具栏已切换为「功能组」（仿 Word）' : '工具栏已切换为「紧凑」单行');
+    toast('工具栏已切换为「' + TB_TIPS[next] + '」');
   }
 
   function buildPanel() {
@@ -1369,7 +1751,7 @@
     root.appendChild(head);
     syncLayoutBtn();   // 布局按钮建好后，同步它的选中态与提示
 
-    // —— 工具栏：按钮顺序沿用站点原有习惯；默认紧凑单行，可一键切成仿 Word 功能组 ——
+    // —— 工具栏：按钮顺序沿用站点原有习惯；默认紧凑单行，可循环切成「分组线」「功能组」——
     const bar = document.createElement('div');
     bar.className = NS + '-toolbar';
     bar.setAttribute('role', 'toolbar');
@@ -1386,6 +1768,10 @@
     group('历史');
     add(makeBtn({ key: 'undo', html: ICONS.undo, tip: '撤销 (Ctrl+Z)', onClick: () => exec('undo') }));
     add(makeBtn({ key: 'redo', html: ICONS.redo, tip: '重做 (Ctrl+Y)', onClick: () => exec('redo') }));
+
+    // —— 查找（紧跟撤销/重做，和 Word 的「编辑」区习惯一致）——
+    group('查找');
+    add(makeBtn({ key: 'find', html: ICONS.search, tip: '查找替换', onClick: (b) => openFind(b) }));
 
     // —— 媒体：复用站点原生选择器，保证上传与图盘逻辑一致 ——
     group('媒体');
@@ -1513,7 +1899,7 @@
 
   function bindEditorEvents() {
     // 输入 → 同步到 Markdown 源码
-    editor.addEventListener('input', () => { richToSource(); updateFloatMenu(); });
+    editor.addEventListener('input', () => { richToSource(); updateFloatMenu(); refreshFindSoon(); });
     editor.addEventListener('blur', () => setTimeout(closeFloatMenu, 180));
 
     // 任务列表：点击左侧复选框区域切换勾选状态（复选框由 CSS 伪元素绘制在 li 左侧）
@@ -1716,6 +2102,8 @@
       // 回到可视化：以源码为准刷新富文本（用户可能刚在源码里改过）
       sourceToRich();
     }
+    // 查找浮层开着时，视图切换会改变查找目标（富文本 ↔ 原生输入框），重新扫描一次
+    if (findPop) runFind(false, { quiet: true });
   }
 
   // ============================ 8. 挂载与 SPA 监听 ============================
@@ -1737,6 +2125,9 @@
     const panelAlive = root && document.body.contains(root);
     if (wired && panelAlive) return;   // 已挂载且面板健在，无需处理
 
+    // 面板要重建：先收起查找浮层，它的高亮 Range 指向的是即将被丢弃的旧编辑区
+    closeFind();
+
     textarea = ta;
 
     if (!wired) {
@@ -1753,7 +2144,7 @@
       // 源码侧输入 → 同步到富文本。
       // 注意：站点原生功能（作品分享 / 表情 / 图片等）会在任意模式下把内容写回 textarea，
       // 所以这里不按 mode 过滤，统一同步回富文本；sourceToRich 内部有 lock 保护。
-      ta.addEventListener('input', () => { lastTaValue = ta.value; sourceToRich(); });
+      ta.addEventListener('input', () => { lastTaValue = ta.value; sourceToRich(); refreshFindSoon(); });
 
       // 提交前兜底：确保 Markdown 已写入 textarea
       const form = ta.closest('form');
