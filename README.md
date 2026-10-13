@@ -71,6 +71,9 @@
 
 > **安装前须知**：PickScribe 目前**未上架 Chrome 网上应用店**，需要手动加载安装，
 > 因此**必须先开启「开发者模式」**。
+>
+> **Microsoft Edge 也可以用**：Edge 与 Chrome 同为 Chromium 内核，扩展完全兼容，
+> 把下面的 `chrome://extensions/` 换成 `edge://extensions/` 即可，其余步骤一模一样。
 
 **第一步：安装扩展（二选一）**
 
@@ -78,13 +81,13 @@
 
 1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载 `pickcat-rich-editor-extension.zip`
 2. 解压到任意目录，得到一个包含 `manifest.json` 的文件夹
-3. 打开 `chrome://extensions/`，右上角开启「**开发者模式**」
+3. 打开 `chrome://extensions/`（Edge 为 `edge://extensions/`），右上角开启「**开发者模式**」
 4. 点「**加载已解压的扩展程序**」，选择第 2 步解压出的文件夹
 
 **方式 B · 克隆 / 下载仓库源码**
 
 1. 下载或克隆本仓库，找到 `pickcat-rich-editor-extension` 文件夹
-2. 打开 `chrome://extensions/`，右上角开启「**开发者模式**」
+2. 打开 `chrome://extensions/`（Edge 为 `edge://extensions/`），右上角开启「**开发者模式**」
 3. 点「**加载已解压的扩展程序**」，选择该文件夹
 
 > ⚠️ 开发者模式下，Chrome 每次启动可能提示「请停用以开发者模式运行的扩展程序」，
@@ -141,7 +144,11 @@ pickscribe/
 
 **Q：会不会影响网站其他页面？**
 
-A：不会。扩展虽然匹配 `/forum/*`，但只在编辑页挂载面板，其他页面即使注入也不做任何事，不干扰站点。
+A：不会。扩展虽然在整个站点注入，但只在编辑页挂载面板，其他页面什么都不做，不干扰站点。
+
+**Q：Microsoft Edge 能用吗？**
+
+A：可以。Edge 和 Chrome 同为 Chromium 内核，扩展完全兼容，安装时把 `chrome://extensions/` 换成 `edge://extensions/` 即可，其余步骤一样。
 
 **Q：提交的内容会不会和以前不一样？**
 

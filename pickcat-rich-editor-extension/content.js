@@ -2151,7 +2151,9 @@
     if (!isEditorPage()) return;
     const ta = findTextarea();
     if (!ta) return;
-    if (ta.offsetParent === null && !ta.closest('form')) return; // 尚未真正渲染
+    // 节点还没进文档说明尚未渲染；已经进文档的即使暂时不可见也照常挂载，
+    // 避免站点容器折叠 / 隐藏时偶发「不注入」。
+    if (!document.body.contains(ta)) return;
 
     const wired = ta.dataset[MOUNT_FLAG] === '1';
     const panelAlive = root && document.body.contains(root);
@@ -2225,13 +2227,16 @@
   }, 300));
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  // 常驻看护 1：面板被站点重渲染移除时自动重建。
-  // 编辑帖子页会先加载帖子数据再渲染编辑器，Vue 重渲染容易把注入的节点冲掉，
-  // 只靠「已挂载」标记会导致面板消失后不再恢复（表现为脚本完全不生效）。
+  // 常驻看护 1：面板被站点重渲染移除时自动重建，并在站内路由切换时立即挂载。
+  // 编辑帖子页会先加载帖子数据再渲染编辑器，Vue 重渲染容易把注入的节点冲掉；
+  // 另外站点是 SPA，站内跳转不刷新页面，必须靠这里兜底（否则会出现「有时注入、有时不注入」）。
+  let lastHref = location.href;
   setInterval(() => {
     if (!isEditorPage()) return;
-    if (!root || !document.body.contains(root)) mount();
-  }, 1200);
+    const routeChanged = location.href !== lastHref;
+    lastHref = location.href;
+    if (routeChanged || !root || !document.body.contains(root)) mount();
+  }, 600);
 
   // 常驻看护 2：框架（Vue v-model）可能直接改写 textarea.value 且不派发 input，
   // 这里做兜底同步；脚本自己写入的值记录在 lastTaValue，不会被误判为外部变化。
