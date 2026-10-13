@@ -10,7 +10,7 @@
  *    保证“所见即所得”且格式不丢失。
  * 4. UI 直接复用站点设计令牌（--ui-accent / --bg-surface / --ui-border / --radius-* 等），
  *    因此自动适配站点的浅色 / 深色主题，无需硬编码配色。
- * 5. 版本 2.0.1：Chrome 扩展（Manifest V3）content script，由早期油猴脚本迁移而来。
+ * 5. 这是 Chrome 扩展（Manifest V3）的 content script，由早期油猴脚本迁移而来；版本号见 manifest.json。
  */
 
 (function () {
@@ -735,11 +735,16 @@
 .${NS}-synced .dot{width:6px;height:6px;border-radius:50%;background:#37c26b;box-shadow:0 0 0 3px rgba(55,194,107,.16);}
 .${NS}-synced.is-busy .dot{background:var(--pcr-accent);box-shadow:0 0 0 3px var(--pcr-accent-soft);}
 
-/* —— 工具栏 —— */
-.${NS}-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:6px 8px;
+/* —— 工具栏：仿 Word 功能组，组间以细线分隔、组名以小字居中显示在下方 —— */
+.${NS}-toolbar{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;padding:6px 4px 2px;
   background:var(--pcr-surface);border:1px solid var(--pcr-border);border-bottom:0;
   border-radius:var(--pcr-r-surface) var(--pcr-r-surface) 0 0;}
-.${NS}-sep{width:1px;height:18px;background:var(--pcr-border);margin:0 5px;}
+.${NS}-group{display:flex;flex-direction:column;justify-content:space-between;align-items:center;
+  padding:0 6px 2px;border-right:1px solid var(--pcr-border);}
+.${NS}-group:last-child{border-right:0;}
+.${NS}-group-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px;}
+.${NS}-group-label{font-size:10.5px;line-height:1;color:var(--pcr-subtle);opacity:.8;
+  padding-top:4px;letter-spacing:.02em;user-select:none;pointer-events:none;}
 .${NS}-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;
   width:32px;height:32px;border:0;border-radius:var(--pcr-r-control);background:transparent;
   color:var(--pcr-subtle);cursor:pointer;font:inherit;
@@ -747,7 +752,6 @@
 .${NS}-btn:hover{background:var(--pcr-surface-hover);color:var(--pcr-text);}
 .${NS}-btn:active{transform:scale(.94);}
 .${NS}-btn.is-on{background:var(--pcr-accent-soft);color:var(--pcr-accent);}
-.${NS}-btn.wide{width:auto;padding:0 8px;font-weight:600;font-size:13px;}
 .${NS}-glyph{font-size:14px;line-height:1;font-weight:700;font-family:Georgia,'Times New Roman',serif;}
 .${NS}-glyph.italic{font-style:italic;font-weight:600;}
 .${NS}-glyph.under{text-decoration:underline;text-underline-offset:2px;}
@@ -884,7 +888,7 @@
   function makeBtn(opts) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = NS + '-btn' + (opts.wide ? ' wide' : '');
+    b.className = NS + '-btn';
     b.dataset.pcrOwn = '1';   // 标记为脚本自身按钮，避免站点按钮查找时误命中自己
     b.innerHTML = opts.html;
     if (opts.tip) b.setAttribute('data-tip', opts.tip);
@@ -894,12 +898,6 @@
     b.addEventListener('click', (e) => { e.preventDefault(); opts.onClick(b); });
     if (opts.key) b.dataset.key = opts.key;
     return b;
-  }
-
-  function makeSep() {
-    const s = document.createElement('span');
-    s.className = NS + '-sep';
-    return s;
   }
 
   /** 在编辑区光标处插入 HTML */
@@ -1318,53 +1316,57 @@
     head.appendChild(headRight);
     root.appendChild(head);
 
-    // —— 工具栏 ——
+    // —— 工具栏：按 Word 的「功能组」组织，按钮顺序沿用站点原有习惯 ——
     const bar = document.createElement('div');
     bar.className = NS + '-toolbar';
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', '富文本编辑工具');
 
-    const add = (b) => { bar.appendChild(b); };
-    const addSep = () => add(makeSep());
+    // groups: [{ label, items:[button] }]，渲染时组间画一条细线、组名以小字显示在按钮下方
+    const groups = [];
+    let cur = null;
+    const group = (label) => { cur = { label, items: [] }; groups.push(cur); };
+    const add = (b) => { cur.items.push(b); };
     const I = siteIcon; // 站点原生图标（运行时从站点工具栏读取，缺失时用内置图标兜底）
 
-    // —— 撤销 / 重做 ——
+    // —— 历史 ——
+    group('历史');
     add(makeBtn({ key: 'undo', html: ICONS.undo, tip: '撤销 (Ctrl+Z)', onClick: () => exec('undo') }));
     add(makeBtn({ key: 'redo', html: ICONS.redo, tip: '重做 (Ctrl+Y)', onClick: () => exec('redo') }));
-    addSep();
 
-    // —— 作品 / 表情 / 图片（复用站点原生选择器，保证上传与图盘逻辑一致）——
+    // —— 媒体：复用站点原生选择器，保证上传与图盘逻辑一致 ——
+    group('媒体');
     add(makeBtn({ key: 'work', html: I(SITE_LABELS.work, ICONS.image), tip: 'Kitten 作品分享', onClick: () => delegateSiteAction(SITE_LABELS.work, 'Kitten 作品分享') }));
     add(makeBtn({ key: 'emoji', html: I(SITE_LABELS.emoji, ICONS.text('☺')), tip: '添加表情', onClick: () => delegateSiteAction(SITE_LABELS.emoji, '添加表情') }));
     add(makeBtn({ key: 'image', html: I(SITE_LABELS.image, ICONS.image), tip: '插入图片', onClick: () => delegateSiteAction(SITE_LABELS.image, '插入图片') }));
-    addSep();
 
-    // —— 行内样式 ——
+    // —— 字体 ——
+    group('字体');
     add(makeBtn({ key: 'bold', html: I(SITE_LABELS.bold, ICONS.text('B')), tip: '加粗 (Ctrl+B)', onClick: () => exec('bold') }));
     add(makeBtn({ key: 'italic', html: I(SITE_LABELS.italic, ICONS.text('I', 'font-style:italic')), tip: '斜体 (Ctrl+I)', onClick: () => exec('italic') }));
     add(makeBtn({ key: 'strike', html: I(SITE_LABELS.strike, ICONS.text('S', 'text-decoration:line-through')), tip: '删除线', onClick: () => exec('strikeThrough') }));
     add(makeBtn({ key: 'underline', html: I(SITE_LABELS.underline, ICONS.text('U', 'text-decoration:underline;text-underline-offset:2px')), tip: '下划线 (Ctrl+U)', onClick: () => exec('underline') }));
-    addSep();
 
-    // —— 标题 ——
+    // —— 样式（标题级别）——
+    group('样式');
     add(makeBtn({ key: 'h1', html: I(SITE_LABELS.h1, ICONS.text('H1')), tip: '一级标题', onClick: () => toggleHeading(1) }));
     add(makeBtn({ key: 'h2', html: I(SITE_LABELS.h2, ICONS.text('H2')), tip: '二级标题', onClick: () => toggleHeading(2) }));
-    add(makeBtn({ key: 'h3', wide: true, html: 'H3', tip: '三级标题', onClick: () => toggleHeading(3) }));
-    add(makeBtn({ key: 'h4', wide: true, html: 'H4', tip: '四级标题', onClick: () => toggleHeading(4) }));
-    addSep();
+    add(makeBtn({ key: 'h3', html: I(SITE_LABELS.h3, ICONS.text('H3')), tip: '三级标题', onClick: () => toggleHeading(3) }));
+    add(makeBtn({ key: 'h4', html: I(SITE_LABELS.h4, ICONS.text('H4')), tip: '四级标题', onClick: () => toggleHeading(4) }));
 
-    // —— 颜色 / 高亮 ——
+    // —— 颜色 ——
+    group('颜色');
     add(makeBtn({ key: 'color', html: ICONS.color, tip: '文字颜色', onClick: (b) => openPalette(b, 'color') }));
     add(makeBtn({ key: 'highlight', html: ICONS.highlight, tip: '文字背景高亮', onClick: (b) => openPalette(b, 'bg') }));
-    addSep();
 
     // —— 列表 ——
+    group('列表');
     add(makeBtn({ key: 'ul', html: I(SITE_LABELS.ul, ICONS.ul), tip: '无序列表', onClick: () => exec('insertUnorderedList') }));
     add(makeBtn({ key: 'ol', html: I(SITE_LABELS.ol, ICONS.ol), tip: '有序列表', onClick: () => exec('insertOrderedList') }));
     add(makeBtn({ key: 'task', html: I(SITE_LABELS.task, ICONS.ul), tip: '任务列表', onClick: insertTaskList }));
-    addSep();
 
-    // —— 引用 / 代码 ——
+    // —— 代码（引用 / 行内代码 / 代码块）——
+    group('代码');
     add(makeBtn({ key: 'quote', html: I(SITE_LABELS.quote, ICONS.quote), tip: '引用块', onClick: () => exec('formatBlock', 'blockquote') }));
     add(makeBtn({ key: 'inlinecode', html: I(SITE_LABELS.inlinecode, ICONS.code), tip: '行内代码', onClick: insertInlineCode }));
     add(makeBtn({
@@ -1375,9 +1377,9 @@
         richToSource();
       }
     }));
-    addSep();
 
-    // —— 链接 / 表格 / 公式 / 分割线 ——
+    // —— 插入（链接 / 表格 / 公式 / 分割线）——
+    group('插入');
     add(makeBtn({
       key: 'link', html: I(SITE_LABELS.link, ICONS.link), tip: '插入链接',
       onClick: () => {
@@ -1394,17 +1396,32 @@
     add(makeBtn({ key: 'mathinline', html: I(SITE_LABELS.mathinline, ICONS.mathInline), tip: '行内公式', onClick: insertInlineMath }));
     add(makeBtn({ key: 'mathblock', html: I(SITE_LABELS.mathblock, ICONS.mathBlock), tip: '块级公式', onClick: insertBlockMath }));
     add(makeBtn({ key: 'hr', html: I(SITE_LABELS.hr, ICONS.hr), tip: '分割线', onClick: () => { insertHtml('<hr><p><br></p>'); richToSource(); } }));
-    addSep();
 
     // —— 对齐 ——
+    group('对齐');
     add(makeBtn({ key: 'align-left', html: ICONS.alignLeft, tip: '左对齐', onClick: () => exec('justifyLeft') }));
     add(makeBtn({ key: 'align-center', html: ICONS.alignCenter, tip: '居中对齐', onClick: () => exec('justifyCenter') }));
     add(makeBtn({ key: 'align-right', html: ICONS.alignRight, tip: '右对齐', onClick: () => exec('justifyRight') }));
-    addSep();
 
-    // —— 清除格式 / 全屏 ——
+    // —— 视图 ——
+    group('视图');
     add(makeBtn({ key: 'clear', html: ICONS.clear, tip: '清除格式', onClick: () => exec('removeFormat') }));
     add(makeBtn({ key: 'fullscreen', html: I(SITE_LABELS.fullscreen, ICONS.fullscreen), tip: '全屏编辑', onClick: toggleFullscreen }));
+
+    // 渲染功能组：组名放在按钮下方，和 Word 功能区的分组标注一致
+    groups.forEach((g) => {
+      const box = document.createElement('div');
+      box.className = NS + '-group';
+      const row = document.createElement('div');
+      row.className = NS + '-group-row';
+      g.items.forEach((b) => row.appendChild(b));
+      const label = document.createElement('span');
+      label.className = NS + '-group-label';
+      label.textContent = g.label;
+      box.appendChild(row);
+      box.appendChild(label);
+      bar.appendChild(box);
+    });
 
     root.appendChild(bar);
 
