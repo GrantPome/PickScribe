@@ -8,8 +8,9 @@
  * 3. Markdown ↔ HTML 的转换全部自研，覆盖工具栏涉及的全部格式；对颜色/高亮/对齐这类
  *    Markdown 标准之外的样式，用内联 HTML（<span style>、<u>、<p style="text-align">）承载，
  *    保证“所见即所得”且格式不丢失。
- * 4. UI 直接复用站点设计令牌（--ui-accent / --bg-surface / --ui-border / --radius-* 等），
- *    因此自动适配站点的浅色 / 深色主题，无需硬编码配色。
+ * 4. UI 直接复用站点设计令牌（Nuxt UI 的 --ui-accent / --ui-surface / --ui-canvas /
+ *    --ui-foreground / --ui-border / --radius-* 等），站点切换浅色 / 深色主题时令牌随之翻转，
+ *    面板自动跟随，无需硬编码配色。
  * 5. 这是 Chrome 扩展（Manifest V3）的 content script，由早期油猴脚本迁移而来；版本号见 manifest.json。
  */
 
@@ -727,19 +728,24 @@
     const css = `
 /* CSS 变量定义在 :root 上：帮助浮层 / 提示条等是挂到 body 的，
    不在 .pcr-root 内部，只有定义在 :root 才能取到这些变量，
-   否则 var(--pcr-surface) 失效会导致背景透明。 */
+   否则 var(--pcr-surface) 失效会导致背景透明。
+
+   这里直接映射站点真实设计令牌（Nuxt UI 的 --ui-* 体系）：
+   站点把令牌挂在 <html> 上，并按 [data-theme=light|dark|system] 翻转，
+   因此深浅色切换时 --pcr-* 会随站点令牌一起自动翻转，面板无需额外 JS 监听。
+   括号内为站点令牌缺失时的兜底浅色值。 */
 :root{
   --pcr-accent: var(--ui-accent, #f03e46);
   --pcr-accent-soft: var(--ui-accent-soft, rgba(240,62,70,.12));
   --pcr-border: var(--ui-border, #d4dbe4);
-  --pcr-surface: var(--bg-surface, #ffffff);
-  --pcr-surface-hover: var(--bg-surface-hover, rgba(0,0,0,.045));
-  --pcr-canvas: var(--bg-canvas, #f3f4f6);
-  --pcr-text: var(--text-foreground, #171717);
-  --pcr-subtle: var(--text-subtle, #5f6875);
+  --pcr-surface: var(--ui-surface, #ffffff);
+  --pcr-surface-hover: var(--ui-surface-hover, rgba(0,0,0,.045));
+  --pcr-canvas: var(--ui-canvas, #f3f4f6);
+  --pcr-text: var(--ui-foreground, #171717);
+  --pcr-subtle: var(--ui-muted, #5f6875);
   --pcr-r-surface: var(--radius-surface, .5rem);
   --pcr-r-control: var(--radius-control, .375rem);
-  --pcr-font: var(--font-family-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  --pcr-font: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
 }
 .${NS}-root{
   font-family: var(--pcr-font);
@@ -807,7 +813,9 @@
 /* 悬浮提示（新手引导） */
 .${NS}-btn[data-tip]::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 6px);
   transform:translateX(-50%) translateY(-3px);white-space:nowrap;font-size:12px;font-weight:400;
-  background:#1f2328;color:#fff;padding:4px 8px;border-radius:6px;opacity:0;pointer-events:none;
+  background:#1f2328;color:#fff;padding:4px 8px;border-radius:6px;
+  border:1px solid rgba(255,255,255,.12);  /* 深色页面上给暗色提示块留出边界，避免糊在一起 */
+  opacity:0;pointer-events:none;
   transition:opacity .24s,transform .24s cubic-bezier(.22,1,.36,1);z-index:60;}
 .${NS}-btn[data-tip]:hover::after{opacity:1;transform:translateX(-50%) translateY(0);}
 
@@ -847,7 +855,8 @@
 .${NS}-editor table{border-collapse:collapse;margin:.6em 0;width:100%;}
 .${NS}-editor th,.${NS}-editor td{border:1px solid var(--pcr-border);padding:6px 10px;}
 .${NS}-editor th{background:var(--pcr-canvas);font-weight:600;}
-.${NS}-editor mark{background:#fff2a8;color:inherit;}
+/* 高亮底色用半透明黄：叠在浅色/深色背景上都自然，无需按主题切换 */
+.${NS}-editor mark{background:rgba(245,217,10,.32);color:inherit;}
 /* 任务列表（复选框可点击切换） */
 .${NS}-editor ul.${NS}-task-list{list-style:none;padding-left:2px;}
 .${NS}-editor li.${NS}-task-item{position:relative;padding-left:25px;}
@@ -890,7 +899,7 @@
   border-radius:var(--pcr-r-surface);box-shadow:0 8px 28px rgba(0,0,0,.16);padding:8px;
   transform-origin:top right;animation:${NS}PopIn .34s cubic-bezier(.16,1,.3,1) both;}
 .${NS}-swatches{display:grid;grid-template-columns:repeat(6,20px);gap:6px;}
-.${NS}-swatch{width:20px;height:20px;border-radius:5px;border:1px solid rgba(0,0,0,.12);cursor:pointer;
+.${NS}-swatch{width:20px;height:20px;border-radius:5px;border:1px solid var(--pcr-border);cursor:pointer;
   transition:transform .22s cubic-bezier(.22,1,.36,1);}
 .${NS}-swatch:hover{transform:scale(1.15);}
 .${NS}-pop-help{max-width:290px;font-size:12.5px;line-height:1.7;color:var(--pcr-subtle);padding:12px 14px;}
@@ -925,7 +934,7 @@
 
 /* —— 选中浮动菜单 —— */
 .${NS}-float{position:absolute;z-index:10002;display:flex;align-items:center;gap:2px;padding:4px;
-  background:#1f2328;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.28);
+  background:#1f2328;border:1px solid rgba(255,255,255,.12);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.28);
   transform-origin:bottom center;animation:${NS}PopIn .32s cubic-bezier(.16,1,.3,1) both;}
 .${NS}-float button{width:28px;height:28px;border:0;background:transparent;color:#e6e8eb;cursor:pointer;
   border-radius:6px;font:inherit;display:inline-flex;align-items:center;justify-content:center;
@@ -935,7 +944,7 @@
 
 /* —— 轻提示 —— */
 .${NS}-toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%) translateY(10px);
-  background:#1f2328;color:#fff;font-size:13px;line-height:1.5;max-width:80vw;text-align:center;
+  background:#1f2328;color:#fff;border:1px solid rgba(255,255,255,.12);font-size:13px;line-height:1.5;max-width:80vw;text-align:center;
   padding:9px 16px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.24);
   opacity:0;pointer-events:none;transition:opacity .32s,transform .32s cubic-bezier(.16,1,.3,1);z-index:10003;}
 .${NS}-toast.is-show{opacity:1;transform:translateX(-50%) translateY(0);}
