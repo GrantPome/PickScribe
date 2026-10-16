@@ -11,7 +11,9 @@
  * 4. UI 直接复用站点设计令牌（Nuxt UI 的 --ui-accent / --ui-surface / --ui-canvas /
  *    --ui-foreground / --ui-border / --radius-* 等），站点切换浅色 / 深色主题时令牌随之翻转，
  *    面板自动跟随，无需硬编码配色。
- * 5. 这是 Chrome 扩展（Manifest V3）的 content script，由早期油猴脚本迁移而来；版本号见 manifest.json。
+ * 5. 可选把整站字体替换为鸿蒙字体（HarmonyOS Sans，本扩展自带 woff2，覆盖站点 --font-sans 令牌），
+ *    默认开启，面板右上角可随时切回站点原字体；等宽字体与 KaTeX 数学字体不受影响。
+ * 6. 这是 Chrome 扩展（Manifest V3）的 content script，由早期油猴脚本迁移而来；版本号见 manifest.json。
  */
 
 (function () {
@@ -23,6 +25,8 @@
   const MOUNT_FLAG = 'pcrMounted';        // textarea 上的挂载标记，防止重复注入
   const HINT_KEY = 'pcr_hint_closed';     // 新手提示是否已关闭
   const TOOLBAR_KEY = 'pcr_toolbar_style'; // 工具栏布局：compact（默认，紧凑单行）| line（仅分割线）| groups（仿 Word 功能组）
+  const FONT_KEY = 'pcr_harmony_font';    // 鸿蒙字体开关：'0' 为关闭，缺省或其它值视为开启
+  const FONT_STYLE_ID = NS + '-font-style'; // 字体样式节点 id，开关与兜底恢复都靠它定位
 
   /** 该页面是否是帖子编辑页（SPA 路由变化时用于兜底判断） */
   const isEditorPage = () => /\/forum\/editor(\/|$|\?)/.test(location.pathname + location.search);
@@ -100,6 +104,17 @@
 
     // 3) 还原 Markdown 反斜杠转义（\* \_ \` 等）
     s = s.replace(/\\([\\`*_{}\[\]()#+\-.!>~|])/g, '$1');
+
+    // 3.5) 站点「插入哔哩哔哩视频」写进源码的是一段裸播放器地址
+    //      （https://player.bilibili.com/player.html?bvid=BV...&autoplay=0）。
+    //      必须在下面的 HTML 转义之前处理，否则地址里的 & 会被转成 &amp;，
+    //      写回源码时就变成了错的链接。这里转成视频占位块，写回时输出原地址，
+    //      站点才能继续把它渲染成视频播放器。
+    s = s.replace(/https?:\/\/player\.bilibili\.com\/player\.html\?[^\s<>"'\u3002\uff09\uff0c\u3001]*/gi, (m) => {
+      const bv = (m.match(/[?&](?:bvid|bvid2)=([0-9A-Za-z]+)/i) || [])[1] || '';
+      return keep('<span class="' + NS + '-video-ref" contenteditable="false" data-url="' + escapeAttr(m) +
+        '" title="哔哩哔哩视频（提交后由站点渲染为播放器）">哔哩哔哩视频' + (bv ? ' · ' + escapeHtml(bv) : '') + '</span>');
+    });
 
     // 4) 转义剩余文本，避免与后续拼装的 HTML 冲突
     s = escapeHtml(s);
@@ -325,6 +340,11 @@
     if (node.classList && node.classList.contains(NS + '-img-ref')) {
       const ref = node.getAttribute('data-ref') || '';
       return ref ? '![' + ref + ']' : '';
+    }
+
+    // 哔哩哔哩视频占位块：原样写回站点写入的播放器地址，站点才能继续渲染成视频
+    if (node.classList && node.classList.contains(NS + '-video-ref')) {
+      return node.getAttribute('data-url') || '';
     }
 
     if (tag === 'br') return '  \n';
@@ -623,6 +643,19 @@
       return chip;
     }
 
+    // 哔哩哔哩视频占位块：保留原始播放器地址，复制粘贴后依然能原样写回源码
+    if (tag === 'span' && node.classList && node.classList.contains(NS + '-video-ref')) {
+      const url = node.getAttribute('data-url') || '';
+      if (!url) return doc.createDocumentFragment();
+      const chip = doc.createElement('span');
+      chip.className = NS + '-video-ref';
+      chip.setAttribute('contenteditable', 'false');
+      chip.setAttribute('data-url', url);
+      chip.setAttribute('title', '哔哩哔哩视频（提交后由站点渲染为播放器）');
+      chip.textContent = node.textContent || '哔哩哔哩视频';
+      return chip;
+    }
+
     const el = doc.createElement(tag);
 
     // 保留白名单属性
@@ -704,6 +737,7 @@
     code: svg('<path d="m9 8-5 4 5 4"/><path d="m15 8 5 4-5 4"/>'),
     link: svg('<path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.3-2.3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.3 2.3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>'),
     image: svg('<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16.5-5-5L5 20"/>'),
+    video: svg('<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10.4 9.2 14.9 12l-4.5 2.8z" fill="currentColor" stroke="none"/>'),
     hr: svg('<path d="M3 12h18"/><path d="M6.5 8.5v7M12 8.5v7M17.5 8.5v7" stroke-dasharray="1 2.5"/>'),
     alignLeft: svg('<path d="M3 6h18M3 10h12M3 14h18M3 18h12"/>'),
     alignCenter: svg('<path d="M3 6h18M6 10h12M3 14h18M6 18h12"/>'),
@@ -716,11 +750,115 @@
     layout: svg('<rect x="3" y="4.5" width="18" height="6" rx="1.6"/><rect x="3" y="13.5" width="18" height="6" rx="1.6"/>'),
     search: svg('<circle cx="10.7" cy="10.7" r="6.1"/><path d="m15.3 15.3 4.3 4.3"/>'),
     help: svg('<circle cx="12" cy="12" r="9"/><path d="M9.4 9.2a2.6 2.6 0 1 1 3.6 2.4c-.7.4-1 .9-1 1.7v.2"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>'),
+    font: svg('<path d="M5 19 12 5.5 19 19"/><path d="M8.4 14.6h7.2"/><path d="M4 21.6h16"/>'),
     rich: svg('<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/>'),
     split: svg('<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M12 4.5v15"/>'),
     source: svg('<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 9.5h6M7 13.5h10"/>'),
     text: (t, style) => '<span class="pcr-glyph" style="' + (style || '') + '">' + t + '</span>'
   };
+
+  // ============================ 4.1 鸿蒙字体（HarmonyOS Sans） ============================
+  /* 整站换字体的思路：
+     1. 字体文件随扩展分发（fonts/*.woff2），用 chrome.runtime.getURL 取到扩展内可访问 URL，
+        所以 manifest.json 必须声明 web_accessible_resources，否则网页端加载不到这些字体。
+     2. 站点把字体令牌统一挂在 :root 上（--font-sans，html 也直接引用它），因此只需覆盖这一个
+        变量即可让正文 / 组件 / 本面板一起变成鸿蒙字体；--font-mono（代码块）与 KaTeX 数学
+        字体不受影响，仍是各自专用字体。
+     3. 多语言：拉丁 / 希腊 / 西里尔用体积最小的 HarmonyOS Sans，中文按「简 → 繁」逐级兜底，
+        阿拉伯文单独一套 Naskh Arabic；浏览器逐字回退，缺字时自然落回系统字体，不会出现方框。
+     4. 开关：默认为开，状态存 localStorage；切换靠 <style disabled>，不增删节点、无需刷新页面。 */
+
+  /** 字重表：站点令牌只用到 400/500/600/700/800/900，其中 600、800 由 700、900 就近替代 */
+  const FONT_WEIGHTS = [
+    { w: 400, name: 'Regular' },
+    { w: 500, name: 'Medium' },
+    { w: 700, name: 'Bold' },
+    { w: 900, name: 'Black' }
+  ];
+
+  /** 各语言子字体族，同名族内按字体风格区分；%W% 会被替换成字重名 */
+  const FONT_FACES = [
+    { family: 'HarmonyOS Sans PCR',        style: 'normal', tpl: 'HarmonyOS_Sans_%W%.woff2' },
+    { family: 'HarmonyOS Sans PCR',        style: 'italic', tpl: 'HarmonyOS_Sans_%W%_Italic.woff2' },
+    { family: 'HarmonyOS Sans SC PCR',     style: 'normal', tpl: 'HarmonyOS_Sans_SC_%W%.woff2' },
+    { family: 'HarmonyOS Sans TC PCR',     style: 'normal', tpl: 'HarmonyOS_Sans_TC_%W%.woff2' },
+    { family: 'HarmonyOS Sans Arabic PCR', style: 'normal', tpl: 'HarmonyOS_Sans_Naskh_Arabic_%W%.woff2' }
+  ];
+
+  /** 字体栈：鸿蒙各语言族在前，后面保留站点原有的系统兜底与 emoji 字体 */
+  const FONT_STACK = "'HarmonyOS Sans PCR','HarmonyOS Sans SC PCR','HarmonyOS Sans TC PCR'," +
+    "'HarmonyOS Sans Arabic PCR',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue'," +
+    "'Noto Sans','Liberation Sans',Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji'," +
+    "'Segoe UI Symbol','Noto Color Emoji'";
+
+  /** 扩展内字体文件的可访问 URL；非扩展环境（油猴等）取不到，返回空串以便整体跳过注入 */
+  function fontUrl(file) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+        return chrome.runtime.getURL('fonts/' + file);
+      }
+    } catch (e) { /* noop */ }
+    return '';
+  }
+
+  /** 鸿蒙字体是否开启（默认开启） */
+  function harmonyFontOn() {
+    try { return localStorage.getItem(FONT_KEY) !== '0'; } catch (e) { return true; }
+  }
+
+  /** 生成 @font-face 与 --font-sans 覆盖样式；取不到字体文件时返回空串 */
+  function harmonyFontCss() {
+    const faces = [];
+    FONT_FACES.forEach((f) => {
+      FONT_WEIGHTS.forEach((w) => {
+        const url = fontUrl(f.tpl.replace('%W%', w.name));
+        if (!url) return;
+        faces.push('@font-face{font-family:\'' + f.family + '\';font-style:' + f.style +
+          ';font-weight:' + w.w + ';font-display:swap;src:url("' + url + '") format(\'woff2\');}');
+      });
+    });
+    if (!faces.length) return '';
+    // !important 压过站点（Nuxt UI / Tailwind）的令牌声明；未分层样式本身就优先于 @layer 内的声明
+    faces.push(':root{--font-sans:' + FONT_STACK + ' !important;}');
+    return faces.join('\n');
+  }
+
+  /** 注入字体样式节点（只注入一次），并同步当前开关状态 */
+  function injectFontStyle() {
+    if (!document.getElementById(FONT_STYLE_ID)) {
+      const css = harmonyFontCss();
+      if (!css) return;
+      const style = document.createElement('style');
+      style.id = FONT_STYLE_ID;
+      style.textContent = css;
+      (document.head || document.documentElement).appendChild(style);
+    }
+    applyFontState();
+  }
+
+  /** 开关状态直接落到样式节点的 disabled 上，切换即时生效且可逆 */
+  function applyFontState() {
+    const el = document.getElementById(FONT_STYLE_ID);
+    if (el) el.disabled = !harmonyFontOn();
+  }
+
+  /** 同步面板按钮的选中态与提示文案 */
+  function syncFontBtn() {
+    const b = root && root.querySelector('.' + NS + '-btn[data-key="font"]');
+    if (!b) return;
+    const on = harmonyFontOn();
+    b.classList.toggle('is-on', on);
+    b.setAttribute('data-tip', '鸿蒙字体：' + (on ? '已开启（点击关闭）' : '已关闭（点击开启）'));
+  }
+
+  /** 面板按钮：开关整站字体 */
+  function toggleHarmonyFont() {
+    const on = !harmonyFontOn();
+    try { localStorage.setItem(FONT_KEY, on ? '1' : '0'); } catch (e) { /* noop */ }
+    applyFontState();
+    syncFontBtn();
+    toast(on ? '已启用鸿蒙字体' : '已恢复站点原字体');
+  }
 
   /** 站点令牌 + 兜底色，注入到 <head> 一次即可 */
   function injectStyle() {
@@ -819,6 +957,24 @@
   transition:opacity .24s,transform .24s cubic-bezier(.22,1,.36,1);z-index:60;}
 .${NS}-btn[data-tip]:hover::after{opacity:1;transform:translateX(-50%) translateY(0);}
 
+/* —— 下拉框（标题 / 对齐 / 媒体 合并项）——
+   触发器复用 .pcr-btn，只是宽度自适应并带一个小三角；菜单复用 .pcr-pop 浮层，仅覆盖列布局 */
+.${NS}-dd{position:relative;display:inline-flex;}
+.${NS}-dd-btn{width:auto;min-width:32px;padding:0 7px;gap:2px;}
+.${NS}-dd-btn .${NS}-glyph{font-size:13px;}
+.${NS}-dd-caret{width:0;height:0;margin-left:2px;border-left:3.5px solid transparent;
+  border-right:3.5px solid transparent;border-top:4px solid currentColor;opacity:.65;}
+.${NS}-pop.${NS}-dd-menu{display:flex;flex-direction:column;gap:1px;min-width:136px;padding:5px;
+  transform-origin:top left;}
+.${NS}-dd-item{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;
+  color:var(--pcr-text);font:inherit;font-size:13px;padding:7px 9px;border-radius:var(--pcr-r-control);
+  cursor:pointer;text-align:left;
+  transition:background .2s cubic-bezier(.22,1,.36,1),color .2s;}
+.${NS}-dd-item:hover{background:var(--pcr-surface-hover);}
+.${NS}-dd-item.is-on{color:var(--pcr-accent);background:var(--pcr-accent-soft);}
+.${NS}-dd-item svg{width:15px;height:15px;flex:none;}
+.${NS}-dd-item .${NS}-glyph{font-size:12.5px;min-width:18px;text-align:center;}
+
 /* —— 编辑区 —— */
 .${NS}-editor-wrap{background:var(--pcr-surface);border:1px solid var(--pcr-border);
   border-radius:0 0 var(--pcr-r-surface) var(--pcr-r-surface);overflow:hidden;}
@@ -844,8 +1000,9 @@
 .${NS}-editor ul,.${NS}-editor ol{margin:.45em 0;padding-left:1.6em;}
 .${NS}-editor li{margin:.2em 0;}
 .${NS}-editor img{max-width:100%;border-radius:var(--pcr-r-control);}
-/* 站点自定义图片引用 ![<id>]（无网址，由站点渲染时解析）：编辑器里显示为占位块，提交时原样写回 */
-.${NS}-editor .${NS}-img-ref{display:inline-flex;align-items:center;gap:5px;max-width:100%;
+/* 站点自定义图片引用 ![<id>]（无网址，由站点渲染时解析）/ 哔哩哔哩视频播放器地址：
+   编辑器里都显示为占位块，提交时原样写回 */
+.${NS}-editor .${NS}-img-ref,.${NS}-editor .${NS}-video-ref{display:inline-flex;align-items:center;gap:5px;max-width:100%;
   padding:2px 9px;border:1px dashed var(--pcr-border);border-radius:var(--pcr-r-control);
   background:var(--pcr-surface-hover);color:var(--pcr-subtle);font-size:12px;line-height:1.7;
   vertical-align:baseline;}
@@ -989,6 +1146,59 @@
     return b;
   }
 
+  /** 下拉框：触发器本身就是 .pcr-btn（多一个小三角，宽度自适应），
+      菜单是挂到 body 的浮层，复用 .pcr-pop 的关闭逻辑（点面板外 / 再次点触发器都能收起）。
+      opts.items: [{ label, html?, tip?, isActive?, onSelect }] */
+  function makeDropdown(opts) {
+    const wrap = document.createElement('span');
+    wrap.className = NS + '-dd';
+    wrap.dataset.key = opts.key;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = NS + '-btn ' + NS + '-dd-btn';
+    btn.dataset.pcrOwn = '1';
+    btn.dataset.key = opts.key;
+    if (opts.tip) btn.setAttribute('data-tip', opts.tip);
+    // face 里放当前态图标（标题级别 / 当前对齐），由 refreshToolbarState 更新
+    btn.innerHTML = '<span class="' + NS + '-dd-face">' + opts.triggerHtml + '</span>' +
+      '<span class="' + NS + '-dd-caret"></span>';
+    btn.addEventListener('mousedown', (e) => e.preventDefault());  // 保住编辑区焦点与选区
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const already = document.querySelector('.' + NS + '-dd-menu[data-for="' + opts.key + '"]');
+      closePopups();
+      if (!already) openDropdownMenu(btn, opts);   // 已展开则本次点击即为收起
+    });
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
+  /** 打开下拉菜单：按触发器位置定位，点外部 / Esc 交给既有浮层逻辑关闭 */
+  function openDropdownMenu(anchorBtn, opts) {
+    const menu = document.createElement('div');
+    menu.className = NS + '-pop ' + NS + '-dd-menu';
+    menu.dataset.for = opts.key;
+    menu.setAttribute('role', 'menu');
+    opts.items.forEach((it) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = NS + '-dd-item';
+      item.setAttribute('role', 'menuitem');
+      if (it.tip) item.title = it.tip;
+      let active = false;
+      try { active = !!(it.isActive && it.isActive()); } catch (e) { /* noop */ }
+      if (active) item.classList.add('is-on');
+      item.innerHTML = (it.html || '') + '<span>' + it.label + '</span>';
+      item.addEventListener('mousedown', (e) => e.preventDefault());
+      item.addEventListener('click', () => { closePopups(); it.onSelect(); });
+      menu.appendChild(item);
+    });
+    document.body.appendChild(menu);
+    const r = anchorBtn.getBoundingClientRect();
+    menu.style.top = (window.scrollY + r.bottom + 6) + 'px';
+    menu.style.left = (window.scrollX + r.left) + 'px';
+  }
+
   /** 在编辑区光标处插入 HTML */
   function insertHtml(html) {
     editor.focus();
@@ -1057,7 +1267,16 @@
     return '';
   }
 
-  /** 刷新工具栏按钮的选中态 */
+  /** 当前对齐状态：left / center / right（下拉框选中态与触发器图标共用） */
+  function alignState() {
+    try {
+      if (document.queryCommandState('justifyCenter')) return 'center';
+      if (document.queryCommandState('justifyRight')) return 'right';
+    } catch (e) { /* noop */ }
+    return 'left';
+  }
+
+  /** 刷新工具栏按钮 / 下拉框触发器的选中态 */
   function refreshToolbarState() {
     if (!editor) return;
     const map = {
@@ -1070,21 +1289,18 @@
       try { on = document.queryCommandState(cmd); } catch (e) { /* noop */ }
       b.classList.toggle('is-on', !!on);
     });
-    // 标题按钮选中态
-    const cur = currentBlockTag();
-    ['h1', 'h2', 'h3', 'h4'].forEach((h) => {
-      const b = root && root.querySelector('.' + NS + '-btn[data-key="' + h + '"]');
-      if (b) b.classList.toggle('is-on', cur === h);
-    });
-    // 对齐按钮选中态
-    const aligns = { justifyLeft: 'left', justifyCenter: 'center', justifyRight: 'right' };
-    Object.keys(aligns).forEach((cmd) => {
-      const b = root && root.querySelector('.' + NS + '-btn[data-key="align-' + aligns[cmd] + '"]');
-      if (!b) return;
-      let on = false;
-      try { on = document.queryCommandState(cmd); } catch (e) { /* noop */ }
-      b.classList.toggle('is-on', !!on);
-    });
+    // 标题下拉框：触发器显示当前块级标题（非标题时显示 H）
+    const hFace = root && root.querySelector('.' + NS + '-dd[data-key="heading"] .' + NS + '-dd-face');
+    if (hFace) {
+      const cur = currentBlockTag();
+      hFace.innerHTML = ICONS.text(/^h[1-4]$/.test(cur) ? cur.toUpperCase() : 'H');
+    }
+    // 对齐下拉框：触发器显示当前对齐图标（默认左对齐）
+    const aFace = root && root.querySelector('.' + NS + '-dd[data-key="align"] .' + NS + '-dd-face');
+    if (aFace) {
+      const a = alignState();
+      aFace.innerHTML = a === 'center' ? ICONS.alignCenter : a === 'right' ? ICONS.alignRight : ICONS.alignLeft;
+    }
   }
 
   /** 打开颜色 / 高亮调色板 */
@@ -1486,6 +1702,10 @@
   // 浮层打开时接管回车 / Esc：浮层内输入框、源码视图的原生输入框都生效；
   // 可视化编辑区里的回车不接管，正常换行。
   document.addEventListener('keydown', (e) => {
+    // Esc 优先收起下拉菜单等浮层；查找浮层由下面的分支处理
+    if (e.key === 'Escape' && document.querySelector('.' + NS + '-dd-menu')) {
+      e.preventDefault(); closePopups(); return;
+    }
     if (!findPop) return;
     if (e.key === 'Escape') { e.preventDefault(); closeFind(); return; }
     if (e.key !== 'Enter') return;
@@ -1509,6 +1729,7 @@
     work: ['Kitten作品分享', 'Kitten 作品分享', '作品分享', '添加作品', '作品'],
     emoji: ['添加表情', '表情'],
     image: ['插入图片', '添加图片', '上传图片', '图片'],
+    video: ['插入视频', '哔哩哔哩视频', '哔哩哔哩', 'B站视频'],
     bold: ['加粗', '粗体'],
     italic: ['斜体'],
     strike: ['删除线'],
@@ -1786,11 +2007,14 @@
     headRight.appendChild(synced);
     const layoutBtn = makeBtn({ key: 'layout', html: ICONS.layout, tip: '工具栏布局', onClick: () => toggleToolbarStyle() });
     headRight.appendChild(layoutBtn);
+    const fontBtn = makeBtn({ key: 'font', html: ICONS.font, tip: '鸿蒙字体', onClick: () => toggleHarmonyFont() });
+    headRight.appendChild(fontBtn);
     const helpBtn = makeBtn({ html: ICONS.help, tip: '新手帮助', onClick: (b) => openHelp(b) });
     headRight.appendChild(helpBtn);
     head.appendChild(headRight);
     root.appendChild(head);
     syncLayoutBtn();   // 布局按钮建好后，同步它的选中态与提示
+    syncFontBtn();     // 字体按钮同理
 
     // —— 工具栏：按钮顺序沿用站点原有习惯；默认紧凑单行，可循环切成「分组线」「功能组」——
     const bar = document.createElement('div');
@@ -1814,25 +2038,31 @@
     group('查找');
     add(makeBtn({ key: 'find', html: ICONS.search, tip: '查找替换', onClick: (b) => openFind(b) }));
 
-    // —— 媒体：复用站点原生选择器，保证上传与图盘逻辑一致 ——
-    group('媒体');
-    add(makeBtn({ key: 'work', html: I(SITE_LABELS.work, ICONS.image), tip: 'Kitten 作品分享', onClick: () => delegateSiteAction(SITE_LABELS.work, 'Kitten 作品分享') }));
-    add(makeBtn({ key: 'emoji', html: I(SITE_LABELS.emoji, ICONS.text('☺')), tip: '添加表情', onClick: () => delegateSiteAction(SITE_LABELS.emoji, '添加表情') }));
-    add(makeBtn({ key: 'image', html: I(SITE_LABELS.image, ICONS.image), tip: '插入图片', onClick: () => delegateSiteAction(SITE_LABELS.image, '插入图片') }));
-
-    // —— 字体 ——
+    // —— 字体：粗 / 斜 / 删 / 下划线，外加「标题级别」「对齐方式」两个下拉框，集中所有文字排版 ——
     group('字体');
     add(makeBtn({ key: 'bold', html: I(SITE_LABELS.bold, ICONS.text('B')), tip: '加粗 (Ctrl+B)', onClick: () => exec('bold') }));
     add(makeBtn({ key: 'italic', html: I(SITE_LABELS.italic, ICONS.text('I', 'font-style:italic')), tip: '斜体 (Ctrl+I)', onClick: () => exec('italic') }));
     add(makeBtn({ key: 'strike', html: I(SITE_LABELS.strike, ICONS.text('S', 'text-decoration:line-through')), tip: '删除线', onClick: () => exec('strikeThrough') }));
     add(makeBtn({ key: 'underline', html: I(SITE_LABELS.underline, ICONS.text('U', 'text-decoration:underline;text-underline-offset:2px')), tip: '下划线 (Ctrl+U)', onClick: () => exec('underline') }));
-
-    // —— 样式（标题级别）——
-    group('样式');
-    add(makeBtn({ key: 'h1', html: I(SITE_LABELS.h1, ICONS.text('H1')), tip: '一级标题', onClick: () => toggleHeading(1) }));
-    add(makeBtn({ key: 'h2', html: I(SITE_LABELS.h2, ICONS.text('H2')), tip: '二级标题', onClick: () => toggleHeading(2) }));
-    add(makeBtn({ key: 'h3', html: I(SITE_LABELS.h3, ICONS.text('H3')), tip: '三级标题', onClick: () => toggleHeading(3) }));
-    add(makeBtn({ key: 'h4', html: I(SITE_LABELS.h4, ICONS.text('H4')), tip: '四级标题', onClick: () => toggleHeading(4) }));
+    add(makeDropdown({
+      key: 'heading', tip: '标题级别（H1~H4）',
+      triggerHtml: ICONS.text('H'),
+      items: [
+        { label: '一级标题', html: ICONS.text('H1'), isActive: () => currentBlockTag() === 'h1', onSelect: () => toggleHeading(1) },
+        { label: '二级标题', html: ICONS.text('H2'), isActive: () => currentBlockTag() === 'h2', onSelect: () => toggleHeading(2) },
+        { label: '三级标题', html: ICONS.text('H3'), isActive: () => currentBlockTag() === 'h3', onSelect: () => toggleHeading(3) },
+        { label: '四级标题', html: ICONS.text('H4'), isActive: () => currentBlockTag() === 'h4', onSelect: () => toggleHeading(4) }
+      ]
+    }));
+    add(makeDropdown({
+      key: 'align', tip: '对齐方式',
+      triggerHtml: ICONS.alignLeft,
+      items: [
+        { label: '左对齐', html: ICONS.alignLeft, isActive: () => alignState() === 'left', onSelect: () => exec('justifyLeft') },
+        { label: '居中对齐', html: ICONS.alignCenter, isActive: () => alignState() === 'center', onSelect: () => exec('justifyCenter') },
+        { label: '右对齐', html: ICONS.alignRight, isActive: () => alignState() === 'right', onSelect: () => exec('justifyRight') }
+      ]
+    }));
 
     // —— 颜色 ——
     group('颜色');
@@ -1858,8 +2088,12 @@
       }
     }));
 
-    // —— 插入（链接 / 表格 / 公式 / 分割线）——
+    // —— 插入（作品 / 表情 / 图片 / 视频 / 链接 / 表格 / 公式 / 分割线）：媒体项复用站点原生选择器，保证上传与图盘逻辑一致 ——
     group('插入');
+    add(makeBtn({ key: 'work', html: I(SITE_LABELS.work, ICONS.image), tip: 'Kitten 作品分享', onClick: () => delegateSiteAction(SITE_LABELS.work, 'Kitten 作品分享') }));
+    add(makeBtn({ key: 'emoji', html: I(SITE_LABELS.emoji, ICONS.text('☺')), tip: '添加表情', onClick: () => delegateSiteAction(SITE_LABELS.emoji, '添加表情') }));
+    add(makeBtn({ key: 'image', html: I(SITE_LABELS.image, ICONS.image), tip: '插入图片', onClick: () => delegateSiteAction(SITE_LABELS.image, '插入图片') }));
+    add(makeBtn({ key: 'video', html: I(SITE_LABELS.video, ICONS.video), tip: '插入哔哩哔哩视频', onClick: () => delegateSiteAction(SITE_LABELS.video, '插入哔哩哔哩视频') }));
     add(makeBtn({
       key: 'link', html: I(SITE_LABELS.link, ICONS.link), tip: '插入链接',
       onClick: () => {
@@ -1876,12 +2110,6 @@
     add(makeBtn({ key: 'mathinline', html: I(SITE_LABELS.mathinline, ICONS.mathInline), tip: '行内公式', onClick: insertInlineMath }));
     add(makeBtn({ key: 'mathblock', html: I(SITE_LABELS.mathblock, ICONS.mathBlock), tip: '块级公式', onClick: insertBlockMath }));
     add(makeBtn({ key: 'hr', html: I(SITE_LABELS.hr, ICONS.hr), tip: '分割线', onClick: () => { insertHtml('<hr><p><br></p>'); richToSource(); } }));
-
-    // —— 对齐 ——
-    group('对齐');
-    add(makeBtn({ key: 'align-left', html: ICONS.alignLeft, tip: '左对齐', onClick: () => exec('justifyLeft') }));
-    add(makeBtn({ key: 'align-center', html: ICONS.alignCenter, tip: '居中对齐', onClick: () => exec('justifyCenter') }));
-    add(makeBtn({ key: 'align-right', html: ICONS.alignRight, tip: '右对齐', onClick: () => exec('justifyRight') }));
 
     // —— 视图 ——
     group('视图');
@@ -2239,8 +2467,10 @@
   // 常驻看护 1：面板被站点重渲染移除时自动重建，并在站内路由切换时立即挂载。
   // 编辑帖子页会先加载帖子数据再渲染编辑器，Vue 重渲染容易把注入的节点冲掉；
   // 另外站点是 SPA，站内跳转不刷新页面，必须靠这里兜底（否则会出现「有时注入、有时不注入」）。
+  // 字体与编辑页无关（整站生效），因此放在编辑页判断之前：样式节点被重渲染丢掉时也要恢复。
   let lastHref = location.href;
   setInterval(() => {
+    if (!document.getElementById(FONT_STYLE_ID)) injectFontStyle();
     if (!isEditorPage()) return;
     const routeChanged = location.href !== lastHref;
     lastHref = location.href;
@@ -2256,6 +2486,9 @@
       if (mode !== 'source') sourceToRich();
     }
   }, 700);
+
+  // 鸿蒙字体：与编辑页无关，整站生效，脚本启动即注入（默认开启，可在面板右上角开关）
+  injectFontStyle();
 
   // 初始尝试
   mount();
