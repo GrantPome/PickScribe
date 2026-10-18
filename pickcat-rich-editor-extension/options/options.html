@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>PickScribe · AI 总结设置</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <header class="page-head">
+    <h1>PickScribe 设置</h1>
+    <p class="sub">AI 帖子总结：在 Pickcat 帖子详情页的分隔线下方展示总结，密钥只保存在本机。<br>收藏夹 Plus：为站点收藏补充分组、标签、备注与检索，数据同样只保存在本机。</p>
+  </header>
+
+  <main>
+    <!-- 模型 -->
+    <section class="card">
+      <h2>模型</h2>
+      <div class="grid">
+        <label class="field">
+          <span>服务商</span>
+          <select id="provider"></select>
+        </label>
+        <label class="field">
+          <span>模型名</span>
+          <input id="model" list="model-list" placeholder="如 deepseek-chat" />
+          <datalist id="model-list"></datalist>
+        </label>
+        <label class="field span2">
+          <span>接口地址（Base URL）</span>
+          <input id="baseUrl" placeholder="https://api.example.com/v1" />
+        </label>
+        <label class="field span2">
+          <span>API Key</span>
+          <span class="key-wrap">
+            <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+            <button type="button" id="toggleKey" class="mini">显示</button>
+          </span>
+        </label>
+        <label class="field">
+          <span>温度（0–2，越低越稳定）</span>
+          <input id="temperature" type="number" min="0" max="2" step="0.1" />
+        </label>
+        <label class="field">
+          <span>最大输出 token</span>
+          <input id="maxTokens" type="number" min="128" max="8192" step="128" />
+        </label>
+      </div>
+      <p class="note" id="provider-note"></p>
+      <p class="note" id="key-help"></p>
+    </section>
+
+    <!-- 提示词 -->
+    <section class="card">
+      <h2>提示词与输出</h2>
+      <label class="field block">
+        <span>系统提示词（留空用默认）</span>
+        <textarea id="systemPrompt" rows="2" placeholder="你是一个严谨的阅读助手……"></textarea>
+      </label>
+      <label class="field block">
+        <span>用户模板（可用变量：<code>{{title}}</code> <code>{{author}}</code> <code>{{content}}</code> <code>{{lang}}</code> <code>{{length}}</code>）</span>
+        <textarea id="userPrompt" rows="5" placeholder="请阅读下面的帖子……{{lang}}{{length}}"></textarea>
+      </label>
+      <div class="grid">
+        <label class="field">
+          <span>输出语言</span>
+          <select id="lang"></select>
+        </label>
+        <label class="field">
+          <span>输出长度</span>
+          <select id="length"></select>
+        </label>
+      </div>
+    </section>
+
+    <!-- 行为 -->
+    <section class="card">
+      <h2>行为</h2>
+      <div class="grid">
+        <label class="field">
+          <span>触发方式</span>
+          <select id="trigger"></select>
+        </label>
+        <label class="field">
+          <span>自动总结最小字数（低于则跳过，0 不限制）</span>
+          <input id="minChars" type="number" min="0" max="5000" step="10" />
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="stream" />
+          <span>流式输出（边生成边显示）</span>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="enabled" />
+          <span>在帖子详情页启用 AI 总结面板</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- 收藏夹 Plus（SET-01 ~ SET-04 / UI-04 / SYN-03 ~ SYN-05） -->
+    <section class="card">
+      <h2>收藏夹 Plus</h2>
+      <div class="grid">
+        <label class="field">
+          <span>收藏时行为</span>
+          <select id="favBehavior"></select>
+        </label>
+        <label class="field">
+          <span>站点取消收藏时</span>
+          <select id="favUnfavorite"></select>
+        </label>
+        <label class="field">
+          <span>同步触发频率</span>
+          <select id="favSyncFreq"></select>
+        </label>
+        <label class="field">
+          <span>默认视图</span>
+          <select id="favDensity"></select>
+        </label>
+        <label class="field">
+          <span>默认排序</span>
+          <select id="favSort"></select>
+        </label>
+        <label class="field">
+          <span>外观主题</span>
+          <select id="favTheme"></select>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="favEnabled" />
+          <span>启用收藏夹 Plus（弹窗入口 + 站点注入）</span>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="favSiteInject" />
+          <span>在帖子详情页注入收藏归组（浮动条 / 角标）</span>
+        </label>
+        <label class="field checkbox">
+          <input type="checkbox" id="favAllowExternal" />
+          <span>允许与站点通信以外的外部请求</span>
+        </label>
+      </div>
+      <p class="note">分组、标签与备注只保存在本机，除站点自身请求外不发起外部请求。站点收藏夹自动同步将在后续版本接入，当前可用导出 / 导入迁移数据。此区设置改动即时生效，无需点底部保存。</p>
+      <div class="row" style="margin-top:10px">
+        <button id="favExportJson" class="btn">导出收藏夹（JSON）</button>
+        <button id="favExportCsv" class="btn">导出 CSV</button>
+        <button id="favExportMd" class="btn">导出 Markdown</button>
+        <button id="favImportBtn" class="btn">导入合并</button>
+        <input id="favImportFile" type="file" accept="application/json" hidden />
+        <button id="favClear" class="btn">清空本地收藏数据</button>
+      </div>
+      <p class="note" id="favStats"></p>
+    </section>
+
+    <!-- 数据 -->
+    <section class="card">
+      <h2>AI 数据</h2>
+      <div class="row">
+        <button id="clearCache" class="btn">清空总结缓存</button>
+        <button id="exportBtn" class="btn">导出配置</button>
+        <button id="importBtn" class="btn">导入配置</button>
+        <input id="importFile" type="file" accept="application/json" hidden />
+      </div>
+      <p class="note">缓存以「帖子 + 模型 + 提示词」为键，命中即秒出；清空后下次会重新调用模型。</p>
+    </section>
+  </main>
+
+  <footer class="page-foot">
+    <span id="status" class="status"></span>
+    <span class="spacer"></span>
+    <button id="testBtn" class="btn">测试连接</button>
+    <button id="saveBtn" class="btn primary">保存</button>
+  </footer>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

@@ -1112,6 +1112,100 @@
    因此点击这些按钮时脚本会临时切到源码视图，让原生编辑器完整显示后再点击，
    弹窗才能定位正确；操作完成后自动切回可视化。 */
 .${NS}-native-collapsed{display:none !important;}
+
+/* —— AI 写作助手窗口 ——
+   沿用通用浮层的变量与交互约定，但覆盖为「固定在视口上的独立窗口」：
+   尺寸更大、内部用纵向 flex 分区（结果区自适应占满剩余高度）；
+   空白点击不关闭，只能通过右上角 × / Esc / 面板内「关闭」按钮收起。 */
+.${NS}-ai{
+  position:fixed;z-index:10002;transform-origin:center top;
+  width:min(720px,calc(100vw - 48px));
+  height:min(640px,calc(100vh - 48px));
+  padding:0;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 18px 56px rgba(0,0,0,.2);
+}
+.${NS}-ai-head{flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;
+  border-bottom:1px solid var(--pcr-border);cursor:move;}
+.${NS}-ai-title{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:13.5px;}
+.${NS}-ai-title svg{width:16px;height:16px;flex:none;}
+.${NS}-ai-sub{margin-left:auto;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:11.5px;color:var(--pcr-subtle);background:var(--pcr-canvas);
+  border:1px solid var(--pcr-border);border-radius:999px;padding:1px 8px;}
+.${NS}-ai-x{flex:none;display:inline-flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border:0;background:transparent;color:var(--pcr-subtle);
+  border-radius:6px;cursor:pointer;transition:background .22s cubic-bezier(.22,1,.36,1),color .22s;}
+.${NS}-ai-x:hover{background:var(--pcr-surface-hover);color:var(--pcr-text);}
+.${NS}-ai-x svg{width:15px;height:15px;}
+/* 侧边栏模式：贴靠视口右侧并撑满高度（坐标交给 CSS，取消内联定位） */
+.${NS}-ai.is-dock{
+  left:auto;right:0;top:0;bottom:0;
+  width:min(560px,calc(100vw - 40px));height:auto;
+  border-radius:0;box-shadow:-8px 0 32px rgba(0,0,0,.14);
+}
+.${NS}-ai.is-dock .${NS}-ai-head{cursor:default;}
+/* 拖动中：全局禁止选中，避免拖出文本选区 */
+.${NS}-dragging,.${NS}-dragging *{user-select:none !important;}
+.${NS}-dragging .${NS}-ai-head{cursor:grabbing;}
+.${NS}-ai-chips{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px 4px;}
+.${NS}-ai-chip{border:1px solid var(--pcr-border);background:var(--pcr-surface);color:var(--pcr-text);
+  font:inherit;font-size:12.5px;padding:4px 11px;border-radius:999px;cursor:pointer;
+  transition:background .22s cubic-bezier(.22,1,.36,1),color .22s,border-color .22s,transform .18s;}
+.${NS}-ai-chip:hover{background:var(--pcr-accent-soft);color:var(--pcr-accent);border-color:var(--pcr-accent);}
+.${NS}-ai-chip:active{transform:scale(.96);}
+.${NS}-ai-custom{flex:none;display:flex;gap:6px;align-items:flex-end;padding:8px 12px 4px;}
+.${NS}-ai-input{flex:1;min-width:0;resize:none;overflow-y:auto;min-height:34px;max-height:96px;
+  padding:7px 10px;font:inherit;font-size:13px;line-height:1.5;color:var(--pcr-text);
+  background:var(--pcr-canvas);border:1px solid var(--pcr-border);border-radius:var(--pcr-r-control);outline:none;
+  transition:border-color .24s cubic-bezier(.22,1,.36,1),box-shadow .24s;}
+.${NS}-ai-input:focus{border-color:var(--pcr-accent);box-shadow:0 0 0 3px var(--pcr-accent-soft);}
+.${NS}-ai-gen{flex:none;height:34px;padding:0 14px;border:1px solid var(--pcr-accent);border-radius:var(--pcr-r-control);
+  background:var(--pcr-accent);color:#fff;font:inherit;font-size:13px;font-weight:500;cursor:pointer;
+  transition:filter .22s,transform .18s;}
+.${NS}-ai-gen:hover{filter:brightness(1.06);}
+.${NS}-ai-gen:active{transform:scale(.97);}
+.${NS}-ai-gen:disabled,.${NS}-ai-chip:disabled{opacity:.5;cursor:default;filter:none;}
+.${NS}-ai-result{flex:1;min-height:140px;margin:8px 12px 0;border:1px solid var(--pcr-border);
+  border-radius:var(--pcr-r-control);background:var(--pcr-canvas);overflow:auto;}
+.${NS}-ai-out{padding:10px 12px;font-size:13.5px;line-height:1.7;color:var(--pcr-text);word-break:break-word;}
+.${NS}-ai-out>*:first-child{margin-top:0;}
+.${NS}-ai-out>*:last-child{margin-bottom:0;}
+.${NS}-ai-out p{margin:0 0 8px;white-space:pre-wrap;}
+.${NS}-ai-out h1,.${NS}-ai-out h2{font-size:16px;margin:10px 0 5px;}
+.${NS}-ai-out h3,.${NS}-ai-out h4,.${NS}-ai-out h5,.${NS}-ai-out h6{font-size:14px;margin:9px 0 4px;}
+.${NS}-ai-out ul,.${NS}-ai-out ol{margin:0 0 8px;padding-left:20px;}
+.${NS}-ai-out blockquote{margin:0 0 8px;padding:5px 10px;border-left:3px solid var(--pcr-accent);
+  background:var(--pcr-surface);border-radius:0 var(--pcr-r-control) var(--pcr-r-control) 0;color:var(--pcr-subtle);}
+.${NS}-ai-out code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;
+  background:var(--pcr-surface);border:1px solid var(--pcr-border);border-radius:4px;padding:0 5px;}
+.${NS}-ai-out pre{background:var(--pcr-surface);border:1px solid var(--pcr-border);
+  border-radius:var(--pcr-r-control);padding:10px 12px;overflow:auto;}
+.${NS}-ai-out pre code{background:none;border:0;padding:0;}
+.${NS}-ai-out table{border-collapse:collapse;margin:0 0 8px;width:100%;font-size:12.5px;}
+.${NS}-ai-out th,.${NS}-ai-out td{border:1px solid var(--pcr-border);padding:5px 8px;text-align:left;}
+.${NS}-ai-out th{background:var(--pcr-surface);font-weight:600;}
+.${NS}-ai-out a{color:var(--pcr-accent);}
+.${NS}-ai-out hr{border:0;border-top:1px solid var(--pcr-border);margin:10px 0;}
+.${NS}-ai-ph{padding:12px;color:var(--pcr-subtle);font-size:12.5px;line-height:1.7;}
+.${NS}-ai-note{padding:12px;font-size:13px;color:var(--pcr-text);line-height:1.7;}
+.${NS}-ai-tip{color:var(--pcr-subtle);font-size:12.5px;margin-top:4px;}
+.${NS}-ai-note-act{margin-top:10px;display:flex;gap:8px;}
+.${NS}-ai-loading{display:flex;align-items:center;gap:9px;padding:12px;color:var(--pcr-subtle);font-size:13px;}
+.${NS}-ai-spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--pcr-accent-soft);
+  border-top-color:var(--pcr-accent);animation:${NS}AiRot .7s linear infinite;}
+@keyframes ${NS}AiRot{to{transform:rotate(360deg);}}
+.${NS}-ai-caret{display:inline-block;width:2px;height:1em;vertical-align:-2px;margin-left:2px;
+  background:var(--pcr-accent);animation:${NS}AiBlink 1s steps(1) infinite;}
+@keyframes ${NS}AiBlink{50%{opacity:0;}}
+.${NS}-ai-actions{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;margin-top:10px;
+  border-top:1px solid var(--pcr-border);}
+.${NS}-ai-act{border:1px solid var(--pcr-border);background:var(--pcr-surface);color:var(--pcr-text);
+  font:inherit;font-size:12.5px;padding:6px 12px;border-radius:var(--pcr-r-control);cursor:pointer;
+  transition:background .22s cubic-bezier(.22,1,.36,1),color .22s,border-color .22s,transform .18s;}
+.${NS}-ai-act:hover{background:var(--pcr-surface-hover);}
+.${NS}-ai-act:active{transform:scale(.97);}
+.${NS}-ai-act.is-primary{background:var(--pcr-accent);border-color:var(--pcr-accent);color:#fff;font-weight:500;}
+.${NS}-ai-act.is-primary:hover{background:var(--pcr-accent);filter:brightness(1.06);}
+.${NS}-ai-act:disabled{opacity:.45;cursor:default;}
 `;
     const style = document.createElement('style');
     style.id = NS + '-style';
@@ -1357,7 +1451,8 @@
   }
 
   function closePopups() {
-    document.querySelectorAll('.' + NS + '-pop, .' + NS + '-float').forEach((el) => el.remove());
+    // AI 写作助手是独立窗口：用 :not 排除，空白点击 / 打开其他浮层都不会把它一并收起
+    document.querySelectorAll('.' + NS + '-pop:not(.' + NS + '-ai), .' + NS + '-float').forEach((el) => el.remove());
     // 浮层被统一清掉时同步重置查找状态，避免残留高亮与悬空的定时器
     if (findTimer) { clearTimeout(findTimer); findTimer = null; }
     findPop = null;
@@ -2116,6 +2211,10 @@
     add(makeBtn({ key: 'clear', html: ICONS.clear, tip: '清除格式', onClick: () => exec('removeFormat') }));
     add(makeBtn({ key: 'fullscreen', html: I(SITE_LABELS.fullscreen, ICONS.fullscreen), tip: '全屏编辑', onClick: toggleFullscreen }));
 
+    // —— AI（彩色图标，一眼区分于工具栏其余单色 stroke 图标）——
+    group('AI');
+    add(makeBtn({ key: 'ai', html: aiIcon(), tip: 'AI 写作助手', onClick: () => openAIWriter() }));
+
     // 渲染功能组：组名放在按钮下方，和 Word 功能区的分组标注一致
     groups.forEach((g) => {
       const box = document.createElement('div');
@@ -2471,9 +2570,11 @@
   let lastHref = location.href;
   setInterval(() => {
     if (!document.getElementById(FONT_STYLE_ID)) injectFontStyle();
-    if (!isEditorPage()) return;
+    // 离开编辑页：把独立窗口一并收起，避免它跟着 SPA 路由飘到别的页面上
+    if (!isEditorPage()) { if (aiPop) closeAIWriter(); return; }
     const routeChanged = location.href !== lastHref;
     lastHref = location.href;
+    if (routeChanged) closeAIWriter();   // 编辑页内切换路由（如 新建 / 编辑）时，同样收起
     if (routeChanged || !root || !document.body.contains(root)) mount();
   }, 600);
 
@@ -2492,6 +2593,636 @@
 
   // 初始尝试
   mount();
+
+  // ============================ 9. AI 写作助手 ============================
+
+  /* 在可视化编辑器工具栏里加一个彩色图标的「AI 写作助手」浮层：
+     快捷指令 / 自定义指令 → 结合当前正文交给后台大模型流式生成 → 插入 / 替换 / 复制。
+     复用通用浮层 .pcr-pop（同一套定位、关闭、层级与样式变量），并复用后台 Port：
+     port 名字 'pcai'、消息 {type:'start', id, messages, cacheKey, bypass}，与 ai/content.js 完全一致；
+     后台 handleStart 本就「直接透传 messages、cacheKey 可为 null」，所以后台无需任何改动。 */
+
+  const AI_CONFIG_KEY = 'pcai_config';   // 配置键，与 shared/constants.js / ai/content.js 保持一致
+  const AI_MAX_BODY = 6000;              // 正文上下文截断上限（字符），避免超上下文
+  const AI_DOCK_KEY = 'pcrAiDock';       // 侧边栏模式开关（记忆到 localStorage）
+  const AI_POS_KEY = 'pcrAiPos';         // 浮动模式的窗口坐标（拖动后记忆）
+
+  // 兜底默认值（字段与 shared/constants.js 的 DEFAULT_CONFIG 一致，这里只取本功能用得到的几项）
+  const AI_DEFAULTS = { provider: 'deepseek', apiKey: '', model: 'deepseek-chat', stream: true };
+
+  // 一排快捷指令：点一下即用；prompt 会作为写作指令发给模型
+  const AI_QUICK = [
+    { label: '润色', prompt: '请润色下面这段正文，保持原意与事实不变，让表达更通顺、更专业。' },
+    { label: '改写更自然', prompt: '请把下面这段正文改写得更自然通顺、易读，保持原意。' },
+    { label: '续写', prompt: '请顺着下面这段正文的思路继续往下写一小段，风格保持一致。' },
+    { label: '缩短', prompt: '请把下面这段正文压缩得更精炼，保留核心信息。' },
+    { label: '扩写', prompt: '请把下面这段正文扩写得更充实，补充合理细节，但不要编造关键事实。' },
+    { label: '起标题', prompt: '请为下面这段正文起 5 个吸引人的标题，用 Markdown 无序列表输出。' },
+    { label: '译成英文', prompt: '请把下面这段正文翻译成地道、自然的英文。' },
+    { label: '整理成大纲', prompt: '请把下面这段正文整理成结构化大纲，用 Markdown 多级列表输出。' }
+  ];
+
+  // 系统提示词：只输出结果本身 + 用 Markdown 排版（本功能为写作场景，与详情页总结的默认提示词区分开）
+  const AI_SYSTEM_PROMPT = '你是一个专业、克制的中文写作助手。用户会提供一段「当前正文」作为参考并给出写作指令，'
+    + '请严格按指令处理，并且只输出结果本身：不要任何开场白、解释、总结或「以下是……」之类的话；'
+    + '结果必须使用 Markdown 排版（可用小标题、列表、加粗等），不要输出 HTML，也不要把整段结果包进代码围栏；'
+    + '除非指令明确要求，否则不要整段复述原文。';
+
+  // —— 状态 ——
+  let aiConfig = { ...AI_DEFAULTS };                                 // 从 chrome.storage.local 读取的配置
+  let aiPop = null;                                                  // 面板根节点（.pcr-pop.pcr-ai）
+  let aiRefs = null;                                                 // 面板内部节点引用
+  let aiBusy = false;                                                // 是否正在生成
+  let aiStreamText = '';                                             // 流式累积的结果文本
+  let aiLastInstruction = '';                                        // 上次指令（「再次生成」用）
+  let aiReqId = null;                                                // 当前进行中的请求 id
+  // 打开面板时捕获的上下文：选中文本 / 富文本选区 / 源码光标偏移，供插入 / 替换使用
+  let aiCtx = { selectedText: '', range: null, taStart: null, taEnd: null, mode: 'rich' };
+  let aiDock = false;                                                // 是否贴靠为右侧边栏
+  let aiDrag = null;                                                 // 拖动状态 { dx, dy }，null 表示未在拖动
+
+  // 与后台 Service Worker 的长连接（名字 'pcai'，协议与 ai/content.js 一致，断线自动重连）
+  let aiPort = null;
+  const aiPending = new Map();
+  let aiSeq = 0;
+
+  /** 彩色 AI 图标：自带 <svg> 与渐变、显式写死颜色，避免被工具栏的 currentColor 覆盖成单色 */
+  function aiIcon() {
+    const gid = NS + '-ai-g' + Math.random().toString(36).slice(2, 8);  // 随机 id，多实例不冲突
+    return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none">' +
+      '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1">' +
+        '<stop offset="0" stop-color="#8b5cf6"/>' +
+        '<stop offset=".52" stop-color="#ec4899"/>' +
+        '<stop offset="1" stop-color="#f59e0b"/>' +
+      '</linearGradient></defs>' +
+      '<path d="M10 2.5 11.7 8.3 17.5 10 11.7 11.7 10 17.5 8.3 11.7 2.5 10 8.3 8.3Z" fill="url(#' + gid + ')"/>' +
+      '<path d="M17.8 3 18.5 5.5 21 6.2 18.5 6.9 17.8 9.4 17.1 6.9 14.6 6.2 17.1 5.5Z" fill="#f59e0b"/>' +
+      '<path d="M18.4 14.6 19 16.4 20.8 17 19 17.6 18.4 19.4 17.8 17.6 16 17 17.8 16.4Z" fill="#ec4899"/>' +
+      '</svg>';
+  }
+
+  // ---------------------------- 9.1 配置读取 ----------------------------
+
+  /** 读取 AI 配置（与 ai/content.js 一样从 chrome.storage.local 的 pcai_config 取） */
+  function aiLoadConfig() {
+    try {
+      chrome.storage.local.get([AI_CONFIG_KEY], (raw) => {
+        aiConfig = { ...AI_DEFAULTS, ...((raw && raw[AI_CONFIG_KEY]) || {}) };
+        if (aiRefs) syncAIBtns();
+      });
+    } catch (e) { /* 非扩展环境忽略 */ }
+  }
+
+  // ---------------------------- 9.2 后台 Port（复用 'pcai' 协议） ----------------------------
+
+  /** 扩展上下文是否仍然有效（扩展被重载/停用后，旧内容脚本的 chrome.runtime 会失效） */
+  function aiExtAlive() {
+    try { return !!(chrome && chrome.runtime && chrome.runtime.id); } catch (e) { return false; }
+  }
+
+  function aiEnsurePort() {
+    if (aiPort) return aiPort;
+    if (!aiExtAlive()) return null;   // 上下文已失效，无法再与后台通信
+    try {
+      aiPort = chrome.runtime.connect({ name: 'pcai' });
+    } catch (e) {
+      aiPort = null;
+      return null;
+    }
+    aiPort.onMessage.addListener((msg) => {
+      const cb = aiPending.get(msg && msg.id);
+      if (!cb) return;
+      if (msg.type === 'chunk') { if (cb.onChunk) cb.onChunk(msg.delta); }
+      else if (msg.type === 'done') { aiPending.delete(msg.id); if (cb.onDone) cb.onDone(msg); }
+      else if (msg.type === 'error') { aiPending.delete(msg.id); if (cb.onError) cb.onError(msg); }
+    });
+    aiPort.onDisconnect.addListener(() => {
+      aiPort = null;
+      // 请求途中被断开：把未完成的回调统一转成错误，避免面板卡在「正在生成」
+      aiPending.forEach((cb) => {
+        if (cb.onError) cb.onError({ code: 'disconnect', message: '后台连接已断开，请重试' });
+      });
+      aiPending.clear();
+      aiReqId = null;
+    });
+    return aiPort;
+  }
+
+  /** 发起一次生成请求：cacheKey 传 null（写作助手每次都是新请求，不写缓存） */
+  function aiRequest({ messages, onChunk, onDone, onError }) {
+    const id = 'a' + (++aiSeq);
+    const p = aiEnsurePort();
+    if (!p) {
+      onError({ code: 'context', message: '扩展已更新或已停用，请刷新页面后再试' });
+      return id;
+    }
+    aiPending.set(id, { onChunk, onDone, onError });
+    try {
+      p.postMessage({ type: 'start', id, messages, cacheKey: null, bypass: true });
+    } catch (e) {
+      aiPending.delete(id);
+      onError({ code: 'port', message: '后台连接失败，请重新加载页面后再试' });
+    }
+    return id;
+  }
+
+  function aiAbort() {
+    if (aiReqId && aiPort) {
+      try { aiPort.postMessage({ type: 'abort', id: aiReqId }); } catch (e) { /* 忽略 */ }
+    }
+    if (aiReqId) aiPending.delete(aiReqId);
+    aiReqId = null;
+  }
+
+  // ---------------------------- 9.3 提示词组装 ----------------------------
+
+  /** 取当前编辑器正文（Markdown）；过长按 AI_MAX_BODY 截断 */
+  function aiCurrentBody() {
+    let md = '';
+    if (mode === 'source' && textarea) md = textarea.value;
+    else if (editor) md = htmlToMd(editor);       // 可视化 / 分屏：以富文本为准
+    else if (textarea) md = textarea.value;
+    md = String(md || '').trim();
+    if (md.length > AI_MAX_BODY) md = md.slice(0, AI_MAX_BODY) + '\n……（正文过长，已截断）';
+    return md;
+  }
+
+  /** 组装发给模型的消息：system 约束「只输出结果 + Markdown」，user 为「指令 + 当前正文」 */
+  function aiBuildMessages(instruction, body) {
+    const ref = body
+      ? '参考正文（当前编辑器内容，供你理解上下文）：\n\n' + body
+      : '（当前编辑器里还没有正文，请直接依据指令进行写作。）';
+    return [
+      { role: 'system', content: AI_SYSTEM_PROMPT },
+      { role: 'user', content: '写作指令：' + instruction + '\n\n' + ref }
+    ];
+  }
+
+  // ---------------------------- 9.4 上下文捕获 / 插入与替换 ----------------------------
+
+  /** 打开面板时捕获选区 / 光标：富文本取选区 Range，源码取 textarea 光标偏移 */
+  function captureAIContext() {
+    aiCtx = { selectedText: '', range: null, taStart: null, taEnd: null, mode: mode };
+    if (mode === 'source' && textarea) {
+      const s = textarea.selectionStart, e = textarea.selectionEnd;
+      if (s != null && e != null) {
+        aiCtx.taStart = s;
+        aiCtx.taEnd = e;
+        if (e > s) aiCtx.selectedText = textarea.value.slice(s, e);
+      }
+      return;
+    }
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && !sel.isCollapsed && editor && editor.contains(sel.anchorNode)) {
+      aiCtx.selectedText = sel.toString();
+      try { aiCtx.range = sel.getRangeAt(0).cloneRange(); } catch (e) { aiCtx.range = null; }
+    }
+  }
+
+  /** 富文本区里当前是否存在有效选区（用于「替换选中内容」） */
+  function aiLiveEditorRange() {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && !sel.isCollapsed && editor &&
+        editor.contains(sel.anchorNode) && editor.contains(sel.focusNode)) {
+      return sel.getRangeAt(0);
+    }
+    return null;
+  }
+
+  /** 插入到富文本光标处（先把选区折叠到末尾，避免误删选中文字） */
+  function aiInsertToEditor(html) {
+    if (!editor) return;
+    editor.focus();
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && editor.contains(sel.anchorNode)) sel.collapseToEnd();
+    insertHtml(html);     // insertHtml 内部在无选区时会定位到文末
+    richToSource();
+  }
+
+  /** 用富文本替换选中内容：优先用实时选区，其次用打开面板时保存的 Range */
+  function aiReplaceInEditor(html) {
+    if (!editor) return;
+    const range = aiLiveEditorRange() || aiCtx.range;
+    editor.focus();
+    if (!range) { aiInsertToEditor(html); return; }
+    try {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.execCommand('styleWithCSS', false, true);
+      document.execCommand('insertHTML', false, html);
+    } catch (e) {
+      aiInsertToEditor(html);
+      return;
+    }
+    richToSource();
+  }
+
+  /** 源码视图下的 textarea 光标：优先用实时位置，否则回退到打开面板时捕获的偏移 */
+  function aiTextareaSel() {
+    if (!textarea) return { s: 0, e: 0 };
+    if (document.activeElement === textarea) {
+      const s = textarea.selectionStart, e = textarea.selectionEnd;
+      if (s != null && e != null) return { s: s, e: e };
+    }
+    const fallback = textarea.value.length;
+    return { s: aiCtx.taStart != null ? aiCtx.taStart : fallback, e: aiCtx.taEnd != null ? aiCtx.taEnd : fallback };
+  }
+
+  /** 插入到源码 textarea 光标处（setTextareaValue 会派发 input，触发富文本同步） */
+  function aiInsertToTextarea(text) {
+    if (!textarea) return;
+    const sel = aiTextareaSel();
+    const at = sel.e > sel.s ? sel.e : sel.s;     // 插入：选区折叠到末尾，不删选中文字
+    const v = textarea.value;
+    setTextareaValue(v.slice(0, at) + text + v.slice(at));
+    try { textarea.selectionStart = textarea.selectionEnd = at + text.length; } catch (e) { /* noop */ }
+    if (mode === 'source') textarea.focus();
+  }
+
+  /** 用结果替换源码 textarea 里的选中内容；没有选中则返回 false */
+  function aiReplaceInTextarea(text) {
+    if (!textarea) return false;
+    const sel = aiTextareaSel();
+    if (sel.e <= sel.s) return false;
+    const v = textarea.value;
+    setTextareaValue(v.slice(0, sel.s) + text + v.slice(sel.e));
+    try { textarea.selectionStart = textarea.selectionEnd = sel.s + text.length; } catch (e) { /* noop */ }
+    if (mode === 'source') textarea.focus();
+    return true;
+  }
+
+  // ---------------------------- 9.5 面板 UI ----------------------------
+
+  function aiRenderPlaceholder() {
+    if (!aiRefs) return;
+    aiRefs.result.innerHTML = '<div class="' + NS + '-ai-ph">选一个快捷指令，或在下方输入自定义要求；'
+      + '生成时会把当前正文一起发给模型。结果可一键插入正文或替换选中内容。</div>';
+  }
+
+  function aiRenderLoading() {
+    if (!aiRefs) return;
+    aiRefs.result.innerHTML = '<div class="' + NS + '-ai-loading"><span class="' + NS + '-ai-spin"></span>'
+      + '<span>正在生成…</span></div>';
+  }
+
+  /** 流式渲染：走 sanitizeHtml 兜底，防止模型输出里混入危险 HTML */
+  function aiRenderStream() {
+    if (!aiRefs) return;
+    aiRefs.result.innerHTML = '<div class="' + NS + '-ai-out">' + sanitizeHtml(mdToHtml(aiStreamText)) +
+      '<span class="' + NS + '-ai-caret"></span></div>';
+  }
+
+  function aiRenderDone() {
+    if (!aiRefs) return;
+    aiRefs.result.innerHTML = '<div class="' + NS + '-ai-out">' + sanitizeHtml(mdToHtml(aiStreamText)) + '</div>';
+  }
+
+  function aiRenderError(msg) {
+    if (!aiRefs) return;
+    aiRefs.result.innerHTML = '<div class="' + NS + '-ai-note">' + escapeHtml(msg) +
+      '<div class="' + NS + '-ai-tip">可检查扩展设置里的模型 / 密钥，或稍后重试。</div>' +
+      '<div class="' + NS + '-ai-note-act">' +
+        '<button type="button" class="' + NS + '-ai-act" data-ai="again">重试</button>' +
+        '<button type="button" class="' + NS + '-ai-act" data-ai="settings">打开设置</button>' +
+      '</div></div>';
+  }
+
+  /** 未配置 API Key 时的友好提示 + 打开设置入口 */
+  function aiRenderNoKey() {
+    if (!aiRefs) return;
+    aiRefs.result.innerHTML = '<div class="' + NS + '-ai-note">还没有配置 API Key，AI 写作助手暂时用不了。' +
+      '<div class="' + NS + '-ai-tip">请先在扩展设置里选择服务商并填写密钥（本地 Ollama 无需 Key）。</div>' +
+      '<div class="' + NS + '-ai-note-act">' +
+        '<button type="button" class="' + NS + '-ai-act is-primary" data-ai="settings">打开设置</button>' +
+      '</div></div>';
+  }
+
+  function aiOpenOptions() {
+    try { chrome.runtime.sendMessage({ type: 'open-options' }); }
+    catch (e) { toast('请在浏览器扩展栏打开「扩展选项」设置页'); }
+  }
+
+  /** 同步面板里各按钮的可用状态 */
+  function syncAIBtns() {
+    if (!aiRefs) return;
+    const hasText = !!aiStreamText.trim();
+    aiRefs.gen.disabled = aiBusy;
+    aiRefs.el.querySelectorAll('.' + NS + '-ai-chip').forEach((b) => { b.disabled = aiBusy; });
+    aiRefs.btnInsert.disabled = aiBusy || !hasText;
+    aiRefs.btnReplace.disabled = aiBusy || !hasText || !aiCtx.selectedText;   // 无选中则禁用「替换」
+    aiRefs.btnCopy.disabled = !hasText;
+    aiRefs.btnAgain.disabled = aiBusy || !aiLastInstruction;
+    aiRefs.sub.textContent = aiConfig.model || '';
+  }
+
+  // ---------------------------- 9.6 生成与结果操作 ----------------------------
+
+  const aiScheduleStream = debounce(() => { aiRenderStream(); }, 80);
+
+  /** 点击自定义「生成」 */
+  function aiGenerateCustom() {
+    if (!aiRefs) return;
+    const v = (aiRefs.input.value || '').trim();
+    if (!v) { toast('请输入写作指令'); aiRefs.input.focus(); return; }
+    aiRun(v);
+  }
+
+  /** 跑一次生成：组装 messages → 经 Port 流式回传 → 渲染 */
+  function aiRun(instruction) {
+    if (!aiPop || !aiRefs) return;
+    if (aiBusy) { toast('正在生成中，请稍候…'); return; }
+    if (!aiConfig.apiKey && aiConfig.provider !== 'ollama') { aiRenderNoKey(); syncAIBtns(); return; }
+
+    aiLastInstruction = instruction;
+    const messages = aiBuildMessages(instruction, aiCurrentBody());
+
+    aiAbort();
+    aiStreamText = '';
+    aiBusy = true;
+    aiRenderLoading();
+    syncAIBtns();
+
+    aiReqId = aiRequest({
+      messages,
+      onChunk(delta) {
+        aiStreamText += delta;
+        aiScheduleStream();
+      },
+      onDone(msg) {
+        aiReqId = null;
+        aiBusy = false;
+        aiStreamText = msg.text || aiStreamText;
+        if (!aiStreamText.trim()) aiRenderError('模型没有返回内容，请更换指令或模型后重试。');
+        else aiRenderDone();
+        syncAIBtns();
+      },
+      onError(err) {
+        aiReqId = null;
+        aiBusy = false;
+        aiRenderError((err && err.message) || '生成失败，请稍后重试');
+        syncAIBtns();
+      }
+    });
+  }
+
+  /** 「插入到正文」：源码模式插入 textarea 光标处，其余模式插入富文本光标处 */
+  function aiDoInsert() {
+    if (!aiStreamText || aiBusy) return;
+    if (mode === 'source' && textarea) { aiInsertToTextarea(aiStreamText); toast('已插入到源码光标处'); return; }
+    if (!editor) { toast('没有可插入的编辑区'); return; }
+    aiInsertToEditor(sanitizeHtml(mdToHtml(aiStreamText)));
+    toast('已插入到光标处');
+  }
+
+  /** 「替换选中内容」：有选中则替换，否则退化为插入并提示 */
+  function aiDoReplace() {
+    if (!aiStreamText || aiBusy) return;
+    if (mode === 'source' && textarea) {
+      if (aiReplaceInTextarea(aiStreamText)) toast('已替换选中内容');
+      else { toast('没有选中内容，已改为插入'); aiInsertToTextarea(aiStreamText); }
+      return;
+    }
+    if (!editor) return;
+    if (aiLiveEditorRange() || aiCtx.range) {
+      aiReplaceInEditor(sanitizeHtml(mdToHtml(aiStreamText)));
+      toast('已替换选中内容');
+    } else {
+      toast('没有选中内容，已改为插入');
+      aiInsertToEditor(sanitizeHtml(mdToHtml(aiStreamText)));
+    }
+  }
+
+  function aiDoCopy() {
+    if (!aiStreamText) return;
+    navigator.clipboard.writeText(aiStreamText)
+      .then(() => toast('已复制到剪贴板'))
+      .catch(() => toast('复制失败，请手动选择文本'));
+  }
+
+  /** 构建面板 DOM（事件统一在根节点委托） */
+  function buildAIWriter() {
+    const el = document.createElement('div');
+    el.className = NS + '-pop ' + NS + '-ai';
+    el.setAttribute('role', 'dialog');
+
+    const chips = AI_QUICK.map((q, i) =>
+      '<button type="button" class="' + NS + '-ai-chip" data-ai-chip="' + i + '">' + escapeHtml(q.label) + '</button>'
+    ).join('');
+
+    el.innerHTML =
+      '<div class="' + NS + '-ai-head">' +
+        '<span class="' + NS + '-ai-title">' + aiIcon() + '<span>AI 写作助手</span></span>' +
+        '<span class="' + NS + '-ai-sub"></span>' +
+        '<button type="button" class="' + NS + '-ai-x" data-ai="dock" title="浮动 / 侧边栏">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">' +
+            '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>' +
+        '</button>' +
+        '<button type="button" class="' + NS + '-ai-x" data-ai="close" title="关闭（Esc）">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+            '<path d="M6 6l12 12M18 6L6 18"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="' + NS + '-ai-chips">' + chips + '</div>' +
+      '<div class="' + NS + '-ai-custom">' +
+        '<textarea class="' + NS + '-ai-input" rows="1" spellcheck="false" ' +
+          'placeholder="输入自定义写作要求，如：改写成小红书风格，Ctrl+回车生成"></textarea>' +
+        '<button type="button" class="' + NS + '-ai-gen" data-ai="gen">生成</button>' +
+      '</div>' +
+      '<div class="' + NS + '-ai-result"></div>' +
+      '<div class="' + NS + '-ai-actions">' +
+        '<button type="button" class="' + NS + '-ai-act is-primary" data-ai="insert">插入到正文</button>' +
+        '<button type="button" class="' + NS + '-ai-act" data-ai="replace">替换选中内容</button>' +
+        '<button type="button" class="' + NS + '-ai-act" data-ai="copy">复制</button>' +
+        '<button type="button" class="' + NS + '-ai-act" data-ai="again">再次生成</button>' +
+        '<button type="button" class="' + NS + '-ai-act" data-ai="close">关闭</button>' +
+      '</div>';
+
+    aiRefs = {
+      el: el,
+      sub: el.querySelector('.' + NS + '-ai-sub'),
+      input: el.querySelector('.' + NS + '-ai-input'),
+      gen: el.querySelector('[data-ai="gen"]'),
+      result: el.querySelector('.' + NS + '-ai-result'),
+      btnInsert: el.querySelector('[data-ai="insert"]'),
+      btnReplace: el.querySelector('[data-ai="replace"]'),
+      btnCopy: el.querySelector('[data-ai="copy"]'),
+      btnAgain: el.querySelector('[data-ai="again"]')
+    };
+
+    // 按钮按下时阻止默认，保住编辑器光标 / 选区；输入框保持原生焦点行为
+    el.addEventListener('mousedown', (e) => {
+      if (e.target.closest('input, textarea')) return;
+      if (e.target.closest('button')) e.preventDefault();
+    });
+
+    // 点击统一委托：快捷指令 / 生成 / 插入 / 替换 / 复制 / 再次生成 / 关闭 / 打开设置
+    el.addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-ai-chip]');
+      if (chip) {
+        const idx = parseInt(chip.getAttribute('data-ai-chip'), 10);
+        if (AI_QUICK[idx]) aiRun(AI_QUICK[idx].prompt);
+        return;
+      }
+      const node = e.target.closest('[data-ai]');
+      if (!node) return;
+      const act = node.getAttribute('data-ai');
+      if (act === 'gen') aiGenerateCustom();
+      else if (act === 'insert') aiDoInsert();
+      else if (act === 'replace') aiDoReplace();
+      else if (act === 'copy') aiDoCopy();
+      else if (act === 'again') { if (aiLastInstruction) aiRun(aiLastInstruction); }
+      else if (act === 'settings') aiOpenOptions();
+      else if (act === 'dock') toggleAIDock();
+      else if (act === 'close') closeAIWriter();
+    });
+
+    // 拖动标题栏：用 pointer 事件 + setPointerCapture，拖出窗口范围也不会丢事件
+    const headEl = el.querySelector('.' + NS + '-ai-head');
+    headEl.addEventListener('pointerdown', startAIDrag);
+    headEl.addEventListener('pointermove', moveAIDrag);
+    headEl.addEventListener('pointerup', endAIDrag);
+    headEl.addEventListener('pointercancel', endAIDrag);
+
+    const ta = aiRefs.input;
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); aiGenerateCustom(); }
+    });
+    ta.addEventListener('input', () => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(96, ta.scrollHeight) + 'px';
+    });
+
+    aiRenderPlaceholder();
+    return el;
+  }
+
+  // ---------------------------- 9.6 窗口定位 / 拖动 / 侧边栏 ----------------------------
+
+  /** 读取上次拖动保存的窗口坐标（固定定位，用的是视口坐标） */
+  function aiSavedPos() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(AI_POS_KEY) || 'null');
+      if (raw && typeof raw.left === 'number' && typeof raw.top === 'number') return raw;
+    } catch (e) { /* 忽略损坏的本地数据 */ }
+    return null;
+  }
+
+  /** 记住当前窗口坐标 */
+  function saveAIPos() {
+    if (!aiPop) return;
+    try {
+      const r = aiPop.getBoundingClientRect();
+      localStorage.setItem(AI_POS_KEY, JSON.stringify({ left: Math.round(r.left), top: Math.round(r.top) }));
+    } catch (e) { /* 忽略写入失败 */ }
+  }
+
+  /**
+   * 窗口定位：固定在视口内（不随页面滚动移动）。
+   * 侧边栏模式交给 CSS 贴右边；浮动模式优先沿用上次拖动的位置，否则默认靠右垂直居中。
+   */
+  function positionAIPop() {
+    if (!aiPop) return;
+    aiPop.classList.toggle('is-dock', aiDock);
+    if (aiDock) {
+      aiPop.style.left = '';    // 侧边栏由 CSS 定位，清掉内联坐标避免打架
+      aiPop.style.top = '';
+      return;
+    }
+    const w = aiPop.offsetWidth;
+    const h = aiPop.offsetHeight;
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+    const gap = 24;
+    const saved = aiSavedPos();
+    let left = saved ? saved.left : Math.max(gap, vw - w - gap);
+    let top = saved ? saved.top : Math.round((vh - h) / 2);
+    left = Math.max(gap, Math.min(left, vw - w - gap));
+    top = Math.max(gap, Math.min(top, vh - h - gap));
+    aiPop.style.left = left + 'px';
+    aiPop.style.top = top + 'px';
+  }
+
+  /** 在浮动 / 侧边栏两种形态间切换，并记住选择 */
+  function toggleAIDock() {
+    aiDock = !aiDock;
+    try { localStorage.setItem(AI_DOCK_KEY, aiDock ? '1' : '0'); } catch (e) { /* 忽略 */ }
+    positionAIPop();
+    toast(aiDock ? '已贴靠为右侧边栏' : '已切回浮动窗口');
+  }
+
+  /** 开始拖动：按住标题栏空白处（按钮 / 输入框上不触发） */
+  function startAIDrag(e) {
+    if (!aiPop || aiDock) return;
+    if (e.target.closest('button, input, textarea')) return;
+    const r = aiPop.getBoundingClientRect();
+    aiDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+    document.body.classList.add(NS + '-dragging');
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+    e.preventDefault();
+  }
+
+  /** 拖动中：坐标始终夹在视口内，避免窗口被拖出屏幕 */
+  function moveAIDrag(e) {
+    if (!aiDrag || !aiPop) return;
+    const w = aiPop.offsetWidth;
+    const h = aiPop.offsetHeight;
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+    const gap = 8;
+    const left = Math.max(gap, Math.min(e.clientX - aiDrag.dx, vw - w - gap));
+    const top = Math.max(gap, Math.min(e.clientY - aiDrag.dy, vh - h - gap));
+    aiPop.style.left = left + 'px';
+    aiPop.style.top = top + 'px';
+  }
+
+  /** 结束拖动并记住位置 */
+  function endAIDrag() {
+    if (!aiDrag) return;
+    aiDrag = null;
+    document.body.classList.remove(NS + '-dragging');
+    saveAIPos();
+  }
+
+  /** 打开写作助手窗口；已打开时再点一次即收起（独立窗口不受空白点击影响） */
+  function openAIWriter() {
+    if (aiPop) { closeAIWriter(); return; }
+    closePopups();          // 先收起其它浮层（AI 窗口自身已被 closePopups 排除在外）
+    captureAIContext();     // 先捕获选区 / 光标，再把焦点交给窗口输入框
+    try { aiDock = localStorage.getItem(AI_DOCK_KEY) === '1'; } catch (e) { aiDock = false; }
+    aiPop = buildAIWriter();
+    document.body.appendChild(aiPop);
+    positionAIPop();
+    if (aiRefs && aiRefs.input) aiRefs.input.focus();
+    syncAIBtns();
+  }
+
+  /** 关闭面板并中断进行中的生成 */
+  function closeAIWriter() {
+    aiAbort();
+    aiBusy = false;
+    if (aiPop && aiPop.parentElement) aiPop.parentElement.removeChild(aiPop);
+    aiPop = null;
+    aiRefs = null;
+  }
+
+  // 初始化：读取配置，并在设置页改动后即时生效
+  aiLoadConfig();
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !changes[AI_CONFIG_KEY]) return;
+      aiConfig = { ...AI_DEFAULTS, ...(changes[AI_CONFIG_KEY].newValue || {}) };
+      if (aiRefs) syncAIBtns();
+    });
+  } catch (e) { /* 非扩展环境忽略 */ }
+
+  // 独立窗口：空白点击不会关闭它，只有 Esc / 右上角 × / 面板内「关闭」/ 工具栏再次点击才收起
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && aiPop) closeAIWriter();
+  });
+
+  // 视口尺寸变化时重新夹取位置，避免窗口被挤出可视区域
+  window.addEventListener('resize', () => { if (aiPop) positionAIPop(); });
 
   // 暴露一个调试句柄，便于排查（不影响站点）
   window.__pickcatRichEditor = {

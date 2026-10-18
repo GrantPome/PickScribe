@@ -1,0 +1,104 @@
+:root {
+  --bg: #ffffff;
+  --border: #e2e6ec;
+  --text: #1b1f24;
+  --subtle: #667085;
+  --accent: #f03e46;
+  --accent-soft: rgba(240, 62, 70, .1);
+  --canvas: #f1f3f6;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+
+  /* 收藏夹 Plus 管理台令牌（console.css 依赖） */
+  --pcf-accent: #f03e46;
+  --pcf-accent-soft: rgba(240, 62, 70, .12);
+  --pcf-border: #e2e6ec;
+  --pcf-surface: #ffffff;
+  --pcf-canvas: #f1f3f6;
+  --pcf-text: #1b1f24;
+  --pcf-subtle: #667085;
+  --pcf-font: var(--font);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1e2127; --border: #2f343c; --text: #e7e9ee; --subtle: #9aa3b2; --canvas: #23272e;
+    --pcf-border: #2f343c; --pcf-surface: #1e2127; --pcf-canvas: #23272e; --pcf-text: #e7e9ee; --pcf-subtle: #9aa3b2;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 264px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.6;
+}
+/* 收藏 Plus 区：按 PRD 4.3 以 790px 为设计基准（Chrome 弹窗上限约 800px），高度固定、内容区内部滚动 */
+body.wide { width: 780px; height: 560px; }
+
+/* ============================ 分区切换 ============================ */
+.tabs {
+  display: flex; gap: 2px; flex: none;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  border: 0; background: transparent; color: var(--subtle);
+  font: inherit; font-size: 12.5px; padding: 5px 12px; border-radius: 8px 8px 0 0; cursor: pointer;
+  transition: background .3s cubic-bezier(.22,1,.36,1), color .3s cubic-bezier(.22,1,.36,1);
+}
+.tab:hover { background: var(--canvas); color: var(--text); }
+.tab.is-on { color: var(--accent); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
+
+.sec { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+#sec-ai { padding: 12px 14px 14px; display: block; }
+#sec-fav { padding: 0; }
+
+/* AI 区 */
+.head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.logo { font-weight: 600; font-size: 14px; }
+
+.switch { position: relative; display: inline-flex; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track {
+  width: 38px; height: 22px; border-radius: 999px;
+  background: var(--border); display: inline-block; position: relative;
+  transition: background .3s cubic-bezier(.22,1,.36,1);
+}
+.switch .knob {
+  position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.22);
+  transition: transform .38s cubic-bezier(.32,1.4,.4,1);
+}
+.switch input:checked + .track { background: var(--accent); }
+.switch input:checked + .track .knob { transform: translateX(16px); }
+
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.label { color: var(--subtle); font-size: 12.5px; flex: none; }
+.value { font-size: 13px; }
+
+.model-select {
+  flex: 1; min-width: 0; padding: 5px 8px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px;
+  transition: border-color .26s cubic-bezier(.22,1,.36,1);
+}
+.model-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.tip { margin: 12px 0 0; color: var(--subtle); font-size: 12px; }
+
+.foot { margin-top: 12px; }
+.btn {
+  width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  border-radius: 8px; padding: 7px 0; font: inherit; font-size: 13px; cursor: pointer;
+  transition: background .26s cubic-bezier(.22,1,.36,1);
+}
+.btn:hover { background: var(--accent-soft); }
+
+/* 收藏 Plus 区：管理台占满剩余高度 */
+.fav-root { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }

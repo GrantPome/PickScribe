@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PickScribe 收藏夹 Plus · 产品需求文档 v0.3</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#14181f; --muted:#6b7480; --line:#e6e9ee; --soft:#f6f7f9;
+    --accent:#3b6ef6; --accent-soft:#eef3ff; --warn:#b4690e; --warn-soft:#fdf4e6;
+    --ok:#1f7a55; --ok-soft:#eaf7f1; --p1:#7a3bd6; --p1-soft:#f3edfd;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:15px; line-height:1.75;
+  }
+  .layout{display:flex; align-items:flex-start; max-width:1240px; margin:0 auto}
+  /* 左侧目录 */
+  .toc{
+    position:sticky; top:0; width:250px; flex:0 0 250px; max-height:100vh; overflow:auto;
+    padding:28px 18px; border-right:1px solid var(--line);
+  }
+  .toc h2{font-size:12px; letter-spacing:.14em; color:var(--muted); text-transform:uppercase; margin:0 0 12px}
+  .toc a{display:block; padding:6px 10px; margin:1px 0; border-radius:8px; color:#3d4653; text-decoration:none; font-size:13.5px}
+  .toc a:hover{background:var(--accent-soft); color:var(--accent)}
+  .toc a.sub{padding-left:22px; color:var(--muted); font-size:13px}
+  main{flex:1 1 auto; min-width:0; padding:40px 46px 96px}
+  /* 头部 */
+  header.doc{border-bottom:1px solid var(--line); padding-bottom:22px; margin-bottom:34px}
+  .kicker{font-size:12.5px; letter-spacing:.16em; color:var(--accent); font-weight:600; text-transform:uppercase}
+  h1{font-size:31px; line-height:1.3; margin:10px 0 14px; letter-spacing:-.01em}
+  .metas{display:flex; flex-wrap:wrap; gap:8px}
+  .meta{font-size:12.5px; color:var(--muted); background:var(--soft); border:1px solid var(--line); border-radius:999px; padding:3px 11px}
+  h2.sec{font-size:21px; margin:46px 0 14px; padding-top:8px; letter-spacing:-.01em}
+  h2.sec::before{content:attr(data-no); color:var(--accent); font-variant-numeric:tabular-nums; margin-right:10px; font-weight:700}
+  h3{font-size:16.5px; margin:30px 0 8px}
+  h4{font-size:14.5px; margin:18px 0 6px; color:#2b3340}
+  p{margin:9px 0}
+  ul,ol{margin:9px 0; padding-left:22px}
+  li{margin:4px 0}
+  code{background:var(--soft); border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:13px; font-family:Consolas,Menlo,monospace}
+  .lead{color:#39424f}
+  /* 表格 */
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:13.8px}
+  th,td{border:1px solid var(--line); padding:9px 11px; text-align:left; vertical-align:top}
+  th{background:var(--soft); font-weight:600; font-size:13px; color:#39424f}
+  tbody tr:nth-child(even){background:#fbfcfd}
+  td.id{font-family:Consolas,Menlo,monospace; font-size:12.6px; white-space:nowrap; color:#39424f}
+  /* 标记 */
+  .tag{display:inline-block; font-size:11.5px; font-weight:600; border-radius:6px; padding:1px 7px; white-space:nowrap}
+  .p0{background:var(--accent-soft); color:var(--accent)}
+  .p1{background:var(--p1-soft); color:var(--p1)}
+  .tbd{background:var(--warn-soft); color:var(--warn)}
+  .asm{background:var(--ok-soft); color:var(--ok)}
+  .note{border-left:3px solid var(--accent); background:#fafbff; padding:10px 14px; margin:14px 0; border-radius:0 8px 8px 0}
+  .note.warn{border-color:#d99a2b; background:#fffbf3}
+  .note.assume{border-color:#2f9e6f; background:#f6fdfa}
+  .note p{margin:0}
+  /* 演示区 */
+  .demo{border:1px solid var(--line); border-radius:var(--radius); margin:16px 0 8px; overflow:hidden; background:#fff}
+  .demo-bar{display:flex; align-items:center; gap:8px; background:var(--soft); border-bottom:1px solid var(--line); padding:7px 12px; font-size:12.5px; color:var(--muted)}
+  .demo-bar b{color:#39424f; font-weight:600}
+  .dot{width:8px; height:8px; border-radius:50%; background:#d3d8e0}
+  .demo-body{padding:16px}
+  .demo-cap{font-size:12.5px; color:var(--muted); margin:6px 0 26px}
+  /* 通用控件 */
+  button{font:inherit; font-size:13.5px; border:1px solid var(--line); background:#fff; color:var(--fg); border-radius:9px; padding:6px 12px; cursor:pointer; transition:background .18s, border-color .18s}
+  button:hover{border-color:#c9d0da; background:#fafbfc}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  button.primary:hover{background:#2f60dd}
+  input[type=text]{font:inherit; font-size:13.5px; padding:7px 11px; border:1px solid var(--line); border-radius:9px; outline:none; width:100%}
+  input[type=text]:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+  /* 收藏面板演示 */
+  .site-mock{display:flex; align-items:center; gap:10px; border:1px dashed #d7dbe2; border-radius:10px; padding:10px 12px; background:#fcfdfe}
+  .site-mock .thumb{width:38px; height:38px; border-radius:9px; background:linear-gradient(135deg,#9db8ff,#c9d8ff); flex:0 0 auto}
+  .site-mock .t{flex:1 1 auto; min-width:0; font-size:13.5px}
+  .site-mock .t small{display:block; color:var(--muted); font-size:12px}
+  .panel{margin-top:12px; border:1px solid var(--line); border-radius:var(--radius); padding:12px; box-shadow:0 8px 24px rgba(20,24,31,.06)}
+  .panel .ph{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px}
+  .panel .ph span{font-size:13.5px; font-weight:600}
+  .glist{max-height:172px; overflow:auto; border:1px solid var(--line); border-radius:9px}
+  .grow{display:flex; align-items:center; gap:9px; padding:7px 11px; border-bottom:1px solid var(--soft); font-size:13.5px; cursor:pointer}
+  .grow:last-child{border-bottom:0}
+  .grow:hover{background:#fafbfd}
+  .grow input{accent-color:var(--accent)}
+  .grow .cnt{margin-left:auto; color:var(--muted); font-size:12px}
+  .row-new{display:flex; gap:8px; margin-top:9px}
+  .row-new button{white-space:nowrap}
+  .actions{display:flex; gap:8px; justify-content:flex-end; margin-top:11px; align-items:center}
+  .actions .saved{margin-right:auto; font-size:12.5px; color:var(--ok)}
+  .toast{position:fixed; left:50%; bottom:34px; transform:translate(-50%,14px); background:#14181f; color:#fff; font-size:13.5px; padding:9px 18px; border-radius:999px; opacity:0; pointer-events:none; transition:opacity .28s cubic-bezier(.22,1,.36,1), transform .28s cubic-bezier(.22,1,.36,1)}
+  .toast.on{opacity:1; transform:translate(-50%,0)}
+  /* 弹窗管理台演示 */
+  .pop{max-width:790px; margin:0 auto; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:#fff; box-shadow:0 14px 40px rgba(20,24,31,.10)}
+  .pop-bar{display:flex; align-items:center; gap:9px; padding:11px 13px; border-bottom:1px solid var(--line); background:#fcfdfe}
+  .pop-brand{display:flex; align-items:center; gap:7px; font-size:13.4px; font-weight:600; white-space:nowrap}
+  .pop-brand .logo{width:17px; height:17px; border-radius:6px; background:var(--accent)}
+  .pop-bar input{flex:1 1 auto}
+  .pop-groups{display:flex; align-items:center; gap:7px; overflow-x:auto; padding:10px 13px 3px}
+  .chips{display:flex; gap:6px; flex-wrap:wrap; padding:9px 13px 0}
+  .chip{font-size:12.3px; border:1px solid var(--line); border-radius:999px; padding:2px 10px; cursor:pointer; color:#4a5464}
+  .pop-body{height:296px; overflow:auto; padding:11px 13px}
+  .pop-foot{display:flex; align-items:center; gap:8px; padding:7px 13px; border-top:1px solid var(--line); background:#fcfdfe; font-size:12.3px; color:var(--muted)}
+  .pop-foot .foot-cond{flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pop-foot button{font-size:12.4px; padding:4px 10px}
+  .gchip{display:flex; align-items:center; gap:6px; flex:0 0 auto; font-size:12.6px; border:1px solid var(--line); border-radius:999px; padding:4px 11px; cursor:pointer; color:#4a5464; white-space:nowrap}
+  .gchip:hover{border-color:#c9d0da}
+  .gchip.on{background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:600}
+  .gchip .n{font-size:11.5px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .gchip.on .n{color:var(--accent)}
+  .gchip .dot{width:8px; height:8px; border-radius:3px}
+  .chip:hover{border-color:#c9d0da}
+  .chip.on{background:var(--accent); border-color:var(--accent); color:#fff}
+  .cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:10px}
+  .card{border:1px solid var(--line); border-radius:11px; overflow:hidden; background:#fff; transition:box-shadow .2s, transform .2s}
+  .card:hover{box-shadow:0 6px 18px rgba(20,24,31,.08); transform:translateY(-1px)}
+  .card .cv{height:72px; background:linear-gradient(135deg,#c7d6ff,#e6ecff); position:relative}
+  .card:nth-child(2n) .cv{background:linear-gradient(135deg,#ffe0cf,#fff0e6)}
+  .card:nth-child(3n) .cv{background:linear-gradient(135deg,#cdeee0,#e9f7f1)}
+  .card:nth-child(4n) .cv{background:linear-gradient(135deg,#e2d4ff,#f4eefe)}
+  .card .cbody{padding:9px 10px}
+  .card .ct{font-size:13.3px; font-weight:600; line-height:1.4; margin-bottom:3px}
+  .card .cm{font-size:11.8px; color:var(--muted); display:flex; justify-content:space-between; gap:6px}
+  .card .cm .g{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .badge{position:absolute; top:7px; left:7px; font-size:11px; background:#fdecec; color:#c0392b; border-radius:6px; padding:1px 6px}
+  .empty{border:1px dashed #d7dbe2; border-radius:var(--radius); padding:30px 16px; text-align:center; color:var(--muted); font-size:13.5px}
+  .hint{font-size:12.5px; color:var(--muted); margin-top:9px}
+  @media (max-width:1040px){
+    .toc{display:none}
+    main{padding:26px 20px 70px}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="toc">
+    <h2>目录</h2>
+    <a href="#s1">1 · 背景与目标</a>
+    <a href="#s2">2 · 范围与优先级</a>
+    <a href="#s3">3 · 产品模型与核心流程</a>
+    <a href="#s4">4 · 功能需求</a>
+    <a href="#s4-0" class="sub">4.0 功能清单总览</a>
+    <a href="#m1" class="sub">4.1 分组体系</a>
+    <a href="#m2" class="sub">4.2 收藏与归组</a>
+    <a href="#m3" class="sub">4.3 浏览与检索</a>
+    <a href="#m4" class="sub">4.4 收藏项信息与备注</a>
+    <a href="#m5" class="sub">4.5 批量整理与清理</a>
+    <a href="#m6" class="sub">4.6 同步与数据</a>
+    <a href="#m7" class="sub">4.7 入口与呈现</a>
+    <a href="#m8" class="sub">4.8 设置</a>
+    <a href="#s5">5 · 共享规则与异常</a>
+    <a href="#s6">6 · 决策记录</a>
+  </aside>
+
+  <main>
+    <header class="doc">
+      <div class="kicker">Product Requirements Document · PickScribe 模块</div>
+      <h1>PickScribe 收藏夹 Plus（带分组功能的收藏增强模块）</h1>
+      <div class="metas">
+        <span class="meta">版本 v0.3（已纳入两轮评审决策）</span>
+        <span class="meta">日期 2026-10-18</span>
+        <span class="meta">归属：PickScribe 扩展（Chrome / Edge · Manifest V3）</span>
+        <span class="meta">目标站点：pickcat.dao3.fun</span>
+        <span class="meta">P0 功能 43 项 / P1 功能 4 项</span>
+      </div>
+    </header>
+
+    <!-- ============ 1 ============ -->
+    <h2 class="sec" id="s1" data-no="1">背景与目标</h2>
+    <p class="lead">Pickcat 站点自带的收藏能力是一条平铺的收藏列表：用户点击收藏按钮后，帖子进入收藏列表，只能按收藏时间浏览，不能分组、不能检索、不能备注。收藏数量增长后，用户重新找到某个收藏的成本随数量线性上升，收藏逐渐从"可复用的资料库"退化为"一次性动作"。</p>
+    <h4>问题链路</h4>
+    <p>站点收藏夹不支持分组与检索（现象） → 收藏量大的用户无法按主题/项目/作者复用收藏内容（受影响用户与场景） → 本模块为收藏夹补充分组、标签、备注与检索能力，并把分组数据与站点收藏保持同步（产品决策） → 用户可在 3 步内把一个帖子存入指定分组，并能在任意时刻用关键词或分组定位到它（可观察结果）。</p>
+    <h4>目标（定性、可观察）</h4>
+    <ul>
+      <li>用户可在收藏动作发生的当下，把帖子归入一个或多个自定义分组，无需事后逐个搬运。</li>
+      <li>用户可通过分组、标签、关键词、备注任意组合缩小范围，并在同一视图内完成浏览、排序与整理。</li>
+      <li>收藏数据不因站点侧变动（取消收藏、帖子被删除、帖子转为私密）而与插件视图产生静默不一致——不一致必须可见、可选择处置。</li>
+      <li>分组、标签、备注默认只保存在用户本机；除站点自身的收藏请求外不产生对外数据请求。</li>
+    </ul>
+    <div class="note assume">
+      <p><span class="tag asm">前提</span> 目标站点为 <code>https://pickcat.dao3.fun/</code>（含旧域名 <code>cdsq.dao3.fun</code>）；收藏对象为站内帖子。本模块<b>归属 PickScribe 扩展</b>，与既有「富文本编辑器」「AI 助手」共用同一扩展外壳与弹窗入口，作为其中的收藏增强模块交付，不新建独立项目。站点自带收藏夹为单一平铺列表，不提供分组能力。</p>
+    </div>
+    <div class="note">
+      <p><b>已确认决策</b><br>
+      ① 收藏项允许同时归属多个分组（多对多），计数与移出规则按多归属口径执行；<br>
+      ② 管理主入口为点击扩展图标弹出的<b>弹窗</b>，不使用站点页面或独立全屏页作为默认工作台；<br>
+      ③ 形态为 Chromium Manifest V3 扩展，仅需支持 <b>Chrome 与 Edge</b>，不做 Firefox 适配；<br>
+      ④ 站点收藏夹<b>可完整读取</b>，且取消收藏可被感知 → SYN-01 / SYN-02 走自动同步；<br>
+      ⑤ 社区内已有账号体系 → P1 云同步（SYN-06）成立，以站点登录态为准；<br>
+      ⑥ 帖子被设为<b>私密</b>即判定为"已失效"；<br>
+      ⑦ 收藏数据<b>沿用站点收藏夹作为唯一数据源</b>，插件不另建收藏体系；"导出收藏夹"（含分组、标签、备注）为保留能力。</p>
+    </div>
+
+    <!-- ============ 2 ============ -->
+    <h2 class="sec" id="s2" data-no="2">范围与优先级</h2>
+    <p>P0 定义为"收藏夹 Plus 的最小完整闭环"：<b>收藏 → 归组 → 检索 → 整理 → 数据可迁移</b>。任何 P0 缺口都会导致闭环断裂，因此 P0 必须整组交付。</p>
+    <table>
+      <thead><tr><th style="width:78px">优先级</th><th>范围</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tag p0">P0</span></td><td>分组体系、收藏归组、浏览检索、信息与备注、批量整理、收藏夹导出与导入、入口与呈现、基础设置</td><td>构成完整可用闭环：用户能建组、收藏时归组、按组与关键词找到它、批量整理、并把收藏夹导出备份</td></tr>
+        <tr><td><span class="tag p1">P1</span></td><td>嵌套分组、智能分组、标签推荐、云同步跨设备</td><td>在 P0 闭环稳定且数据一致性规则验证通过后再评估；社区账号已确认存在，云同步不再受账号缺失限制</td></tr>
+        <tr><td>不做</td><td>修改站点自身收藏数据、代站点提交非收藏类写操作、对站点内容做二次发布、抓取非收藏范围内的用户数据</td><td>属于越界写操作或越界数据范围，超出"收藏增强"的产品边界</td></tr>
+      </tbody>
+    </table>
+    <h4>最小完整旅程（P0）</h4>
+    <ol>
+      <li><b>进入条件</b>：用户已登录 Pickcat（社区账号），PickScribe 扩展已安装并启用收藏增强模块。</li>
+      <li><b>P0 动作</b>：在帖子页点击收藏 → 面板中勾选分组 → 确认；随后在弹窗中用分组或关键词定位该帖 → 加备注/标签 → 批量调整或删除。</li>
+      <li><b>完成证据</b>：帖子页收藏按钮呈现"已收藏 · 已归入 N 个分组"；弹窗内对应分组计数 +1，帖子出现在该分组视图内。</li>
+      <li><b>恢复路径</b>：若归组失败（面板被关闭、站点请求失败），帖子仍存在于"未分组收集箱"，用户可在弹窗中重新归组，不丢失收藏动作；弹窗中途关闭不影响已提交结果。</li>
+      <li><b>P1 支撑</b>：嵌套分组、智能分组、标签推荐、云同步。</li>
+    </ol>
+
+    <!-- ============ 3 ============ -->
+    <h2 class="sec" id="s3" data-no="3">产品模型与核心流程</h2>
+    <h3>对象模型</h3>
+    <table>
+      <thead><tr><th style="width:120px">对象</th><th>定义</th><th>关键属性</th></tr></thead>
+      <tbody>
+        <tr><td>收藏项 FavoriteItem</td><td>一条被收藏的帖子记录，以站点帖子 ID 为唯一标识</td><td>帖子ID、标题、作者、封面、原帖链接、类型、收藏时间、失效状态、备注、标签集合</td></tr>
+        <tr><td>分组 Group</td><td>用户自定义的集合容器，用于组织收藏项</td><td>分组ID、名称、图标、颜色、排序位、创建时间、（P1）父分组</td></tr>
+        <tr><td>归组关系 Membership</td><td>收藏项与分组的多对多关系（一个收藏项可属于多个分组）</td><td>收藏项ID、分组ID、归组时间、手动/自动来源</td></tr>
+        <tr><td>标签 Tag</td><td>跨分组的扁平标记，用于横向筛选</td><td>标签名、使用次数</td></tr>
+        <tr><td>未分组收集箱 Inbox</td><td>系统内置、不可删除的虚拟分组，承接所有未显式归组的收藏项</td><td>实时计数，成员 = 收藏项集合 − 已归组集合</td></tr>
+      </tbody>
+    </table>
+    <h3>核心流程</h3>
+    <p>收藏动作发生 → 扩展在帖子页捕获收藏意图 → 用户选择分组（可跳过）→ 扩展提交站点收藏请求并写入本地归组关系 → 弹窗内各视图与计数同步刷新。其中站点收藏与分组归组是两个可独立成败的步骤：站点收藏失败时归组关系不写入；归组未选择时站点收藏照常写入并落入未分组收集箱。</p>
+    <p><b>数据源单一</b>：站点收藏夹是收藏项的唯一来源，插件只在本地附加"分组 / 标签 / 备注"三样站点没有的数据；插件不维护独立收藏体系，也不改写站点侧的收藏内容。</p>
+
+    <!-- ============ 4 ============ -->
+    <h2 class="sec" id="s4" data-no="4">功能需求</h2>
+    <p>本节是文档主体。每个模块按"目的 → 触发 → 处理规则 → 结果与状态变化 → 异常"描述；每项能力分配稳定 ID，供后续任务拆分与验收引用。</p>
+
+    <h3 id="s4-0">4.0 功能清单总览</h3>
+    <p>下表即"收藏夹 Plus 需要具备的功能清单"，共 47 项，P0 43 项、P1 4 项。</p>
+    <table>
+      <thead><tr><th style="width:74px">ID</th><th style="width:150px">功能</th><th style="width:92px">模块</th><th>一句话行为</th><th style="width:54px">优先级</th></tr></thead>
+      <tbody>
+        <tr><td class="id">GRP-01</td><td>新建分组</td><td>分组体系</td><td>输入名称即可建组，同名视为同一分组，空名拒绝</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">GRP-02</td><td>重命名 / 删除分组</td><td>分组体系</td><td>删除前必须选择成员去向，不允许成员凭空消失</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">GRP-03</td><td>分组排序</td><td>分组体系</td><td>拖拽调整，顺序本地持久化</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">GRP-04</td><td>分组图标与颜色</td><td>分组体系</td><td>从预设图标/色板中选择，用于列表识别</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">GRP-05</td><td>分组置顶 / 折叠</td><td>分组体系</td><td>常用分组固定在顶部，低频分组折叠收纳</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">GRP-06</td><td>嵌套分组</td><td>分组体系</td><td>分组下再建子分组，最多两层</td><td><span class="tag p1">P1</span></td></tr>
+        <tr><td class="id">GRP-07</td><td>智能分组</td><td>分组体系</td><td>按条件（作者/类型/标签/关键词）自动收纳新收藏</td><td><span class="tag p1">P1</span></td></tr>
+
+        <tr><td class="id">COL-01</td><td>收藏时选择分组</td><td>收藏与归组</td><td>站点收藏按钮增强为"收藏到…"，先选组再提交</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">COL-02</td><td>快捷收藏（跳过选择）</td><td>收藏与归组</td><td>按住修饰键或长按可一键收藏进"最近使用分组"</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">COL-03</td><td>多分组归属</td><td>收藏与归组</td><td>同一帖子可同时属于多个分组，勾选即加入</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">COL-04</td><td>未分组收集箱</td><td>收藏与归组</td><td>所有未显式归组的收藏集中在此，可后续批量搬运</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">COL-05</td><td>加入 / 移出分组</td><td>收藏与归组</td><td>区分"加入另一分组"与"从本分组移出"，语义不混淆</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">COL-06</td><td>收藏后浮动条补归组</td><td>收藏与归组</td><td>收藏成功后出现浮动条，限定时间内仍可补选分组</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">COL-07</td><td>取消收藏联动</td><td>收藏与归组</td><td>站点取消收藏时按设置移除或保留归组关系</td><td><span class="tag p0">P0</span></td></tr>
+
+        <tr><td class="id">BRW-01</td><td>分组视图</td><td>浏览与检索</td><td>弹窗内分组切换条 + 内容区，点击即筛选</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">BRW-02</td><td>分组内排序</td><td>浏览与检索</td><td>按收藏时间/标题/作者/手动拖拽排序</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">BRW-03</td><td>关键词搜索</td><td>浏览与检索</td><td>匹配标题、作者、备注、标签，实时过滤</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">BRW-04</td><td>标签与组合筛选</td><td>浏览与检索</td><td>标签可叠加筛选，并与分组、搜索条件取交集</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">BRW-05</td><td>网格 / 列表视图</td><td>浏览与检索</td><td>封面为主或信息密度为主，两种密度切换</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">BRW-06</td><td>快速预览</td><td>浏览与检索</td><td>卡片悬浮展示摘要，或抽屉内展开详情而不跳转</td><td><span class="tag p0">P0</span></td></tr>
+
+        <tr><td class="id">ITM-01</td><td>元数据自动抓取</td><td>信息与备注</td><td>收藏时抓取标题/作者/封面/链接/类型/时间</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">ITM-02</td><td>元数据手动修正</td><td>信息与备注</td><td>可改标题与封面，用于抓取失败或标题无意义时</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">ITM-03</td><td>备注 / 笔记</td><td>信息与备注</td><td>每条收藏可写备注，进入搜索范围</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">ITM-04</td><td>标签管理</td><td>信息与备注</td><td>手动打标签、重命名标签、批量改标签</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">ITM-05</td><td>失效检测与标记</td><td>信息与备注</td><td>帖子删除或转为私密时标记为失效，本体不自动删除</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">ITM-06</td><td>标签推荐</td><td>信息与备注</td><td>依据标题/作者提示已有标签，减少重复标签</td><td><span class="tag p1">P1</span></td></tr>
+
+        <tr><td class="id">ORG-01</td><td>多选</td><td>批量整理与清理</td><td>Ctrl/Shift/框选批量选择收藏项</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">ORG-02</td><td>批量归组</td><td>批量整理与清理</td><td>对选中项批量加入/移出分组、批量打标签</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">ORG-03</td><td>重复收藏提示与合并</td><td>批量整理与清理</td><td>同一帖重复收藏时提示，合并为一条并汇总归组</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">ORG-04</td><td>批量移除收藏</td><td>批量整理与清理</td><td>批量从插件移除；是否同步到站点需显式确认</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">ORG-05</td><td>失效项批量清理</td><td>批量整理与清理</td><td>筛选全部失效项，一次清理或标注保留</td><td><span class="tag p0">P0</span></td></tr>
+
+        <tr><td class="id">SYN-01</td><td>与站点收藏同步</td><td>同步与数据</td><td>拉取站点收藏列表，与本地记录做增量比对</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">SYN-02</td><td>差异处置</td><td>同步与数据</td><td>站点新增/取消的项给出选项：导入、移除归组、仅标记</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">SYN-03</td><td>导出收藏夹</td><td>同步与数据</td><td>导出为 JSON / CSV / Markdown，保留分组、标签与备注结构</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">SYN-04</td><td>导入合并</td><td>同步与数据</td><td>以帖子 ID 判重合并，冲突时保留较新的备注与并集归属</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">SYN-05</td><td>本地数据清理 / 重置</td><td>同步与数据</td><td>清空插件数据需二次确认，并说明不影响站点收藏</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">SYN-06</td><td>云同步跨设备</td><td>同步与数据</td><td>以社区账号登录态同步分组与备注，多设备一致</td><td><span class="tag p1">P1</span></td></tr>
+
+        <tr><td class="id">UI-01</td><td>站内收藏入口注入</td><td>入口与呈现</td><td>帖子卡片与详情页的收藏操作接入分组选择面板</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">UI-02</td><td>弹窗管理台</td><td>入口与呈现</td><td>点击扩展图标弹出的弹窗即主工作台，承载分组、检索与整理</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">UI-03</td><td>快捷入口与快捷键</td><td>入口与呈现</td><td>工具栏图标、弹窗内搜索聚焦、快速收藏快捷键</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">UI-04</td><td>深浅色与动效一致性</td><td>入口与呈现</td><td>跟随站点深浅色；操作反馈简洁流畅、不遮挡内容</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">UI-05</td><td>操作反馈</td><td>入口与呈现</td><td>归组/移除/失败均有即时且可逆的反馈提示</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">UI-06</td><td>在标签页中打开</td><td>入口与呈现</td><td>重操作（拖拽排序、批量整理）可转为标签页，规避弹窗中途关闭</td><td><span class="tag p0">P0</span></td></tr>
+
+        <tr><td class="id">SET-01</td><td>默认收藏行为</td><td>设置</td><td>选择收藏时"弹层选组/直接进最近分组/直接进未分组"</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">SET-02</td><td>同步策略设置</td><td>设置</td><td>站点取消收藏时的处置方式、同步触发频率</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">SET-03</td><td>数据与隐私开关</td><td>设置</td><td>展示本地数据占用，关闭任何非必要外部请求</td><td><span class="tag p0">P0</span></td></tr>
+        <tr><td class="id">SET-04</td><td>快捷键与外观</td><td>设置</td><td>自定义快捷键、默认视图密度、默认排序</td><td><span class="tag p0">P0</span></td></tr>
+      </tbody>
+    </table>
+
+    <!-- 4.1 -->
+    <h3 id="m1">4.1 分组体系（GRP-01 ~ GRP-07）</h3>
+    <p><b>目的</b>：让用户用自己熟悉的主题维度组织收藏，替代按时间平铺。<b>触发</b>：弹窗分组区新建入口，或收藏面板内联新建。</p>
+    <h4>处理规则</h4>
+    <table>
+      <thead><tr><th style="width:130px">规则</th><th>定义</th></tr></thead>
+      <tbody>
+        <tr><td>名称唯一性</td><td>同一层级内分组名去空格后不区分大小写唯一；重名时复用已有分组并提示"已加入现有分组"，不静默创建副本</td></tr>
+        <tr><td>名称约束</td><td>长度 1–24 字符，首尾空格自动去除，仅空格视为空名并拒绝</td></tr>
+        <tr><td>删除分组</td><td>必须选择成员去向：<b>移入未分组收集箱</b>（默认）或 <b>移入指定分组</b>；删除为二次确认动作，取消则不改动任何数据</td></tr>
+        <tr><td>排序</td><td>拖拽调整顺序并立即持久化；未分组收集箱与"全部收藏"为系统视图，固定置顶、不可拖拽、不可删除</td></tr>
+        <tr><td>图标与颜色</td><td>从预设集合选择；未选择时按名称哈希分配稳定默认色，保证列表可辨识且不随刷新变化</td></tr>
+        <tr><td>置顶与折叠</td><td>置顶分组固定在分组区顶部；折叠状态仅影响展示，不影响计数与筛选结果</td></tr>
+        <tr><td>嵌套（P1）</td><td>最多两层；父分组计数包含子分组内容，但父分组在视图中展示为"直接隶属成员 + 子分组入口"两段</td></tr>
+        <tr><td>智能分组（P1）</td><td>条件命中后新收藏自动归入；已归入项不因条件失效被自动移出，避免用户手动整理结果被覆盖</td></tr>
+      </tbody>
+    </table>
+    <h4>结果与状态变化</h4>
+    <p>新建/重命名/删除后，分组切换条、分组计数、弹窗内筛选结果与收藏面板中的可选分组列表在同一时刻更新，无延迟残留。</p>
+    <h4>异常</h4>
+    <ul>
+      <li><b>重名</b>：给出已有分组指引，用户可选择直接加入或改名。</li>
+      <li><b>空名/超长</b>：内联提示，保存按钮不可用。</li>
+      <li><b>删除进行中</b>：成员迁移失败则不执行删除，保持原状态并提示重试。</li>
+    </ul>
+
+    <!-- 4.2 -->
+    <h3 id="m2">4.2 收藏与归组（COL-01 ~ COL-07）</h3>
+    <p><b>目的</b>：把"分组"从收藏之后的事后整理，变成收藏当下的顺手动作。<b>触发</b>：用户在帖子卡片或详情页点击收藏。</p>
+    <h4>处理规则</h4>
+    <table>
+      <thead><tr><th style="width:130px">规则</th><th>定义</th></tr></thead>
+      <tbody>
+        <tr><td>两步解耦</td><td>"站点收藏"与"归组关系写入"相互独立：站点收藏失败则归组关系不写入；归组失败则收藏仍成功并进入未分组收集箱</td></tr>
+        <tr><td>面板默认态</td><td>按 SET-01 配置呈现：默认展开选择面板 / 直接进最近使用分组 / 直接进未分组收集箱</td></tr>
+        <tr><td>多归属</td><td>勾选分组即新增归属，取消勾选仅移出该分组；不提供"整体替换"的隐式行为，避免误伤其他分组</td></tr>
+        <tr><td>已收藏状态</td><td>已收藏帖子再次点击收藏即打开面板，按钮文案为"已收藏 · 已归入 N 个分组"，N 实时对应归组数量</td></tr>
+        <tr><td>取消收藏联动</td><td>按 SET-02：<b>同步移除归组关系</b>（默认）／<b>保留归组关系但标记为已取消收藏</b>／<b>仅提示不处理</b></td></tr>
+        <tr><td>提交时机</td><td>面板确认即提交，回车等同确认，Esc 等同取消且不产生任何写入</td></tr>
+      </tbody>
+    </table>
+
+    <div class="demo">
+      <div class="demo-bar"><span class="dot"></span><b>交互演示 · COL-01 / COL-03 / COL-06 / GRP-01</b><span style="margin-left:auto">原型仅示意行为，非视觉稿</span></div>
+      <div class="demo-body">
+        <div class="site-mock">
+          <div class="thumb"></div>
+          <div class="t">像素画板 Pro<small>作者：星野 ｜ 类型：绘画工具</small></div>
+          <button id="favBtn">收藏</button>
+        </div>
+        <div class="panel" id="favPanel" hidden>
+          <div class="ph"><span>收藏到分组</span><span style="font-size:12px;color:#6b7480" id="selHint">已选 0 个分组</span></div>
+          <div class="glist" id="glist"></div>
+          <div class="row-new">
+            <input type="text" id="newGrpName" placeholder="新建分组，如：课堂素材" maxlength="24">
+            <button id="newGrpBtn">新建</button>
+          </div>
+          <div class="actions">
+            <span class="saved" id="inlineMsg"></span>
+            <button id="cancelFav">取消</button>
+            <button class="primary" id="okFav">完成</button>
+          </div>
+        </div>
+        <div class="hint">说明：面板内可多选；不选任何分组直接"完成"= 进入未分组收集箱（COL-04）；点击"取消"不产生任何写入。</div>
+      </div>
+    </div>
+    <div class="demo-cap">对应 FR：COL-01 收藏时选择分组、COL-03 多分组归属、COL-04 未分组收集箱、COL-06 收藏后补归组、GRP-01 新建分组。</div>
+
+    <!-- 4.3 -->
+    <h3 id="m3">4.3 浏览与检索（BRW-01 ~ BRW-06）</h3>
+    <p><b>目的</b>：在一个视图内完成"找得到 + 看得清"，减少在站点与弹窗之间的往返。<b>触发</b>：打开弹窗，或点击分组/输入搜索词/点击标签。</p>
+    <h4>处理规则</h4>
+    <ul>
+      <li><b>弹窗内布局</b>：自上而下为"工具栏（搜索 + 失效筛选）→ 分组切换条 → 内容区 → 底部状态栏"，横向占满弹窗宽度。分组切换条以横向可滚动的方式容纳全部分组，不采用左右双栏——弹窗宽度下双栏会把内容区压到无法容纳卡片网格。Chrome / Edge 弹窗宽度上限约 800px，因此以 790px 为设计基准，并对更窄的窗口向下自适应。</li>
+      <li><b>筛选状态持久化</b>：弹窗关闭即销毁页面，因此当前分组、搜索词、标签、失效筛选与内容区滚动位置必须保存，并在下次打开弹窗时恢复；用户主动点击"全部收藏"或清空筛选时才重置。</li>
+      <li><b>内容区滚动</b>：滚动发生在内容区内部，工具栏、分组切换条与底部状态栏固定不滚动，保证切换分组时搜索与筛选入口始终可见。</li>
+      <li><b>过滤取交集</b>：分组条件 × 搜索词 × 标签条件三者同时生效，结果需同时满足；"全部收藏"与"未分组收集箱"可与搜索、标签叠加。</li>
+      <li><b>搜索范围</b>：标题、作者、备注、标签名；大小写不敏感；连续输入即时过滤，不要求回车。</li>
+      <li><b>排序默认</b>：按收藏时间倒序；手动拖拽排序仅在该分组内生效，切换到其他分组不串用。</li>
+      <li><b>标签来源</b>：标签栏只展示当前结果集中实际出现的标签，避免出现"选了标签结果为空"的无效组合。</li>
+      <li><b>展示密度</b>：网格视图展示封面 + 标题 + 归属；列表视图展示标题、作者、时间、标签、备注摘要，用于快速扫读。</li>
+      <li><b>快速预览</b>：悬浮卡片在 0.3 秒内出现，仅读取已有本地元数据，不发起新请求。</li>
+      <li><b>失效项呈现</b>：失效项默认仍展示在结果中，但带明确标记，并可被"仅看失效"条件单独筛出。</li>
+    </ul>
+
+    <div class="demo">
+      <div class="demo-bar"><span class="dot"></span><b>交互演示 · UI-02 弹窗管理台 · BRW-01 / 03 / 04 / 05</b><span style="margin-left:auto">可点击分组、输入关键词、点选标签</span></div>
+      <div class="demo-body">
+        <div class="pop">
+          <div class="pop-bar">
+            <span class="pop-brand"><span class="logo"></span>收藏 Plus</span>
+            <input type="text" id="q" placeholder="搜索标题、作者、备注、标签…">
+            <button id="onlyDead">仅看失效</button>
+          </div>
+          <div class="pop-groups" id="popGroups"></div>
+          <div class="chips" id="chips"></div>
+          <div class="pop-body" id="cards"></div>
+          <div class="pop-foot">
+            <span class="foot-cond" id="condText"></span>
+            <button id="openTab">在标签页中打开</button>
+          </div>
+        </div>
+        <div class="hint">弹窗宽约 790px，内容区高度固定、滚动发生在内容区内部；关闭后再打开应恢复上次的分组与筛选条件。</div>
+      </div>
+    </div>
+    <div class="demo-cap">对应 FR：UI-02 弹窗管理台、UI-06 在标签页中打开、BRW-01 分组视图、BRW-03 关键词搜索、BRW-04 标签与组合筛选、BRW-05 视图密度、ITM-03 备注进入搜索、ITM-05 失效标记。</div>
+
+    <!-- 4.4 -->
+    <h3 id="m4">4.4 收藏项信息与备注（ITM-01 ~ ITM-06）</h3>
+    <p><b>目的</b>：让收藏项脱离原帖也能被理解——标题可读、有备注、有标签、能判断是否还有效。<b>触发</b>：收藏动作发生时自动抓取；用户打开详情或编辑时手动修改。</p>
+    <table>
+      <thead><tr><th style="width:120px">字段</th><th style="width:70px">来源</th><th>规则</th></tr></thead>
+      <tbody>
+        <tr><td>帖子 ID</td><td>自动</td><td>唯一标识，不可编辑；后续所有判重、同步、导入均以此为准</td></tr>
+        <tr><td>标题</td><td>自动 + 可改</td><td>抓取失败时以"未命名帖子 · 收藏时间"占位，并在项上提示可手动补全</td></tr>
+        <tr><td>作者</td><td>自动 + 可改</td><td>用于搜索与排序；缺失时归入"未知作者"</td></tr>
+        <tr><td>封面</td><td>自动 + 可改</td><td>抓取失败或与内容不符时允许替换；不可用封面以占位底色呈现</td></tr>
+        <tr><td>原帖链接</td><td>自动</td><td>点击打开原帖；失效项仍保留链接，便于用户自行确认</td></tr>
+        <tr><td>类型</td><td>自动</td><td>站点帖子类型字段；无类型信息时留空，不猜测</td></tr>
+        <tr><td>收藏时间</td><td>自动</td><td>以本地首次收藏时刻记录，后续重复收藏不覆盖</td></tr>
+        <tr><td>备注</td><td>手动</td><td>单条上限 500 字；参与搜索；仅在本地保存</td></tr>
+        <tr><td>标签</td><td>手动（P1 可推荐）</td><td>单条上限 10 个；标签名 1–16 字；重命名标签为全局生效，批量生效前需确认影响条数</td></tr>
+        <tr><td>失效状态</td><td>自动</td><td>取值：正常 / 待确认 / 已失效；<b>帖子被设为私密即判为"已失效"</b>；仅"已失效"参与"仅看失效"筛选与批量清理</td></tr>
+      </tbody>
+    </table>
+    <p><b>异常</b>：元数据抓取失败不阻塞收藏；备注与标签超过长度上限时截断并提示；失效为"待确认"时不参与批量清理，避免误删。</p>
+
+    <!-- 4.5 -->
+    <h3 id="m5">4.5 批量整理与清理（ORG-01 ~ ORG-05）</h3>
+    <p><b>目的</b>：让历史积压的未分组收藏一次性变得可用。<b>触发</b>：用户进入未分组收集箱或多选后出现批量操作条。</p>
+    <table>
+      <thead><tr><th style="width:120px">能力</th><th>规则</th></tr></thead>
+      <tbody>
+        <tr><td>多选</td><td>Ctrl 单击追加、Shift 单击区间选择；进入多选后按钮变为"选择/取消"；Esc 退出多选并清空选择</td></tr>
+        <tr><td>批量归组</td><td>批量"加入分组"为并集操作；批量"从当前分组移出"仅移出当前分组，不影响其他归属</td></tr>
+        <tr><td>重复合并</td><td>同一帖子 ID 存在多条记录时提示合并；合并结果为一条记录，归组取并集，备注保留非空且较新的一条</td></tr>
+        <tr><td>批量移除</td><td>默认仅从插件移除；若同时取消站点收藏，须在确认框中显式勾选并显示影响条数</td></tr>
+        <tr><td>失效清理</td><td>批量清理前展示"已失效 N 条 / 待确认 M 条"，待确认项不默认勾选</td></tr>
+        <tr><td>操作可逆</td><td>批量操作完成后 5 秒内提供撤销入口；超时后需通过导入已导出数据恢复</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 4.6 -->
+    <h3 id="m6">4.6 同步与数据（SYN-01 ~ SYN-06）</h3>
+    <p><b>目的</b>：保证插件视图与站点真实收藏不长期背离，并让用户的收藏夹数据可带走。</p>
+    <h4>同步处理规则</h4>
+    <ul>
+      <li><b>同步能力</b>：站点收藏夹可完整读回（已确认），因此自动同步为默认能力：安装后首次做一次只读探测加以确认；若某次读取失败（登录态失效、接口变更），临时降级为"手动导入 / 单条补录"并提示原因，恢复后自动回到自动同步。</li>
+    </ul>
+    <table>
+      <thead><tr><th style="width:150px">差异类型</th><th>默认处置</th><th>可选处置</th></tr></thead>
+      <tbody>
+        <tr><td>站点有、插件无</td><td>导入并进入未分组收集箱</td><td>忽略本次导入</td></tr>
+        <tr><td>插件有、站点无</td><td>保留记录并标记"站点已取消收藏"</td><td>移除归组关系 / 直接移除记录（需确认）</td></tr>
+        <tr><td>两边都有但元数据不同</td><td>以站点信息更新标题、作者、类型；<b>覆盖用户已手动修改的字段需先确认</b></td><td>保留本地手动值</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><b>同步触发</b>：扩展启动时、用户手动点击同步、弹窗打开且距上次同步超过设定间隔；同步为只读拉取，不改写站点数据。</li>
+      <li><b>导出收藏夹</b>：导出分组结构（含顺序、图标、颜色）、收藏项元数据、归组关系、标签、备注、收藏时间。JSON 为完整备份，CSV 保留分组列为多值字段，Markdown 用于人读浏览。导出的是"站点收藏 + 本地分组信息"的合成结果，不改变站点侧数据。</li>
+      <li><b>导入合并</b>：以帖子 ID 判重；分组按名称匹配，不存在则创建。</li>
+      <li><b>数据清理</b>：清空需输入确认词；明确告知"仅清除本地分组与备注，站点收藏不受影响"。</li>
+      <li><b>云同步（P1）</b>：社区已有账号体系，因此跨设备同步成立：以站点登录态为准，未登录时隐藏所有同步入口而非置灰，避免产生无法完成的引导。</li>
+    </ul>
+
+    <!-- 4.7 -->
+    <h3 id="m7">4.7 入口与呈现（UI-01 ~ UI-06）</h3>
+    <table>
+      <thead><tr><th style="width:150px">入口</th><th>呈现规则</th></tr></thead>
+      <tbody>
+        <tr><td>帖子卡片 / 详情页</td><td>在原收藏按钮位置接管交互，不新增重复按钮；未登录或非收藏场景不注入任何元素</td></tr>
+        <tr><td>浮动补归组条</td><td>收藏成功后出现，默认停留 6 秒或直到用户操作，可关闭；不遮挡站点原有内容</td></tr>
+        <tr><td>弹窗管理台（UI-02）</td><td>点击扩展图标即弹出，作为分组、浏览与整理的主工作台。自上而下为工具栏（搜索 + 失效筛选）、分组切换条、内容区、底部状态栏；内容区高度固定并内部滚动；以 790px 宽为设计基准并向下自适应，不使用需要双栏的布局。关闭弹窗不丢失当前分组与筛选条件，下次打开恢复上次视图</td></tr>
+        <tr><td>与扩展内既有功能的入口关系</td><td>作为 PickScribe 扩展内的模块，与既有「富文本编辑器」「AI 助手」共用同一个扩展图标与弹窗入口，通过分区切换进入收藏管理；不新增第二个工具栏入口，避免同一扩展出现并列入口</td></tr>
+        <tr><td>在标签页中打开（UI-06）</td><td>拖拽排序、批量整理、标签全局重命名等需要连续操作或较长停留的任务，提供"在标签页中打开"入口；打开时携带当前分组与筛选条件；弹窗内不呈现只能在标签页完成的主流程操作</td></tr>
+        <tr><td>工具栏与快捷键（UI-03）</td><td>工具栏图标一键打开弹窗；快速收藏与搜索聚焦可自定义快捷键；弹窗内快捷键仅在弹窗获得焦点时生效，全局快捷键不可用时在设置中明示原因，不静默失效</td></tr>
+        <tr><td>深浅色（UI-04）</td><td>默认跟随站点当前主题（站点暗色以 <code>&lt;html class="dark"&gt;</code> 标记）；用户可在设置中锁定为浅色或深色</td></tr>
+        <tr><td>反馈（UI-05）</td><td>归组、移除、同步、批量操作均给出即时结果提示；失败提示必须包含失败原因与重试入口，不得只提示"操作失败"</td></tr>
+      </tbody>
+    </table>
+
+    <!-- 4.8 -->
+    <h3 id="m8">4.8 设置（SET-01 ~ SET-04）</h3>
+    <table>
+      <thead><tr><th style="width:120px">设置项</th><th>取值</th><th>默认</th></tr></thead>
+      <tbody>
+        <tr><td>收藏时行为</td><td>弹层选组 / 直接进入最近使用分组 / 直接进入未分组收集箱</td><td>弹层选组</td></tr>
+        <tr><td>站点取消收藏时</td><td>移除归组关系 / 保留并标记 / 仅提示</td><td>保留并标记</td></tr>
+        <tr><td>同步触发频率</td><td>每次打开弹窗 / 每天一次 / 仅手动</td><td>每次打开弹窗</td></tr>
+        <tr><td>数据与隐私</td><td>展示本地数据条数与占用；是否允许与站点通信以外的网络请求</td><td>不允许</td></tr>
+        <tr><td>外观</td><td>跟随站点 / 浅色 / 深色；默认视图密度；默认排序方式</td><td>跟随站点 / 网格 / 收藏时间倒序</td></tr>
+        <tr><td>快捷键</td><td>快速收藏、打开弹窗、聚焦搜索框</td><td>不预设全局快捷键，用户按需绑定</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ============ 5 ============ -->
+    <h2 class="sec" id="s5" data-no="5">共享规则与异常</h2>
+    <h3>计数规则（全局唯一口径）</h3>
+    <ul>
+      <li><b>分组计数</b> = 该分组内收藏项条数（含已失效项，含已取消站点收藏但保留的项）。</li>
+      <li><b>全部收藏计数</b> = 去重后的收藏项条数，不等于各分组计数之和，因为存在多分组归属。</li>
+      <li><b>未分组收集箱计数</b> = 全部收藏计数 − 至少归属一个分组的收藏项数。</li>
+      <li>新分组计数从 0 开始；删除分组后，其余分组与未分组收集箱计数立即重算。</li>
+    </ul>
+    <h3>状态与生命周期</h3>
+    <table>
+      <thead><tr><th style="width:150px">状态</th><th>进入条件</th><th>可执行 / 不可执行</th></tr></thead>
+      <tbody>
+        <tr><td>正常</td><td>帖子可访问且未被取消收藏</td><td>可归组、可编辑、可打开原帖</td></tr>
+        <tr><td>已取消收藏（站点侧）</td><td>站点返回该帖未收藏</td><td>可保留、可重新收藏、可移除记录；不可再向站点重复提交取消</td></tr>
+        <tr><td>待确认</td><td>检查请求超时或返回不确定结果</td><td>不参与批量清理；可手动重试检查</td></tr>
+        <tr><td>已失效</td><td>帖子不存在、不可访问，或<b>被设为私密</b></td><td>可批量清理；保留链接与备注直到用户清理</td></tr>
+      </tbody>
+    </table>
+    <h3>权限与数据边界</h3>
+    <ul>
+      <li>所有分组、标签、备注、归组关系均为单用户本地数据，仅该用户可见，不提供站内他人查看入口。</li>
+      <li>扩展仅读写当前登录用户自己的收藏数据，不读取、不推断其他用户的信息。</li>
+      <li>任何向站点发起的写操作仅限"收藏 / 取消收藏"，其余一律只读。</li>
+      <li>扩展只需要站点域访问与本地存储能力，不申请与站点通信无关的主机权限；除与站点的必要通信外不发起外部请求。</li>
+      <li>卸载或清空数据即不可恢复，因此导出入口需与清空入口同处"数据"区，让备份成为可见的前置选项。</li>
+    </ul>
+    <h3>弹窗会话约束</h3>
+    <p>管理主入口是弹窗，因此弹窗的生命周期约束是产品行为的一部分，不是实现细节。</p>
+    <ul>
+      <li>弹窗在用户点击弹窗以外区域时被浏览器关闭，属于<b>正常行为</b>，不视为错误、不弹错误提示。</li>
+      <li>所有结构性操作（归组、移出分组、分组排序、删除分组、标签重命名）在动作发生的当下立即持久化，不依赖"保存"按钮，避免关闭即丢失。</li>
+      <li>编辑中的草稿（备注、标题、封面、新建分组名）在弹窗关闭前按草稿保存，下次打开时提示"是否继续上次未完成的编辑"，不静默丢弃。</li>
+      <li>批量操作不因弹窗关闭而回滚：已完成条目保持结果，剩余条目在下次打开时给出"继续处理 N 条"的提示，用户可继续或放弃。</li>
+      <li>需要连续拖拽、长时间停留或大量输入的任务，引导至"在标签页中打开"完成（UI-06），不在弹窗内提供只能在标签页完成的主流程。</li>
+      <li>弹窗内不承载需要保持长连接或长时间后台等待的操作；此类操作应转为后台进行并在完成后以通知/角标告知。</li>
+    </ul>
+    <h3>关键异常汇总</h3>
+    <table>
+      <thead><tr><th style="width:170px">场景</th><th>期望行为</th></tr></thead>
+      <tbody>
+        <tr><td>站点收藏请求失败</td><td>不写入归组关系；提示失败原因并提供重试；重试成功后补写原选择的分组</td></tr>
+        <tr><td>未登录 / 登录态失效</td><td>收藏入口不注入或提示登录；弹窗仍可浏览本地已存数据，但同步与重新收藏不可用</td></tr>
+        <tr><td>站点页面结构变化导致抓取失败</td><td>收藏仍成功，元数据以占位值写入并提示"信息未抓全，可手动补全"；不得因抓取失败阻塞收藏</td></tr>
+        <tr><td>本地数据读取失败或损坏</td><td>不静默重置；保留原始数据并提示导出/重置两个出口</td></tr>
+        <tr><td>同一条目多分组下同时被移除</td><td>移除在最后一个分组上完成；若移除后无任何归属，自动进入未分组收集箱，而不是从插件消失</td></tr>
+        <tr><td>导入文件格式错误</td><td>拒绝导入并提示错误位置；已存在的本地数据不发生部分写入</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ============ 6 ============ -->
+    <h2 class="sec" id="s6" data-no="6">决策记录</h2>
+    <p>两轮评审的提问均已确认，<b>无阻塞性未决项</b>，P0 清单可直接用于任务拆分。下表记录已关闭问题的结论，便于后续回溯。</p>
+    <table>
+      <thead><tr><th style="width:74px">编号</th><th>问题</th><th>结论</th></tr></thead>
+      <tbody>
+        <tr><td class="id">Q-01</td><td>站点收藏夹能否完整读取、取消收藏能否被感知？</td><td>可以完整读取 → 自动同步为默认能力，保留失败时的临时降级路径（4.6）</td></tr>
+        <tr><td class="id">Q-02</td><td>插件形态与需要支持的浏览器范围？</td><td>Chromium Manifest V3 扩展，仅需 Chrome / Edge；布局按 800px 弹窗上限设计（4.3）</td></tr>
+        <tr><td class="id">Q-03</td><td>是否存在账号体系可用于云同步？</td><td>社区内已有账号 → P1 云同步（SYN-06）成立，以站点登录态为准</td></tr>
+        <tr><td class="id">Q-04</td><td>帖子被设为私密时算失效还是待确认？</td><td>算<b>已失效</b>，参与"仅看失效"筛选与批量清理（4.4、第 5 节）</td></tr>
+        <tr><td class="id">Q-05</td><td>收藏体系来源与导出能力？</td><td>沿用站点收藏夹作为唯一数据源，插件不另建收藏体系；保留"导出收藏夹"（SYN-03）</td></tr>
+        <tr><td class="id">D-01</td><td>是否新建独立项目？</td><td>不新建：本模块归属 PickScribe 扩展，与既有编辑器 / AI 助手同壳交付</td></tr>
+      </tbody>
+    </table>
+    <div class="note">
+      <p><b>遗留（非阻塞）</b>：① 全局快捷键是否预设默认值（当前默认不预设，用户按需绑定）；② 弹窗内"收藏管理"与既有功能的分区排布方式（独立分区或同视图共存），留待视觉设计阶段确定。</p>
+    </div>
+    <div class="note warn">
+      <p><b>评审提示</b>：P0 的 43 项已具备完整闭环，建议按模块（分组体系 → 收藏归组 → 浏览检索 → 信息与备注 → 批量整理 → 同步与数据 → 入口与呈现 → 设置）顺序拆分任务；SYN-01 / SYN-02 依赖站点接口实测结果，可在接口确认前先实现本地分组与弹窗管理台的部分。</p>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- 通用：轻提示 ---------- */
+const toastEl = document.getElementById('toast');
+let toastTimer = null;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2000);
+}
+
+/* ================= 演示一：收藏到分组 ================= */
+(function(){
+  // 演示用分组数据
+  let groups = [
+    {id:'g1', name:'课堂素材', cnt:12, color:'#3b6ef6'},
+    {id:'g2', name:'灵感参考', cnt:7,  color:'#c0392b'},
+    {id:'g3', name:'待读清单', cnt:3,  color:'#2f9e6f'}
+  ];
+  const picked = new Set();
+  const panel = document.getElementById('favPanel');
+  const glist = document.getElementById('glist');
+  const hint  = document.getElementById('selHint');
+  const inlineMsg = document.getElementById('inlineMsg');
+
+  function renderGroups(){
+    glist.innerHTML = groups.map(g => `
+      <label class="grow">
+        <input type="checkbox" value="${g.id}" ${picked.has(g.id)?'checked':''}>
+        <span style="width:9px;height:9px;border-radius:3px;background:${g.color};display:inline-block"></span>
+        <span>${g.name}</span>
+        <span class="cnt">${g.cnt} 项</span>
+      </label>`).join('');
+    glist.querySelectorAll('input').forEach(cb => {
+      cb.addEventListener('change', () => {
+        cb.checked ? picked.add(cb.value) : picked.delete(cb.value);
+        hint.textContent = `已选 ${picked.size} 个分组`;
+      });
+    });
+    hint.textContent = `已选 ${picked.size} 个分组`;
+  }
+
+  document.getElementById('favBtn').addEventListener('click', () => {
+    panel.hidden = false;
+    renderGroups();
+    document.getElementById('favBtn').textContent = '已收藏';
+  });
+
+  document.getElementById('newGrpBtn').addEventListener('click', () => {
+    const input = document.getElementById('newGrpName');
+    const name = input.value.trim();
+    if(!name){ inlineMsg.textContent = '分组名不能为空'; return; }
+    const exist = groups.find(g => g.name.toLowerCase() === name.toLowerCase());
+    if(exist){ picked.add(exist.id); inlineMsg.textContent = '该分组已存在，已直接勾选'; }
+    else {
+      const colors = ['#3b6ef6','#c0392b','#2f9e6f','#7a3bd6','#b4690e'];
+      const g = {id:'g'+Date.now(), name, cnt:0, color:colors[groups.length % colors.length]};
+      groups.push(g); picked.add(g.id); inlineMsg.textContent = '已新建并勾选';
+    }
+    input.value = '';
+    renderGroups();
+  });
+
+  document.getElementById('newGrpName').addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('newGrpBtn').click(); }
+  });
+
+  document.getElementById('cancelFav').addEventListener('click', () => {
+    panel.hidden = true; picked.clear(); inlineMsg.textContent = '';
+    document.getElementById('favBtn').textContent = '收藏';
+    toast('已取消，未产生任何收藏与归组');
+  });
+
+  document.getElementById('okFav').addEventListener('click', () => {
+    panel.hidden = true;
+    const n = picked.size;
+    document.getElementById('favBtn').textContent = n ? `已收藏 · 已归入 ${n} 个分组` : '已收藏 · 未分组';
+    toast(n ? `已收藏到 ${n} 个分组` : '已收藏，可在“未分组收集箱”中归组');
+    inlineMsg.textContent = '';
+  });
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape' && !panel.hidden) document.getElementById('cancelFav').click();
+  });
+})();
+
+/* ================= 演示二：弹窗管理台 ================= */
+(function(){
+  const items = [
+    {t:'像素画板 Pro',      a:'星野',   tags:['绘画','工具'], g:['g1'],        note:'课上演示用', dead:false},
+    {t:'贪吃蛇小游戏 v2',   a:'阿池',   tags:['游戏'],        g:['g1','g3'],   note:'',           dead:false},
+    {t:'声波可视化实验',    a:'Momo',   tags:['音乐','可视化'],g:['g2'],       note:'转场参考',    dead:false},
+    {t:'3D 星球漫游',       a:'zero',   tags:['3D'],          g:['g2'],        note:'',            dead:true},
+    {t:'Scratch 迷宫生成器',a:'小林',   tags:['游戏','算法'],  g:['g3'],        note:'选题参考',    dead:false},
+    {t:'剪纸风动画合集',    a:'白露',   tags:['动画'],        g:[],            note:'',            dead:false},
+    {t:'天气小组件',        a:'星野',   tags:['工具'],        g:[],            note:'',            dead:false},
+    {t:'像素字体工具',      a:'阿池',   tags:['绘画','工具'],  g:['g1'],        note:'',            dead:false},
+    {t:'旧版粒子系统',      a:'Momo',   tags:['3D'],          g:['g2'],        note:'',            dead:true}
+  ];
+  const groups = [
+    {id:'g1', name:'课堂素材', dot:'#3b6ef6'},
+    {id:'g2', name:'灵感参考', dot:'#c0392b'},
+    {id:'g3', name:'待读清单', dot:'#2f9e6f'}
+  ];
+  let cur = 'all';
+  let onlyDead = false;
+  const state = {q:'', tags:new Set()};
+
+  const popGroups = document.getElementById('popGroups');
+  const chips = document.getElementById('chips');
+  const cards = document.getElementById('cards');
+  const condText = document.getElementById('condText');
+
+  const countOf = id => id === 'all' ? items.length
+    : id === 'inbox' ? items.filter(i => i.g.length === 0).length
+    : items.filter(i => i.g.includes(id)).length;
+
+  function renderGroups(){
+    // 系统视图与自定义分组在弹窗内以横向切换条呈现
+    const sys = [['all','全部收藏'],['inbox','未分组收集箱']].map(([id, name]) =>
+      `<div class="gchip ${cur===id?'on':''}" data-g="${id}">${name}<span class="n">${countOf(id)}</span></div>`).join('');
+    const mine = groups.map(g =>
+      `<div class="gchip ${cur===g.id?'on':''}" data-g="${g.id}"><span class="dot" style="background:${g.dot}"></span>${g.name}<span class="n">${countOf(g.id)}</span></div>`).join('');
+    popGroups.innerHTML = sys + `<span style="width:1px;height:16px;background:var(--line);flex:0 0 auto"></span>` + mine;
+    popGroups.querySelectorAll('.gchip').forEach(el => el.addEventListener('click', () => {
+      cur = el.dataset.g; render();
+    }));
+  }
+
+  function renderChips(){
+    // 标签栏只展示当前结果集（受分组+搜索约束）中实际出现的标签
+    const base = items.filter(i =>
+      cur === 'all' ? true : cur === 'inbox' ? i.g.length === 0 : i.g.includes(cur)
+    ).filter(i => !state.q || (i.t + i.a + i.note + i.tags.join()).toLowerCase().includes(state.q.toLowerCase()));
+    const tags = [...new Set(base.flatMap(i => i.tags))];
+    chips.innerHTML = tags.map(t => `<span class="chip ${state.tags.has(t)?'on':''}" data-t="${t}">${t}</span>`).join('')
+      || '<span class="hint">当前结果集中没有可筛选的标签</span>';
+    chips.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+      const t = c.dataset.t;
+      state.tags.has(t) ? state.tags.delete(t) : state.tags.add(t);
+      render();
+    }));
+  }
+
+  function render(){
+    renderGroups(); renderChips();
+    const res = items.filter(i => {
+      if(cur === 'inbox' && i.g.length !== 0) return false;
+      if(cur !== 'all' && cur !== 'inbox' && !i.g.includes(cur)) return false;
+      if(state.tags.size && ![...state.tags].every(t => i.tags.includes(t))) return false;
+      if(onlyDead && !i.dead) return false;
+      if(state.q && !(i.t + i.a + i.note + i.tags.join()).toLowerCase().includes(state.q.toLowerCase())) return false;
+      return true;
+    });
+
+    cards.innerHTML = res.length ? `<div class="cards">${res.map(i => {
+      const gname = i.g.length ? i.g.map(id => groups.find(g=>g.id===id).name).join(' / ') : '未分组';
+      return `<div class="card">
+        <div class="cv">${i.dead ? '<span class="badge">已失效</span>' : ''}</div>
+        <div class="cbody">
+          <div class="ct">${i.t}</div>
+          <div class="cm"><span>${i.a}</span><span>${i.tags.join(' · ') || '—'}</span></div>
+          <div class="cm" style="margin-top:3px"><span class="g">${gname}</span></div>
+          ${i.note ? `<div class="cm" style="margin-top:3px"><span class="g" style="color:#6b7480">备注：${i.note}</span></div>` : ''}
+        </div>
+      </div>`;
+    }).join('')}</div>` : `<div class="empty">没有符合条件的收藏项<br><span style="font-size:12.5px">可尝试减少标签筛选，或切换到“未分组收集箱”整理新收藏</span></div>`;
+
+    const parts = [];
+    parts.push(cur === 'all' ? '全部收藏' : cur === 'inbox' ? '未分组收集箱' : '分组：' + groups.find(g=>g.id===cur).name);
+    if(state.tags.size) parts.push('标签：' + [...state.tags].join(' + '));
+    if(state.q) parts.push('搜索：' + state.q);
+    if(onlyDead) parts.push('仅看失效');
+    condText.textContent = parts.join(' ｜ ') + ` ｜ 命中 ${res.length} 项`;
+  }
+
+  document.getElementById('q').addEventListener('input', e => {
+    state.q = e.target.value.trim(); render();
+  });
+  document.getElementById('onlyDead').addEventListener('click', () => {
+    onlyDead = !onlyDead;
+    document.getElementById('onlyDead').textContent = onlyDead ? '显示全部' : '仅看失效';
+    render();
+  });
+  document.getElementById('openTab').addEventListener('click', () => {
+    toast('已在标签页中打开（保留当前分组与筛选条件）');
+  });
+  render();
+})();
+</script>
+</body>
+</html>
