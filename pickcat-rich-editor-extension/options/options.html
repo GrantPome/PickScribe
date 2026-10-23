@@ -73,6 +73,10 @@
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
             AI 数据
           </a>
+          <a class="nav-item" href="#sec-about">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
+            关于
+          </a>
         </nav>
       </div>
       <p class="side-foot">配置与密钥只保存在本机浏览器，不会上传到任何服务器。</p>
@@ -198,17 +202,56 @@
       <section class="card" id="sec-home">
         <div class="card-head">
           <h2>起始页浮层</h2>
-          <p>打开站点首页时展示的 Windows 8 磁贴式导航。</p>
+          <p>打开站点首页时展示的一层 Windows 8 风格磁贴起始页。此区改动即时生效。</p>
         </div>
 
         <div class="checks">
           <label class="field checkbox">
             <input type="checkbox" id="homeEnabled" />
-            <span>每次打开站点首页时显示居中起始页</span>
+            <span>每次打开站点首页时显示起始页浮层</span>
           </label>
         </div>
 
-        <p class="note">提供返回社区、发帖、搜索、收藏与快捷导航。关闭后不再自动弹出，其他功能不受影响。</p>
+        <div class="divider"></div>
+
+        <h3 class="sub-head">内容区</h3>
+        <div class="grid">
+          <label class="field">
+            <span>默认打开</span>
+            <select id="homeDefaultTab"></select>
+          </label>
+        </div>
+
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="homeShowSearch" />
+            <span>显示搜索框</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="homeShowClock" />
+            <span>显示时钟</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="homeShowFooter" />
+            <span>显示底部说明</span>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">功能磁贴</h3>
+        <p class="note">勾选要在起始页显示的磁贴，尺寸可选小 / 宽 / 大，↑ ↓ 调整顺序；也可以直接在起始页拖动磁贴排序。</p>
+        <ul class="home-list" id="homeTileList"></ul>
+
+        <h3 class="sub-head">内容标签页</h3>
+        <p class="note">至少保留一个标签页；「默认打开」会随启用项自动校正。</p>
+        <ul class="home-list" id="homeTabList"></ul>
+
+        <div class="row home-actions">
+          <button id="homeReset" class="btn" type="button">恢复默认布局</button>
+        </div>
+
+        <p class="note">浮层只读取首页已有内容与本地收藏，不额外请求接口。关闭后不再自动弹出，其他功能不受影响。</p>
       </section>
 
       <!-- 收藏夹 Plus -->
@@ -290,6 +333,39 @@
           <input id="importFile" type="file" accept="application/json" hidden />
         </div>
         <p class="note">清空缓存后，下次打开帖子会重新调用模型。</p>
+      </section>
+
+      <!-- 关于 -->
+      <section class="card" id="sec-about">
+        <div class="card-head">
+          <h2>关于</h2>
+          <p>PickScribe 是开源的浏览器扩展，代码与发行版都托管在 GitHub。</p>
+        </div>
+
+        <div class="about">
+          <img class="about-logo" src="../icons/logo.svg" alt="PickScribe 图标" width="56" height="56" />
+          <div class="about-meta">
+            <p class="about-name">PickScribe <span class="about-ver" id="aboutVersion">v3.4.0</span></p>
+            <p class="about-desc">Pickcat 富文本编辑器与 AI 助手：可视化编辑、帖子总结、AI 回帖与收藏夹增强。</p>
+          </div>
+        </div>
+
+        <div class="row about-links">
+          <a class="btn" id="repoLink" href="https://github.com/GrantPome/PickScribe" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+            GitHub 仓库
+          </a>
+          <a class="btn" href="https://github.com/GrantPome/PickScribe/releases" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v11"/><path d="m7 9 5 5 5-5"/><path d="M5 21h14"/></svg>
+            发行版与更新日志
+          </a>
+          <a class="btn" href="https://github.com/GrantPome/PickScribe/issues" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+            反馈问题
+          </a>
+        </div>
+
+        <p class="note">欢迎提交 Issue 或 PR。扩展不收集任何使用数据，配置与密钥只保存在本机。</p>
       </section>
     </main>
   </div>

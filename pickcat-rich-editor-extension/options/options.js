@@ -216,20 +216,341 @@ $('userPrompt').placeholder = DEFAULT_USER_PROMPT;
 
 // ============================ 起始页浮层设置（即时生效） ============================
 
-/** 起始页设置键，与 home/content.js 保持一致 */
+/**
+ * 起始页设置（键 pcr_home）：与 home/content.js 的定义保持同步。
+ * 默认关闭，只有用户显式开启后才会在首页自动显示。
+ */
 const HOME_KEY = 'pcr_home';
+
+const HOME_DEFAULTS = {
+  enabled: false,
+  showSearch: true,
+  showClock: true,
+  showFooter: true,
+  defaultTab: 'feed',
+  // 磁贴默认顺序：主操作「发帖」占大磁贴，返回社区放到最后
+  tiles: [
+    { id: 'compose', size: 'large' },
+    { id: 'search', size: 'small' },
+    { id: 'notifications', size: 'small' },
+    { id: 'works', size: 'small' },
+    { id: 'fav-tab', size: 'small' },
+    { id: 'settings', size: 'small' },
+    { id: 'back', size: 'small' }
+  ],
+  tabs: ['feed', 'fav', 'nav']
+};
+
+const HOME_TILE_SIZES = ['small', 'wide', 'large'];
+
+/** 旧版默认顺序（返回社区大磁贴在最前），用于把没改过顺序的用户平滑迁到新顺序 */
+const LEGACY_TILE_ORDER = 'back:large,compose:small,search:small,notifications:small,works:small,fav-tab:small,settings:small';
+const HOME_TILE_SIZE_LABELS = { small: '小', wide: '宽', large: '大' };
+
+const HOME_TILES = {
+  back: { label: '返回社区', sub: '关闭起始页，继续浏览' },
+  compose: { label: '发帖', sub: '进入编辑器新建帖子' },
+  search: { label: '搜索', sub: '查找帖子、用户与关键词' },
+  notifications: { label: '消息', sub: '回复、点赞与系统通知' },
+  works: { label: '作品', sub: '浏览作品广场' },
+  'fav-tab': { label: '收藏', sub: '查看最近收藏' },
+  library: { label: '图盘', sub: '管理上传过的图片' },
+  account: { label: '账号设置', sub: '资料、头像与偏好' },
+  settings: { label: '设置', sub: 'PickScribe 设置' }
+};
+
+const HOME_TABS = { feed: '社区精选', fav: '我的收藏', nav: '快捷导航' };
+
+let homeCfg = null;
+
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * 磁贴归一化：接受 [{id,size}]，也兼容旧配置里的 shortcuts 字符串数组。
+ * 缺省（undefined）回落到默认磁贴；显式空数组表示「不显示磁贴」。
+ */
+function normalizeHomeTiles(source) {
+  if (!Array.isArray(source)) {
+    return HOME_DEFAULTS.tiles.map((t) => ({ id: t.id, size: t.size }));
+  }
+  const out = [];
+  source.forEach((item) => {
+    const id = typeof item === 'string' ? item : (item && item.id);
+    if (!id || !HOME_TILES[id] || out.some((t) => t.id === id)) return;
+    const size = typeof item === 'string' ? '' : (item && item.size);
+    out.push({ id: id, size: HOME_TILE_SIZES.indexOf(size) !== -1 ? size : 'small' });
+  });
+  return out;
+}
+
+/** 与 home/content.js 的 normalizeHome 保持一致 */
+function normalizeHome(raw) {
+  const c = (raw && typeof raw === 'object') ? raw : {};
+  const clean = (arr, all) => {
+    const out = [];
+    (Array.isArray(arr) ? arr : []).forEach((id) => {
+      if (all.indexOf(id) !== -1 && out.indexOf(id) === -1) out.push(id);
+    });
+    return out;
+  };
+
+  let tiles = normalizeHomeTiles(Array.isArray(c.tiles) ? c.tiles : c.shortcuts);
+  if (tiles.map((t) => t.id + ':' + t.size).join(',') === LEGACY_TILE_ORDER) {
+    tiles = HOME_DEFAULTS.tiles.map((t) => ({ id: t.id, size: t.size }));
+  }
+  let tabs = clean(c.tabs, Object.keys(HOME_TABS));
+  if (!tabs.length) tabs = HOME_DEFAULTS.tabs.slice();
+
+  return {
+    enabled: c.enabled === true,
+    showSearch: c.showSearch !== false,
+    showClock: c.showClock !== false,
+    showFooter: c.showFooter !== false,
+    defaultTab: tabs.indexOf(c.defaultTab) !== -1 ? c.defaultTab : tabs[0],
+    tiles: tiles,
+    tabs: tabs
+  };
+}
+
+/** 已启用的按保存顺序在前，未启用的按定义顺序排在后面 */
+function renderHomeTiles() {
+  const el = $('homeTileList');
+  if (!el) return;
+
+  const active = homeCfg.tiles.map((t) => t.id);
+  const all = Object.keys(HOME_TILES);
+  const order = active.concat(all.filter((id) => active.indexOf(id) === -1));
+  const sizeOf = (id) => {
+    const t = homeCfg.tiles.find((x) => x.id === id);
+    return t ? t.size : 'small';
+  };
+
+  el.innerHTML = order.map((id) => {
+    const on = active.indexOf(id) !== -1;
+    const def = HOME_TILES[id];
+    const size = sizeOf(id);
+    return '<li class="home-item' + (on ? '' : ' is-off') + '" data-id="' + id + '">' +
+      '<label class="home-item-main">' +
+        '<input type="checkbox" data-role="toggle"' + (on ? ' checked' : '') + ' />' +
+        '<span class="home-item-text">' +
+          '<span class="home-item-name">' + escHtml(def.label) + '</span>' +
+          '<span class="home-item-desc">' + escHtml(def.sub) + '</span>' +
+        '</span>' +
+      '</label>' +
+      '<select class="home-item-size" data-role="size" aria-label="' + escHtml(def.label) + ' 磁贴尺寸"' + (on ? '' : ' disabled') + '>' +
+        HOME_TILE_SIZES.map((s) =>
+          '<option value="' + s + '"' + (s === size ? ' selected' : '') + '>' + HOME_TILE_SIZE_LABELS[s] + '</option>'
+        ).join('') +
+      '</select>' +
+      '<span class="home-item-move">' +
+        '<button type="button" class="mini" data-move="-1" title="上移" aria-label="上移 ' + escHtml(def.label) + '">↑</button>' +
+        '<button type="button" class="mini" data-move="1" title="下移" aria-label="下移 ' + escHtml(def.label) + '">↓</button>' +
+      '</span>' +
+    '</li>';
+  }).join('');
+}
+
+/** 内容标签页列表 */
+function renderHomeTabs() {
+  const el = $('homeTabList');
+  if (!el) return;
+
+  const active = homeCfg.tabs;
+  const all = Object.keys(HOME_TABS);
+  const order = active.concat(all.filter((id) => active.indexOf(id) === -1));
+
+  el.innerHTML = order.map((id) => {
+    const on = active.indexOf(id) !== -1;
+    return '<li class="home-item' + (on ? '' : ' is-off') + '" data-id="' + id + '">' +
+      '<label class="home-item-main">' +
+        '<input type="checkbox" data-role="toggle"' + (on ? ' checked' : '') + ' />' +
+        '<span class="home-item-text">' +
+          '<span class="home-item-name">' + escHtml(HOME_TABS[id]) + '</span>' +
+        '</span>' +
+      '</label>' +
+      '<span class="home-item-move">' +
+        '<button type="button" class="mini" data-move="-1" title="上移" aria-label="上移 ' + escHtml(HOME_TABS[id]) + '">↑</button>' +
+        '<button type="button" class="mini" data-move="1" title="下移" aria-label="下移 ' + escHtml(HOME_TABS[id]) + '">↓</button>' +
+      '</span>' +
+    '</li>';
+  }).join('');
+}
+
+function renderHomeTabOptions() {
+  const sel = $('homeDefaultTab');
+  if (!sel) return;
+  sel.innerHTML = homeCfg.tabs
+    .map((id) => '<option value="' + id + '">' + escHtml(HOME_TABS[id]) + '</option>')
+    .join('');
+  sel.value = homeCfg.defaultTab;
+}
+
+function paintHome() {
+  // 默认标签页可能刚被停用，先回落到第一个可用项
+  if (homeCfg.tabs.indexOf(homeCfg.defaultTab) === -1) homeCfg.defaultTab = homeCfg.tabs[0];
+
+  $('homeEnabled').checked = homeCfg.enabled;
+  $('homeShowSearch').checked = homeCfg.showSearch;
+  $('homeShowClock').checked = homeCfg.showClock;
+  $('homeShowFooter').checked = homeCfg.showFooter;
+
+  renderHomeTabOptions();
+  renderHomeTiles();
+  renderHomeTabs();
+}
+
+/** 保存并即时生效（浮层下次打开时读取） */
+async function saveHome() {
+  if (homeCfg.tabs.indexOf(homeCfg.defaultTab) === -1) homeCfg.defaultTab = homeCfg.tabs[0];
+  await chrome.storage.local.set({ [HOME_KEY]: homeCfg });
+  setStatus('起始页设置已保存', 'ok');
+}
 
 async function loadHomeSetting() {
   const raw = await chrome.storage.local.get(HOME_KEY);
-  const s = raw[HOME_KEY] || {};
-  $('homeEnabled').checked = s.enabled === true;   // 默认关闭，仅显式开启后勾选
+  homeCfg = normalizeHome(raw[HOME_KEY]);
+  paintHome();
 }
 
 $('homeEnabled').addEventListener('change', async (e) => {
-  const raw = await chrome.storage.local.get(HOME_KEY);
-  const cur = raw[HOME_KEY] || {};
-  await chrome.storage.local.set({ [HOME_KEY]: { ...cur, enabled: e.target.checked } });
-  setStatus(e.target.checked ? '已开启起始页浮层' : '已关闭起始页自动显示', 'ok');
+  homeCfg.enabled = e.target.checked;
+  await chrome.storage.local.set({ [HOME_KEY]: homeCfg });
+  setStatus(homeCfg.enabled ? '已开启起始页浮层' : '已关闭起始页自动显示', 'ok');
+});
+
+$('homeDefaultTab').addEventListener('change', async (e) => {
+  homeCfg.defaultTab = e.target.value;
+  await saveHome();
+});
+
+// 显隐开关
+[
+  ['homeShowSearch', 'showSearch'],
+  ['homeShowClock', 'showClock'],
+  ['homeShowFooter', 'showFooter']
+].forEach(([id, key]) => {
+  $(id).addEventListener('change', async (e) => {
+    homeCfg[key] = e.target.checked;
+    await saveHome();
+  });
+});
+
+/** 磁贴列表：勾选启停、尺寸切换、上下排序 */
+function bindHomeTiles() {
+  const el = $('homeTileList');
+  if (!el) return;
+
+  el.addEventListener('change', async (e) => {
+    const li = e.target.closest('.home-item');
+    if (!li) return;
+    const id = li.getAttribute('data-id');
+
+    if (e.target.matches('[data-role="size"]')) {
+      const t = homeCfg.tiles.find((x) => x.id === id);
+      if (!t) return;
+      t.size = e.target.value;
+      await saveHome();
+      return;
+    }
+
+    if (!e.target.matches('[data-role="toggle"]')) return;
+
+    if (e.target.checked) {
+      if (!homeCfg.tiles.some((x) => x.id === id)) homeCfg.tiles.push({ id: id, size: 'small' });
+    } else {
+      homeCfg.tiles = homeCfg.tiles.filter((x) => x.id !== id);
+    }
+
+    paintHome();
+    await saveHome();
+  });
+
+  el.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-move]');
+    if (!btn) return;
+    const li = btn.closest('.home-item');
+    if (!li) return;
+
+    const id = li.getAttribute('data-id');
+    const i = homeCfg.tiles.findIndex((x) => x.id === id);
+    if (i === -1) return;
+
+    const j = i + Number(btn.getAttribute('data-move'));
+    if (j < 0 || j >= homeCfg.tiles.length) return;
+
+    const moved = homeCfg.tiles.splice(i, 1)[0];
+    homeCfg.tiles.splice(j, 0, moved);
+    paintHome();
+    await saveHome();
+  });
+}
+
+/** 标签页列表：勾选启停并保证至少一个 */
+function bindHomeTabs() {
+  const el = $('homeTabList');
+  if (!el) return;
+
+  el.addEventListener('change', async (e) => {
+    if (!e.target.matches('[data-role="toggle"]')) return;
+    const li = e.target.closest('.home-item');
+    if (!li) return;
+
+    const id = li.getAttribute('data-id');
+    let arr = homeCfg.tabs.slice();
+
+    if (e.target.checked) {
+      if (arr.indexOf(id) === -1) arr.push(id);
+    } else {
+      arr = arr.filter((x) => x !== id);
+    }
+
+    if (!arr.length) {
+      e.target.checked = true;
+      setStatus('至少保留一个标签页', 'err');
+      return;
+    }
+
+    homeCfg.tabs = arr;
+    paintHome();
+    await saveHome();
+  });
+
+  el.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-move]');
+    if (!btn) return;
+    const li = btn.closest('.home-item');
+    if (!li) return;
+
+    const id = li.getAttribute('data-id');
+    const arr = homeCfg.tabs.slice();
+    const i = arr.indexOf(id);
+    if (i === -1) return;
+
+    const j = i + Number(btn.getAttribute('data-move'));
+    if (j < 0 || j >= arr.length) return;
+
+    arr[i] = arr[j];
+    arr[j] = id;
+    homeCfg.tabs = arr;
+    paintHome();
+    await saveHome();
+  });
+}
+
+bindHomeTiles();
+bindHomeTabs();
+
+$('homeReset').addEventListener('click', async () => {
+  homeCfg = normalizeHome({ ...HOME_DEFAULTS, enabled: homeCfg.enabled });
+  paintHome();
+  await saveHome();
+  setStatus('已恢复起始页默认布局', 'ok');
 });
 
 loadHomeSetting().catch((e) => setStatus('读取起始页设置失败：' + e.message, 'err'));
@@ -346,6 +667,10 @@ $('favClear').addEventListener('click', async () => {
 
 loadFav().catch((e) => setFavStatus('读取收藏夹设置失败：' + e.message));
 
+// ============================ 关于：显示实际版本号 ============================
+
+$('aboutVersion').textContent = 'v' + chrome.runtime.getManifest().version;
+
 // ============================ 侧栏导航：滚动时高亮当前分区 ============================
 
 (function navSpy() {
@@ -355,12 +680,28 @@ loadFav().catch((e) => setFavStatus('读取收藏夹设置失败：' + e.message
     .filter((it) => it.sec);
   if (!items.length) return;
 
-  function update() {
-    const line = window.scrollY + 90;
-    let cur = items[0];
-    items.forEach((it) => { if (it.sec.offsetTop <= line) cur = it; });
-    links.forEach((a) => a.classList.toggle('is-active', a === cur.a));
+  const LINE = 90;   // 分区标题越过这条线即视为当前分区（header 高度 + 余量）
+
+  function setActive(a) {
+    links.forEach((el) => el.classList.toggle('is-active', el === a));
   }
+
+  function update() {
+    let cur = items[0];
+    items.forEach((it) => { if (it.sec.getBoundingClientRect().top <= LINE) cur = it; });
+
+    // 末尾分区较短时，页面滚到底也越不过 LINE，此时直接高亮最后一项；
+    // 否则「AI 数据 / 关于」永远选不中（会一直停在收藏夹 Plus）。
+    const doc = document.documentElement;
+    const scrollable = doc.scrollHeight - window.innerHeight > 120;
+    const atBottom = window.innerHeight + window.scrollY >= doc.scrollHeight - 2;
+    if (scrollable && atBottom) cur = items[items.length - 1];
+
+    setActive(cur.a);
+  }
+
+  // 点击即刻切换高亮：已滚到底时再点末尾项不会再触发 scroll 事件
+  links.forEach((a) => a.addEventListener('click', () => setActive(a)));
 
   window.addEventListener('scroll', update, { passive: true });
   window.addEventListener('resize', update);

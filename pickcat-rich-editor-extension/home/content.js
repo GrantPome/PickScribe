@@ -4,10 +4,20 @@
  * 触发条件：
  *   - 仅当站点首页（/ 或 /forum）发生「整页加载」时出现，即「每次打开网站」显示一次；
  *   - 站内 SPA 跳转回首页不会重复弹出（脚本只在整页加载时注入）；
- *   - 设置页（或浮层底部）关闭开关后不再自动显示。
+ *   - 设置页关闭开关后不再自动显示。
+ *
+ * 视觉：Windows 8 起始屏幕的彩色磁贴，磁贴直接铺在页面背景上（不套不透明白卡），
+ *       颜色复用站点 --ui-* 令牌，深浅色自动跟随；详见 home.css 顶部说明。
+ *
+ * 自定义（设置页「起始页浮层」区，键 pcr_home）：
+ *   tiles       [{ id, size }]                 启用的磁贴与顺序，size: small | wide | large
+ *   tabs       string[]                        启用并排序的内容标签页
+ *   defaultTab string                          默认打开的标签页
+ *   showSearch / showClock / showFooter        搜索框 / 时钟 / 底栏的显隐
+ *   enabled    boolean                         是否每次打开首页自动显示
  *
  * 内容来源：
- *   - 社区精选：直接读取背后首页信息流已有的 article[data-slot="root"]，不发任何额外网络请求；
+ *   - 社区精选：直接读取首页信息流已有的 article[data-slot="root"]，不发任何额外网络请求；
  *   - 我的收藏：读取收藏夹 Plus 的本地数据 pcf_items；
  *   - 快捷导航：站内固定入口 + 扩展设置 / 收藏工作台。
  *
@@ -20,10 +30,81 @@
 
   // ============================ 0. 常量 ============================
 
-  const NS = 'pch';
-  const HOME_KEY = 'pcr_home';          // 起始页设置：{ enabled: boolean }
+  const HOME_KEY = 'pcr_home';          // 起始页设置
   const FAV_ITEMS_KEY = 'pcf_items';    // 收藏夹 Plus 的收藏项映射
   const HOME_PATHS = ['/', '/forum'];   // 视为「社区首页」的路径
+
+  /** 默认配置：与 options.js 中的定义保持一致 */
+  const HOME_DEFAULTS = {
+    enabled: false,
+    showSearch: true,
+    showClock: true,
+    showFooter: true,
+    defaultTab: 'feed',
+    // 磁贴默认顺序：主操作「发帖」占大磁贴，返回社区放到最后
+    tiles: [
+      { id: 'compose', size: 'large' },
+      { id: 'search', size: 'small' },
+      { id: 'notifications', size: 'small' },
+      { id: 'works', size: 'small' },
+      { id: 'fav-tab', size: 'small' },
+      { id: 'settings', size: 'small' },
+      { id: 'back', size: 'small' }
+    ],
+    tabs: ['feed', 'fav', 'nav']
+  };
+
+  const TILE_SIZES = ['small', 'wide', 'large'];
+
+  /** 旧版默认顺序（返回社区大磁贴在最前），用于把没改过顺序的用户平滑迁到新顺序 */
+  const LEGACY_TILE_ORDER = 'back:large,compose:small,search:small,notifications:small,works:small,fav-tab:small,settings:small';
+
+  /** 磁贴定义。顺序即设置页里的展示顺序；color 是磁贴的纯色底色 */
+  const TILES = {
+    back: {
+      label: '返回社区', sub: '关闭起始页，继续浏览', act: 'close', ico: 'back',
+      color: '#d93b36'
+    },
+    compose: {
+      label: '发帖', sub: '进入编辑器新建帖子', act: 'compose', ico: 'pen',
+      color: '#e0603a'
+    },
+    search: {
+      label: '搜索', sub: '查找帖子、用户与关键词', act: 'search', ico: 'search',
+      color: '#414c5c'
+    },
+    notifications: {
+      label: '消息', sub: '回复、点赞与系统通知', act: 'notifications', ico: 'bell',
+      color: '#2b6cb0'
+    },
+    works: {
+      label: '作品', sub: '浏览作品广场', act: 'works', ico: 'works',
+      color: '#7a4dd8'
+    },
+    'fav-tab': {
+      label: '收藏', sub: '查看最近收藏', act: 'fav-tab', ico: 'bookmark',
+      color: '#c98a24'
+    },
+    library: {
+      label: '图盘', sub: '管理上传过的图片', act: 'library', ico: 'image',
+      color: '#14807a'
+    },
+    account: {
+      label: '账号', sub: '资料、头像与偏好', act: 'account', ico: 'user',
+      color: '#4c5bd4'
+    },
+    settings: {
+      label: '设置', sub: 'PickScribe 设置', act: 'settings', ico: 'sliders',
+      color: '#5a6675'
+    }
+  };
+
+  /** 内容标签页定义 */
+  const TABS = {
+    feed: { label: '社区精选' },
+    fav: { label: '我的收藏' },
+    nav: { label: '快捷导航' }
+  };
 
   const CATEGORIES = [
     { name: '创作与作品', slug: 'creative-works', color: '#f03e46' },
@@ -46,6 +127,7 @@
     arrow: '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
     external: '<path d="M7 17 17 7"/><path d="M8 7h9v9"/>',
     image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L5 20"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="m4.9 4.9 2.1 2.1"/><path d="m17 17 2.1 2.1"/><path d="m19.1 4.9-2.1 2.1"/><path d="m7 17-2.1 2.1"/>'
   };
 
@@ -53,6 +135,7 @@
 
   let root = null;              // 浮层根节点
   let shell = null;             // 主面板
+  let cfg = null;               // 归一化后的起始页配置
   let activeTab = 'feed';
   let closed = false;
   let clockTimer = null;
@@ -88,6 +171,10 @@
   function isHomePage() {
     const path = (location.pathname || '/').replace(/\/+$/, '') || '/';
     return HOME_PATHS.indexOf(path) !== -1;
+  }
+
+  function capId(id) {
+    return id.charAt(0).toUpperCase() + id.slice(1);
   }
 
   /** 把站内链接归一化为相对路径，站外链接直接丢弃，避免把用户带去未知域名 */
@@ -132,14 +219,92 @@
     return new Array(n).fill('<div class="pch-skeleton"></div>').join('');
   }
 
+  /**
+   * 磁贴归一化：接受 [{ id, size }]，也兼容旧配置里的 shortcuts 字符串数组。
+   * 缺省（undefined）回落到默认磁贴；显式空数组才表示「不显示磁贴」。
+   */
+  function normalizeTiles(source) {
+    if (!Array.isArray(source)) {
+      return HOME_DEFAULTS.tiles.map((t) => ({ id: t.id, size: t.size }));
+    }
+    const out = [];
+    source.forEach((item) => {
+      const id = typeof item === 'string' ? item : (item && item.id);
+      if (!id || !TILES[id] || out.some((t) => t.id === id)) return;
+      const size = typeof item === 'string' ? '' : (item && item.size);
+      out.push({ id: id, size: TILE_SIZES.indexOf(size) !== -1 ? size : 'small' });
+    });
+    return out;
+  }
+
+  /** 配置归一化：补齐默认值、过滤未知项、保证标签页至少有一个 */
+  function normalizeHome(raw) {
+    const c = (raw && typeof raw === 'object') ? raw : {};
+    const clean = (arr, all) => {
+      const out = [];
+      (Array.isArray(arr) ? arr : []).forEach((id) => {
+        if (all.indexOf(id) !== -1 && out.indexOf(id) === -1) out.push(id);
+      });
+      return out;
+    };
+
+    let tiles = normalizeTiles(Array.isArray(c.tiles) ? c.tiles : c.shortcuts);
+    if (tiles.map((t) => t.id + ':' + t.size).join(',') === LEGACY_TILE_ORDER) {
+      tiles = HOME_DEFAULTS.tiles.map((t) => ({ id: t.id, size: t.size }));
+    }
+    let tabs = clean(c.tabs, Object.keys(TABS));
+    if (!tabs.length) tabs = HOME_DEFAULTS.tabs.slice();
+
+    return {
+      enabled: c.enabled === true,
+      showSearch: c.showSearch !== false,
+      showClock: c.showClock !== false,
+      showFooter: c.showFooter !== false,
+      defaultTab: tabs.indexOf(c.defaultTab) !== -1 ? c.defaultTab : tabs[0],
+      tiles: tiles,
+      tabs: tabs
+    };
+  }
+
   // ============================ 3. 模板 ============================
 
-  function tile(act, cls, ico, label, sub) {
-    return '<button type="button" class="pch-tile ' + cls + '" data-act="' + act + '">' +
-      '<span class="pch-tile-icon">' + icon(ico) + '</span>' +
-      '<span class="pch-tile-label">' + escapeHtml(label) +
-      (sub ? '<small class="pch-tile-sub">' + escapeHtml(sub) + '</small>' : '') +
-      '</span></button>';
+  function tileHtml(item) {
+    const t = TILES[item.id];
+    if (!t) return '';
+    return '<button type="button" class="pch-tile" data-act="' + t.act + '" data-tile="' + item.id + '" ' +
+      'data-size="' + item.size + '" draggable="true" ' +
+      'style="--pch-a:' + t.color + '">' +
+      '<span class="pch-tile-icon">' + icon(t.ico, item.size === 'small' ? 20 : 26) + '</span>' +
+      '<span class="pch-tile-label">' + escapeHtml(t.label) +
+        (item.size === 'small' ? '' : '<small class="pch-tile-sub">' + escapeHtml(t.sub) + '</small>') +
+      '</span>' +
+      '</button>';
+  }
+
+  function tabsHtml(c) {
+    const hint = c.tabs.indexOf('feed') !== -1 ? '按 / 搜索 · Esc 返回' : 'Esc 返回';
+    const buttons = c.tabs.map((id) => {
+      const t = TABS[id];
+      const on = id === c.defaultTab;
+      const C = capId(id);
+      return '<button type="button" class="pch-tab' + (on ? ' is-on' : '') + '" role="tab" ' +
+        'aria-selected="' + (on ? 'true' : 'false') + '" data-tab="' + id + '" ' +
+        'aria-controls="pchPane' + C + '" id="pchTab' + C + '">' + escapeHtml(t.label) + '</button>';
+    }).join('');
+
+    return '<div class="pch-tabs" role="tablist" aria-label="起始页内容">' +
+      '<span class="pch-tab-ink" id="pchTabInk" aria-hidden="true"></span>' +
+      buttons +
+      '<span class="pch-tab-hint">' + hint + '</span>' +
+      '</div>';
+  }
+
+  function paneOpen(c, id) {
+    const on = id === c.defaultTab;
+    const C = capId(id);
+    return '<section class="pch-pane' + (on ? ' is-on' : '') + '" role="tabpanel" ' +
+      'id="pchPane' + C + '" aria-labelledby="pchTab' + C + '" data-pane="' + id + '" ' +
+      'aria-hidden="' + (on ? 'false' : 'true') + '">';
   }
 
   function navCard(opt) {
@@ -166,7 +331,7 @@
       { name: '作品广场', desc: '看看大家发布的作品', href: '/works', ico: 'works' },
       { name: '消息中心', desc: '回复、点赞与系统通知', href: '/notifications', ico: 'bell' },
       { name: '个人图盘', desc: '管理上传过的图片', href: '/personal-library', ico: 'image' },
-      { name: '账号设置', desc: '资料、头像与偏好', href: '/settings', ico: 'settings' }
+      { name: '账号设置', desc: '资料、头像与偏好', href: '/settings', ico: 'user' }
     ].map(navCard).join('');
 
     const extLinks = [
@@ -179,68 +344,65 @@
       '<div class="pch-nav-group"><h4>PickScribe 工具</h4><div class="pch-links">' + extLinks + '</div></div>';
   }
 
-  function buildTemplate(version) {
+  function buildTemplate(version, c) {
+    const nav = c.tiles.length
+      ? '<nav class="pch-tiles" aria-label="快捷入口">' +
+          c.tiles.map(tileHtml).join('') +
+        '</nav>'
+      : '';
+
     return '<div class="pch-shell" role="dialog" aria-modal="true" aria-label="PICKCAT 起始页" tabindex="-1">' +
       // 顶栏
       '<header class="pch-top">' +
         '<div class="pch-brand">' +
           '<img class="pch-logo" src="/favicon.png" alt="" />' +
           '<div class="pch-brand-text">' +
-            '<h1 class="pch-brand-title">PICKCAT 起始页</h1>' +
-            '<p class="pch-brand-sub">PickScribe · 从这里开始</p>' +
+            '<h1 class="pch-brand-title">PICKCAT</h1>' +
+            '<p class="pch-brand-sub">起始页 · PickScribe</p>' +
           '</div>' +
         '</div>' +
         '<div class="pch-top-right">' +
           '<span class="pch-clock" id="pchClock"></span>' +
           '<button type="button" class="pch-icon-btn" data-act="settings" title="PickScribe 设置" aria-label="打开 PickScribe 设置">' + icon('sliders') + '</button>' +
-          '<button type="button" class="pch-icon-btn" data-act="close" title="返回社区（Esc）" aria-label="返回社区">' + icon('close') + '</button>' +
+          '<button type="button" class="pch-user" data-act="account" title="打开账号设置" aria-label="打开账号设置">' +
+            '<span class="pch-user-avatar">' + icon('user', 16) + '</span>' +
+            '<span class="pch-user-name">我的账号</span>' +
+          '</button>' +
         '</div>' +
       '</header>' +
       // 主体
       '<div class="pch-body">' +
-        '<nav class="pch-tiles" aria-label="快捷操作">' +
-          tile('close', 'pch-tile--hero', 'back', '返回社区', '关闭起始页，继续浏览') +
-          tile('compose', 'pch-tile--compose', 'pen', '发帖', '') +
-          tile('search', 'pch-tile--search', 'search', '搜索', '') +
-          tile('notifications', 'pch-tile--bell', 'bell', '消息', '') +
-          tile('works', 'pch-tile--works', 'works', '作品', '') +
-          tile('fav-tab', 'pch-tile--fav', 'bookmark', '收藏', '') +
-          tile('settings', 'pch-tile--settings', 'sliders', '设置', '') +
-        '</nav>' +
+        nav +
         '<section class="pch-main">' +
-          '<div class="pch-search" id="pchSearchWrap" hidden>' +
+          '<div class="pch-search" id="pchSearchWrap"' + (c.showSearch ? '' : ' hidden') + '>' +
             icon('search') +
             '<input id="pchSearchInput" type="search" placeholder="搜索帖子、用户或关键词…" autocomplete="off" spellcheck="false" />' +
             '<kbd>Enter</kbd>' +
-            '<button type="button" class="pch-icon-btn" data-act="search-close" title="关闭搜索" aria-label="关闭搜索">' + icon('close') + '</button>' +
+            '<button type="button" class="pch-icon-btn" data-act="search-close" title="关闭搜索" aria-label="关闭搜索">' + icon('close', 16) + '</button>' +
           '</div>' +
-          '<div class="pch-tabs" role="tablist" aria-label="起始页内容">' +
-            '<span class="pch-tab-ink" id="pchTabInk" aria-hidden="true"></span>' +
-            '<button type="button" class="pch-tab is-on" role="tab" aria-selected="true" data-tab="feed" aria-controls="pchPaneFeed" id="pchTabFeed">社区精选</button>' +
-            '<button type="button" class="pch-tab" role="tab" aria-selected="false" data-tab="fav" aria-controls="pchPaneFav" id="pchTabFav">我的收藏</button>' +
-            '<button type="button" class="pch-tab" role="tab" aria-selected="false" data-tab="nav" aria-controls="pchPaneNav" id="pchTabNav">快捷导航</button>' +
-            '<span class="pch-tab-hint">按 / 搜索 · Esc 返回</span>' +
-          '</div>' +
+          tabsHtml(c) +
           '<div class="pch-panes">' +
-            '<section class="pch-pane is-on" role="tabpanel" id="pchPaneFeed" aria-labelledby="pchTabFeed" data-pane="feed">' +
+            paneOpen(c, 'feed') +
               '<div class="pch-pane-head"><h3>社区里正在发生</h3><a class="pch-text-btn" href="/">打开社区 →</a></div>' +
               '<div class="pch-list" id="pchFeedList">' + skeletonHtml(5) + '</div>' +
             '</section>' +
-            '<section class="pch-pane" role="tabpanel" id="pchPaneFav" aria-labelledby="pchTabFav" data-pane="fav" aria-hidden="true">' +
+            paneOpen(c, 'fav') +
               '<div class="pch-pane-head"><h3>最近收藏</h3><button type="button" class="pch-text-btn" data-act="fav-console">收藏工作台 →</button></div>' +
               '<div class="pch-list" id="pchFavList"></div>' +
             '</section>' +
-            '<section class="pch-pane" role="tabpanel" id="pchPaneNav" aria-labelledby="pchTabNav" data-pane="nav" aria-hidden="true">' +
+            paneOpen(c, 'nav') +
               navHtml() +
             '</section>' +
           '</div>' +
         '</section>' +
       '</div>' +
-      // 底栏
-      '<footer class="pch-foot">' +
-        '<span>每次打开网站自动显示 · <button type="button" class="pch-link" data-act="settings">在设置中关闭</button></span>' +
-        '<span class="pch-version">PickScribe v' + escapeHtml(version) + '</span>' +
-      '</footer>' +
+      // 底栏（可在设置页隐藏）
+      (c.showFooter
+        ? '<footer class="pch-foot">' +
+            '<span>拖动磁贴可调整位置 · <button type="button" class="pch-link" data-act="settings">在设置中关闭或自定义</button></span>' +
+            '<span class="pch-version">PickScribe v' + escapeHtml(version) + '</span>' +
+          '</footer>'
+        : '') +
     '</div>';
   }
 
@@ -433,12 +595,55 @@
     el.textContent = date + ' ' + time;
   }
 
+  /**
+   * 顶栏用户信息：优先读站点会话接口，接口不可用时退回站点顶栏头像。
+   * 取不到昵称就显示「我的账号」，不阻塞浮层出现。
+   */
+  async function loadUser() {
+    let name = '';
+    let avatarUrl = '';
+
+    try {
+      const res = await fetch('/api/v1/session', {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const u = (data && (data.user || data.data || data)) || {};
+        name = u.username || u.nickname || u.name || '';
+        const av = u.avatar;
+        avatarUrl = (av && (av.url || av.thumb_url)) || u.avatar_url || '';
+      }
+    } catch (e) { /* 未登录或接口变更时走 DOM 兜底 */ }
+
+    if (!avatarUrl) {
+      const domImg = document.querySelector('button[aria-label="打开账号菜单"] img');
+      if (domImg) avatarUrl = domImg.getAttribute('src') || '';
+    }
+
+    if (avatarUrl) {
+      try { avatarUrl = new URL(avatarUrl, location.origin).href; } catch (e) { avatarUrl = ''; }
+    }
+
+    if (!root) return;
+    const box = root.querySelector('.pch-user-avatar');
+    const label = root.querySelector('.pch-user-name');
+    const btn = root.querySelector('.pch-user');
+
+    if (avatarUrl && box) {
+      box.innerHTML = '<img src="' + escapeHtml(avatarUrl) + '" alt="" loading="lazy" referrerpolicy="no-referrer" />';
+    }
+    if (label) label.textContent = name || '我的账号';
+    if (btn && name) btn.title = name + ' · 打开账号设置';
+  }
+
   // ============================ 6. 交互 ============================
 
   /**
-   * 让 Tab 的选中背景移动到目标按钮。
-   * animate=true 时先把背景拉伸到「旧位置 ∪ 新位置」，再收回目标宽度，
-   * 形成「先伸长、快到位时恢复」的连贯感，而不是生硬地瞬移。
+   * 让 Tab 的下划线指示器移动到目标按钮。
+   * animate=true 时先拉伸到「旧位置 ∪ 新位置」，再收回目标宽度，
+   * 形成「先伸长、快到位时恢复」的连贯感。
    */
   function moveTabInk(btn, animate) {
     if (!btn) return;
@@ -447,15 +652,11 @@
 
     const left = btn.offsetLeft;
     const width = btn.offsetWidth;
-    const top = btn.offsetTop;
-    const height = btn.offsetHeight;
     const prev = ink.__pos;
 
     const applyTarget = () => {
       ink.style.left = left + 'px';
       ink.style.width = width + 'px';
-      ink.style.top = top + 'px';
-      ink.style.height = height + 'px';
     };
 
     if (!animate || !prev) {
@@ -463,7 +664,7 @@
       applyTarget();
       void ink.offsetWidth;
       ink.style.transition = '';
-      ink.__pos = { left: left, width: width, top: top, height: height };
+      ink.__pos = { left: left, width: width };
       return;
     }
 
@@ -473,24 +674,26 @@
     ink.style.transition = 'none';
     ink.style.left = unionLeft + 'px';
     ink.style.width = (unionRight - unionLeft) + 'px';
-    ink.style.top = top + 'px';
-    ink.style.height = height + 'px';
     void ink.offsetWidth;
 
-    ink.style.transition =
-      'left .34s cubic-bezier(.22,1,.36,1), width .34s cubic-bezier(.22,1,.36,1), ' +
-      'top .22s ease, height .22s ease';
+    ink.style.transition = 'left .34s cubic-bezier(.22,1,.36,1), width .34s cubic-bezier(.22,1,.36,1)';
     applyTarget();
-    ink.__pos = { left: left, width: width, top: top, height: height };
+    ink.__pos = { left: left, width: width };
   }
 
   function repaintTabInk(animate) {
     if (!root) return;
     const btn = root.querySelector('.pch-tab[data-tab="' + activeTab + '"]');
+    const ink = $('#pchTabInk');
+    if (!btn) {
+      if (ink) ink.style.width = '0px';
+      return;
+    }
     moveTabInk(btn, animate);
   }
 
   function setTab(name) {
+    if (!cfg || cfg.tabs.indexOf(name) === -1) return;
     activeTab = name;
 
     root.querySelectorAll('.pch-tab').forEach((btn) => {
@@ -575,8 +778,16 @@
       case 'works':
         go('/works');
         break;
+      case 'library':
+        go('/personal-library');
+        break;
+      case 'account':
+        go('/settings');
+        break;
       case 'fav-tab':
-        setTab('fav');
+        // 收藏标签页被隐藏时，退回到收藏工作台
+        if (cfg && cfg.tabs.indexOf('fav') !== -1) setTab('fav');
+        else sendMessage({ type: 'open-favorites' });
         break;
       case 'fav-console':
         sendMessage({ type: 'open-favorites' });
@@ -589,9 +800,79 @@
     }
   }
 
+  // ---- 磁贴拖动排序（HTML5 拖放，松开后写回 pcr_home.tiles） ----
+
+  let dragId = null;
+  let dragAt = 0;
+
+  function onDragStart(e) {
+    const tile = e.target.closest('.pch-tile');
+    if (!tile) return;
+    dragId = tile.getAttribute('data-tile');
+    dragAt = Date.now();
+    tile.classList.add('is-dragging');
+    try {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragId);
+    } catch (err) { /* 某些环境不允许 setData，忽略 */ }
+  }
+
+  function onDragOver(e) {
+    if (!dragId || !root) return;
+    const over = e.target.closest('.pch-tile');
+    if (!over || over.getAttribute('data-tile') === dragId) return;
+
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (err) { /* noop */ }
+
+    const dragging = root.querySelector('.pch-tile.is-dragging');
+    if (!dragging || !over.parentNode) return;
+
+    const rect = over.getBoundingClientRect();
+    const before = (e.clientX - rect.left) < rect.width / 2;
+    over.parentNode.insertBefore(dragging, before ? over : over.nextSibling);
+  }
+
+  /** 把当前 DOM 顺序写回配置 */
+  function persistTileOrder() {
+    if (!cfg || !root) return;
+    const domIds = Array.prototype.map.call(
+      root.querySelectorAll('.pch-tile'),
+      (el) => el.getAttribute('data-tile')
+    );
+    const byId = {};
+    cfg.tiles.forEach((t) => { byId[t.id] = t; });
+    const next = domIds.map((id) => byId[id]).filter(Boolean);
+    if (!next.length) return;
+
+    const changed = next.length !== cfg.tiles.length ||
+      next.some((t, i) => t.id !== cfg.tiles[i].id);
+    if (!changed) return;
+
+    cfg.tiles = next;
+    try {
+      chrome.storage.local.set({ [HOME_KEY]: cfg });
+    } catch (e) { /* 扩展上下文失效时忽略 */ }
+  }
+
+  function onDragEnd() {
+    if (!dragId) return;
+    dragId = null;
+    const dragging = root ? root.querySelector('.pch-tile.is-dragging') : null;
+    if (dragging) dragging.classList.remove('is-dragging');
+    persistTileOrder();
+  }
+
+  function onDrop(e) {
+    // 阻止浏览器把磁贴当成链接 / 文本打开
+    if (dragId) e.preventDefault();
+  }
+
   function onClick(e) {
     const actEl = e.target.closest('[data-act]');
     if (actEl && root.contains(actEl)) {
+      // 刚拖动过就不要再触发动作
+      if (Date.now() - dragAt < 240) return;
       e.preventDefault();
       handleAction(actEl.getAttribute('data-act'));
       return;
@@ -616,6 +897,12 @@
       e.target.tagName === 'TEXTAREA' ||
       e.target.isContentEditable
     );
+
+    if (e.key === 'Enter' && e.target === $('#pchSearchInput')) {
+      e.preventDefault();
+      submitSearch();
+      return;
+    }
 
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -674,15 +961,19 @@
     }, 320);
   }
 
-  function mount() {
+  function mount(config) {
     if (root || closed) return;
 
-    let version = '3.2.0';
+    cfg = config;
+    activeTab = cfg.defaultTab;
+
+    let version = '3.4.0';
     try { version = chrome.runtime.getManifest().version; } catch (e) { /* noop */ }
 
     root = document.createElement('div');
     root.id = 'pch-root';
-    root.innerHTML = buildTemplate(version);
+    if (!cfg.tiles.length) root.classList.add('pch-no-tiles');
+    root.innerHTML = buildTemplate(version, cfg);
     shell = root.querySelector('.pch-shell');
 
     document.body.appendChild(root);
@@ -693,16 +984,24 @@
     if (logo) logo.addEventListener('error', () => { logo.style.display = 'none'; });
 
     root.addEventListener('click', onClick);
+    root.addEventListener('dragstart', onDragStart);
+    root.addEventListener('dragover', onDragOver);
+    root.addEventListener('drop', onDrop);
+    root.addEventListener('dragend', onDragEnd);
     document.addEventListener('keydown', onKeydown, true);
     window.addEventListener('resize', onResize);
 
     try { chrome.storage.onChanged.addListener(onStorageChanged); } catch (e) { /* noop */ }
 
-    // 先量一次 Tab 位置，避免首次出现时选中背景在左上角闪一下
+    // 先量一次 Tab 位置，避免首次出现时下划线在左上角闪一下
     repaintTabInk(false);
 
-    updateClock();
-    clockTimer = setInterval(updateClock, 30000);
+    if (cfg.showClock) {
+      updateClock();
+      clockTimer = setInterval(updateClock, 30000);
+    }
+
+    loadUser();
 
     requestAnimationFrame(() => {
       if (!root) return;
@@ -710,8 +1009,13 @@
       if (shell) shell.focus({ preventScroll: true });
     });
 
-    startFeedPolling();
-    renderFavorites();
+    // 字体（鸿蒙）加载完成后字宽会变，重新对齐下划线
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => { if (root) repaintTabInk(false); }).catch(() => {});
+    }
+
+    if (activeTab === 'feed') startFeedPolling();
+    if (activeTab === 'fav') renderFavorites();
 
     // 常驻路由看护：万一站点站内跳转离开首页，立即收起浮层
     routeTimer = setInterval(() => {
@@ -722,13 +1026,13 @@
   async function boot() {
     if (!isHomePage()) return;
 
-    const cfg = await readHomeConfig();
-    if (!cfg || cfg.enabled !== true) return;   // 默认不开启：只有用户显式开启过才自动显示
+    const conf = normalizeHome(await readHomeConfig());
+    if (!conf.enabled) return;   // 默认不开启：只有用户显式开启过才自动显示
 
     // 等站点首屏开始渲染后再出现，避免先看到一片空白
     await sleep(320);
     if (!isHomePage() || !document.body || closed) return;
-    mount();
+    mount(conf);
   }
 
   // 防止扩展被重复注入时出现两层浮层

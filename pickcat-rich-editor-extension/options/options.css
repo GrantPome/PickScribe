@@ -459,6 +459,33 @@ code {
   color: var(--ui-text);
 }
 .btn:active { background: color-mix(in oklab, var(--ui-text) 12%, transparent); }
+
+/* ============================ 关于 ============================ */
+
+.about { display: flex; align-items: center; gap: 16px; }
+.about-logo { width: 56px; height: 56px; flex: none; border-radius: 14px; }
+.about-meta { min-width: 0; }
+.about-name {
+  margin: 0 0 5px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ui-text-highlighted);
+}
+.about-ver {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-dimmed);
+}
+.about-desc { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ui-text-muted); }
+.about-links { margin-top: 18px; }
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+a.btn svg { width: 15px; height: 15px; flex: none; }
 .btn.primary {
   background: var(--ui-primary);
   color: var(--ui-text-inverted);
@@ -470,6 +497,103 @@ code {
   color: var(--ui-error);
 }
 .btn:disabled { opacity: .5; cursor: default; background: transparent; }
+
+/* ============================ 起始页自定义列表 ============================ */
+
+#sec-home .sub-head { margin: 22px 0 10px; }
+#sec-home .divider + .sub-head { margin-top: 0; }
+#sec-home .note { margin: 8px 0 10px; }
+
+.home-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg-muted);
+}
+
+.home-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  transition: background-color .15s, opacity .15s;
+}
+
+.home-item:hover { background: var(--ui-bg-elevated); }
+
+.home-item.is-off .home-item-name { color: var(--ui-text-dimmed); }
+
+.home-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.home-item-main input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--ui-primary);
+  cursor: pointer;
+}
+
+.home-item-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.home-item-name { color: var(--ui-text); font-size: 13.5px; }
+
+.home-item-desc {
+  overflow: hidden;
+  color: var(--ui-text-dimmed);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 磁贴尺寸下拉：行内小尺寸，避免撑高列表 */
+.home-item-size {
+  flex: none;
+  width: 72px;
+  min-height: 0;
+  height: 28px;
+  padding: 0 22px 0 8px;
+  border-radius: 4px;
+  background-position: calc(100% - 12px) calc(50% - 2px), calc(100% - 7px) calc(50% - 2px);
+  font-size: 12.5px;
+}
+
+.home-item-size:disabled { cursor: default; opacity: .5; }
+
+.home-item.is-off .home-item-size { opacity: .5; }
+
+.home-item-move { flex: none; display: flex; gap: 2px; }
+
+.home-item-move .mini {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.home-item.is-off .home-item-move { opacity: .35; pointer-events: none; }
+
+.home-actions { margin-top: 18px; }
 
 /* ============================ 窄屏 ============================ */
 

@@ -1,25 +1,40 @@
 /**
  * PickScribe 起始页浮层 —— 样式
  *
- * 设计要点：
- * 1. 只作用于 #pch-root 内部，类名统一 pch- 前缀，避免与站点样式互相污染；
- * 2. 颜色复用站点 Nuxt UI 设计令牌（--ui-bg / --ui-text / --ui-primary 等），
- *    浅色 / 深色主题自动跟随，无需在两套配色之间硬编码；
- * 3. 左侧是 Windows 8 风格的彩色磁贴，右侧是一块可切换 Tab 的内容区；
- * 4. 动效遵循站内既有节奏：入场 420ms、cubic-bezier(.22,1,.36,1)，链接悬停只做高亮不位移。
+ * 视觉基线：Windows 8 起始屏幕的彩色磁贴。
+ *   1. 浮层只做一层很薄的背景模糊，磁贴本身是视觉主体，不再套不透明白卡；
+ *   2. 磁贴按 small / wide / large 三档尺寸铺进两列网格，顺序与尺寸都由用户配置；
+ *   3. 颜色仍取站点 --ui-* 令牌，深浅色自动跟随，磁贴渐变在深色下也不会刺眼；
+ *   4. 右侧内容区是一块半透明玻璃卡片，承载社区精选 / 收藏 / 快捷导航；
+ *   5. 动效沿用站内节奏：420ms、cubic-bezier(.22,1,.36,1)，悬停只提亮不位移。
+ *
+ * 磁贴尺寸由 content.js 写在磁贴节点上：
+ *   <button class="pch-tile" data-size="small|wide|large">
  */
 
 /* ============================ 1. 令牌与容器 ============================ */
 
 #pch-root {
   --pch-bg: var(--ui-bg, #ffffff);
-  --pch-elevated: var(--ui-bg-elevated, #f5f6f7);
-  --pch-muted: var(--ui-bg-muted, #f2f4f6);
-  --pch-text: var(--ui-text, #1f2328);
-  --pch-dim: var(--ui-text-muted, #6b7280);
-  --pch-border: var(--ui-border, #e3e7ec);
-  --pch-primary: var(--ui-primary, #f03e46);
+  --pch-page: var(--ui-bg-muted, oklch(97% 0 none));
+  --pch-elevated: var(--ui-bg-elevated, oklch(97% 0 none));
+  --pch-input: var(--ui-bg-input, oklch(96% 0 none));
+  --pch-muted: var(--ui-bg-muted, oklch(97% 0 none));
+  --pch-text: var(--ui-text, oklch(26.9% 0 none));
+  --pch-strong: var(--ui-text-highlighted, oklch(14.5% 0 none));
+  --pch-dim: var(--ui-text-muted, oklch(43.9% 0 none));
+  --pch-faint: var(--ui-text-dimmed, oklch(55.6% 0 none));
+  --pch-border: var(--ui-border, oklch(92.2% 0 none));
+  --pch-primary: var(--ui-primary, #fa322d);
+  --pch-radius: var(--ui-radius, 8px);
+  --pch-radius-sm: var(--ui-radius-sm, 6px);
   --pch-font: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  --pch-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pch-hover: color-mix(in oklab, var(--pch-text) 7%, transparent);
+
+  /* 磁贴网格：两列、行高 112px、间距 10px */
+  --pch-tile-gap: 10px;
+  --pch-tile-row: 112px;
 
   position: fixed;
   inset: 0;
@@ -27,14 +42,29 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(14px, 3vw, 48px);
+  padding: clamp(12px, 2.2vw, 36px);
   font-family: var(--pch-font);
   color: var(--pch-text);
-  background: color-mix(in srgb, var(--pch-bg) 42%, transparent);
-  -webkit-backdrop-filter: blur(18px) saturate(125%);
-  backdrop-filter: blur(18px) saturate(125%);
+  /* 只做很薄的页面色 + 模糊：磁贴才是主体，背景不抢戏 */
+  background: color-mix(in srgb, var(--pch-page) 46%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(125%);
+  backdrop-filter: blur(22px) saturate(125%);
   opacity: 0;
-  transition: opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.32s var(--pch-ease);
+}
+
+html.dark #pch-root {
+  --pch-bg: var(--ui-bg, #1c1c1e);
+  --pch-page: var(--ui-bg-muted, #0f0f10);
+  --pch-elevated: var(--ui-bg-elevated, #2c2c2e);
+  --pch-input: var(--ui-bg-input, #2c2c2e);
+  --pch-muted: var(--ui-bg-muted, #0f0f10);
+  --pch-text: var(--ui-text, oklch(92.2% 0 none));
+  --pch-strong: var(--ui-text-highlighted, #ffffff);
+  --pch-dim: var(--ui-text-muted, oklch(70.8% 0 none));
+  --pch-faint: var(--ui-text-dimmed, oklch(55.6% 0 none));
+  --pch-border: var(--ui-border, oklch(26.9% 0 none));
+  --pch-primary: var(--ui-primary, color-mix(in oklab, #fa322d 80%, #fff));
 }
 
 #pch-root *,
@@ -52,26 +82,19 @@ html.pch-scroll-lock body {
   overflow: hidden !important;
 }
 
-/* ============================ 2. 主面板 ============================ */
+/* ============================ 2. 外壳（透明，无白卡） ============================ */
 
 .pch-shell {
-  width: min(1180px, 100%);
-  height: min(780px, 100%);
+  width: min(1220px, 100%);
+  height: min(820px, 100%);
   min-width: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid color-mix(in srgb, var(--pch-border) 85%, transparent);
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--pch-bg) 86%, transparent);
-  box-shadow:
-    0 32px 90px rgba(15, 23, 42, 0.22),
-    0 4px 16px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
   outline: none;
   opacity: 0;
-  transform: translateY(18px) scale(0.97);
+  transform: translateY(14px) scale(0.98);
   transition:
-    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.42s var(--pch-ease),
     opacity 0.3s ease;
 }
 
@@ -80,67 +103,72 @@ html.pch-scroll-lock body {
   transform: none;
 }
 
-html.dark #pch-root .pch-shell {
-  box-shadow:
-    0 32px 90px rgba(0, 0, 0, 0.6),
-    0 4px 16px rgba(0, 0, 0, 0.35);
-}
-
-/* ============================ 3. 顶栏 ============================ */
+/* ============================ 3. 顶栏（纯文字，不设底色） ============================ */
 
 .pch-top {
   flex: none;
+  height: 58px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 24px 8px;
+  padding: 0 2px 12px;
 }
 
 .pch-brand {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
   min-width: 0;
 }
 
 .pch-logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--pch-radius-sm);
   object-fit: cover;
   background: var(--pch-muted);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
 }
 
-.pch-brand-text { min-width: 0; }
+.pch-brand-text {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
 
 .pch-brand-title {
   margin: 0;
+  color: var(--pch-strong);
   font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 1.25;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .pch-brand-sub {
-  margin: 2px 0 0;
-  font-size: 11.5px;
+  margin: 0;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--pch-border) 80%, transparent);
   color: var(--pch-dim);
-  letter-spacing: 0.04em;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .pch-top-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex: none;
 }
 
 .pch-clock {
-  margin-right: 8px;
-  font-size: 12.5px;
+  margin-right: 10px;
   color: var(--pch-dim);
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -152,96 +180,162 @@ html.dark #pch-root .pch-shell {
   width: 34px;
   height: 34px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: 10px;
+  border: 0;
+  border-radius: var(--pch-radius-sm);
   background: transparent;
   color: var(--pch-dim);
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .pch-icon-btn:hover {
-  background: var(--pch-muted);
+  background: var(--pch-hover);
   color: var(--pch-text);
-  border-color: var(--pch-border);
 }
 
-.pch-icon-btn:active { transform: scale(0.94); }
+.pch-icon-btn:active { transform: scale(0.95); }
 
-/* ============================ 4. 左右布局 ============================ */
+.pch-icon-btn:focus-visible {
+  outline: 2px solid var(--pch-primary);
+  outline-offset: 1px;
+}
+
+/* 当前登录用户：头像 + 昵称，点击进入账号设置 */
+.pch-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 190px;
+  height: 38px;
+  margin-left: 4px;
+  padding: 0 10px 0 3px;
+  border: 1px solid color-mix(in srgb, var(--pch-border) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pch-bg) 52%, transparent);
+  color: var(--pch-text);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.pch-user:hover {
+  background: color-mix(in srgb, var(--pch-bg) 78%, transparent);
+  border-color: color-mix(in srgb, var(--pch-border) 40%, var(--pch-dim));
+}
+
+.pch-user:active { transform: scale(0.98); }
+
+.pch-user:focus-visible {
+  outline: 2px solid var(--pch-primary);
+  outline-offset: 1px;
+}
+
+.pch-user-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--pch-muted);
+  color: var(--pch-dim);
+}
+
+.pch-user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.pch-user-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.8px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ============================ 4. 主体分栏 ============================ */
 
 .pch-body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 282px minmax(0, 1fr);
-  gap: 16px;
-  padding: 10px 24px 0;
+  grid-template-columns: 316px minmax(0, 1fr);
+  gap: 26px;
 }
 
-/* ============================ 5. 左侧磁贴 ============================ */
+/* 用户停用了全部磁贴时，内容区独占整行 */
+#pch-root.pch-no-tiles .pch-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* ============================ 5. 磁贴 ============================ */
 
 .pch-tiles {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  grid-auto-rows: var(--pch-tile-row);
+  grid-auto-flow: dense;
+  align-content: start;
+  gap: var(--pch-tile-gap);
   min-height: 0;
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
+
+/* 尺寸：小 1×1、宽 2×1、大 2×2 */
+.pch-tile[data-size="small"] { grid-column: span 1; grid-row: span 1; }
+.pch-tile[data-size="wide"]  { grid-column: span 2; grid-row: span 1; }
+.pch-tile[data-size="large"] { grid-column: span 2; grid-row: span 2; }
 
 .pch-tile {
   position: relative;
   display: block;
   overflow: hidden;
+  min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--pch-a, #475569), var(--pch-b, #64748b));
+  border-radius: 6px;
+  background: var(--pch-a, #475569);
   color: #fff;
   text-align: left;
-  cursor: pointer;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--pch-a, #475569) 26%, transparent);
+  cursor: grab;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--pch-a, #475569) 28%, transparent);
   transition:
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.18s var(--pch-ease),
     box-shadow 0.22s ease,
-    filter 0.18s ease;
-}
-
-/* 顶部一层很淡的高光，让纯色块更有塑料质感 */
-.pch-tile::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 62%);
-  pointer-events: none;
+    filter 0.18s ease,
+    opacity 0.18s ease;
 }
 
 .pch-tile:hover {
   transform: translateY(-2px);
   filter: brightness(1.06);
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--pch-a, #475569) 34%, transparent);
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--pch-a, #475569) 38%, transparent);
 }
 
-.pch-tile:active { transform: scale(0.975); }
+.pch-tile:active {
+  transform: scale(0.975);
+  cursor: grabbing;
+}
 
 .pch-tile:focus-visible {
   outline: 2px solid #fff;
   outline-offset: -4px;
 }
 
-.pch-tile--hero {
-  grid-column: span 2;
-  grid-row: span 2;
-  --pch-a: #e3343c;
-  --pch-b: #ff7a45;
+/* 拖动中：原位置留虚影，拖动跟随光标 */
+.pch-tile.is-dragging {
+  opacity: 0.35;
+  filter: grayscale(0.2);
+  box-shadow: none;
 }
-
-.pch-tile--compose { --pch-a: #f03e46; --pch-b: #ff9b54; }
-.pch-tile--search  { --pch-a: #334155; --pch-b: #4b5b6e; }
-.pch-tile--bell    { --pch-a: #2563eb; --pch-b: #3b82f6; }
-.pch-tile--works   { --pch-a: #7c3aed; --pch-b: #a855f7; }
-.pch-tile--fav     { --pch-a: #b45309; --pch-b: #f59e0b; }
-.pch-tile--settings{ --pch-a: #475569; --pch-b: #64748b; }
 
 .pch-tile-icon {
   position: absolute;
@@ -252,37 +346,20 @@ html.dark #pch-root .pch-shell {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.16));
 }
 
-.pch-tile--hero .pch-tile-icon {
-  top: 20px;
-  left: 20px;
-}
-
 .pch-tile-icon svg {
   width: 22px;
   height: 22px;
-}
-
-.pch-tile--hero .pch-tile-icon svg {
-  width: 34px;
-  height: 34px;
 }
 
 .pch-tile-label {
   position: absolute;
   left: 14px;
   bottom: 12px;
-  right: 10px;
+  right: 12px;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: 0.01em;
-}
-
-.pch-tile--hero .pch-tile-label {
-  left: 20px;
-  bottom: 18px;
-  font-size: 20px;
-  font-weight: 700;
 }
 
 .pch-tile-sub {
@@ -294,22 +371,70 @@ html.dark #pch-root .pch-shell {
   letter-spacing: 0;
 }
 
-.pch-tile--hero .pch-tile-sub {
-  margin-top: 6px;
-  font-size: 12px;
+/* 宽 / 大磁贴：图标与标题都放大一档 */
+.pch-tile[data-size="wide"] .pch-tile-icon,
+.pch-tile[data-size="large"] .pch-tile-icon {
+  top: 16px;
+  left: 16px;
 }
 
-/* ============================ 6. 右侧内容区 ============================ */
+.pch-tile[data-size="wide"] .pch-tile-icon svg,
+.pch-tile[data-size="large"] .pch-tile-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.pch-tile[data-size="wide"] .pch-tile-label,
+.pch-tile[data-size="large"] .pch-tile-label {
+  left: 16px;
+  bottom: 14px;
+  font-size: 15px;
+}
+
+.pch-tile[data-size="large"] .pch-tile-icon {
+  top: 20px;
+  left: 20px;
+}
+
+.pch-tile[data-size="large"] .pch-tile-icon svg {
+  width: 34px;
+  height: 34px;
+}
+
+.pch-tile[data-size="large"] .pch-tile-label {
+  left: 20px;
+  bottom: 18px;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.pch-tile[data-size="large"] .pch-tile-sub {
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+
+.pch-tiles::-webkit-scrollbar { width: 8px; }
+.pch-tiles::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pch-dim) 30%, transparent);
+  background-clip: padding-box;
+}
+.pch-tiles::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================ 6. 内容区（半透明玻璃） ============================ */
 
 .pch-main {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: 14px 16px 12px;
-  border: 1px solid color-mix(in srgb, var(--pch-border) 78%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--pch-elevated) 58%, transparent);
+  padding: 18px 18px 14px;
+  border: 1px solid color-mix(in srgb, var(--pch-border) 72%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--pch-bg) 64%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(115%);
+  backdrop-filter: blur(20px) saturate(115%);
 }
 
 /* ---- 搜索条 ---- */
@@ -318,23 +443,23 @@ html.dark #pch-root .pch-shell {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 44px;
   flex: none;
-  margin-bottom: 12px;
-  padding: 0 12px;
+  height: 40px;
+  margin-bottom: 14px;
+  padding: 0 10px 0 12px;
   border: 1px solid var(--pch-border);
-  border-radius: 12px;
+  border-radius: var(--pch-radius-sm);
   background: var(--pch-bg);
-  color: var(--pch-dim);
-  animation: pch-search-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  color: var(--pch-faint);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pch-search:focus-within {
+  border-color: var(--pch-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pch-primary) 12%, transparent);
 }
 
 .pch-search[hidden] { display: none; }
-
-@keyframes pch-search-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: none; }
-}
 
 .pch-search input {
   flex: 1;
@@ -346,40 +471,53 @@ html.dark #pch-root .pch-shell {
   background: transparent;
   color: var(--pch-text);
   font: inherit;
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
-.pch-search input::placeholder { color: var(--pch-dim); }
+.pch-search input::placeholder { color: var(--pch-faint); }
 
 .pch-search kbd {
   flex: none;
   padding: 2px 6px;
   border: 1px solid var(--pch-border);
-  border-radius: 5px;
+  border-radius: 4px;
   background: var(--pch-muted);
-  color: var(--pch-dim);
+  color: var(--pch-faint);
   font-family: inherit;
   font-size: 10.5px;
 }
 
-/* ---- Tab ---- */
+.pch-search .pch-icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+}
+
+/* ---- Tab：站点式下划线指示器 ---- */
 
 .pch-tabs {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex: none;
-  padding-bottom: 11px;
-  border-bottom: 1px solid color-mix(in srgb, var(--pch-border) 70%, transparent);
+  padding: 0;
+  border-bottom: 1px solid var(--pch-border);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-/* 选中背景：由 JS 计算位置，切换时先拉伸覆盖两段再收回到目标宽度 */
+.pch-tabs::-webkit-scrollbar { display: none; }
+
 .pch-tab-ink {
   position: absolute;
+  bottom: -1px;
+  left: 0;
   z-index: 0;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pch-primary) 13%, transparent);
+  width: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--pch-primary);
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -390,40 +528,38 @@ html.dark #pch-root .pch-shell {
 .pch-tab {
   position: relative;
   z-index: 1;
-  padding: 7px 13px;
+  flex: none;
+  padding: 10px 12px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 0;
   background: transparent;
   color: var(--pch-dim);
   font: inherit;
   font-size: 13.5px;
   font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease;
+  transition: color 0.15s ease;
 }
 
-.pch-tab:hover {
-  background: var(--pch-muted);
-  color: var(--pch-text);
-}
+.pch-tab:hover { color: var(--pch-text); }
 
 .pch-tab.is-on {
-  background: transparent;
-  color: var(--pch-primary);
+  color: var(--pch-strong);
+  font-weight: 600;
 }
 
-.pch-tab.is-on:hover { background: transparent; }
-
 .pch-tab:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--pch-primary) 60%, transparent);
-  outline-offset: 2px;
+  outline: 2px solid var(--pch-primary);
+  outline-offset: -3px;
 }
 
 .pch-tab-hint {
   margin-left: auto;
+  padding-left: 12px;
+  color: var(--pch-faint);
   font-size: 11px;
-  color: var(--pch-dim);
-  opacity: 0.75;
+  white-space: nowrap;
 }
 
 /* ---- 面板与滚动 ---- */
@@ -438,13 +574,13 @@ html.dark #pch-root .pch-shell {
   display: none;
   height: 100%;
   overflow-y: auto;
-  padding: 12px 4px 8px 0;
+  padding: 12px 2px 6px 0;
   overscroll-behavior: contain;
 }
 
 .pch-pane.is-on {
   display: block;
-  animation: pch-pane-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: pch-pane-in 0.26s var(--pch-ease) both;
 }
 
 @keyframes pch-pane-in {
@@ -466,13 +602,14 @@ html.dark #pch-root .pch-shell {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding: 0 4px;
 }
 
 .pch-pane-head h3 {
   margin: 0;
-  font-size: 13.5px;
+  color: var(--pch-strong);
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -480,18 +617,18 @@ html.dark #pch-root .pch-shell {
 .pch-text-btn {
   padding: 4px 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--pch-radius-sm);
   background: transparent;
   color: var(--pch-dim);
   font: inherit;
   font-size: 12px;
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.18s ease, color 0.18s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .pch-text-btn:hover {
-  background: var(--pch-muted);
+  background: var(--pch-hover);
   color: var(--pch-text);
 }
 
@@ -500,7 +637,7 @@ html.dark #pch-root .pch-shell {
 .pch-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .pch-post {
@@ -508,32 +645,31 @@ html.dark #pch-root .pch-shell {
   align-items: center;
   gap: 12px;
   min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  border-radius: 12px;
+  padding: 9px 10px;
+  border-radius: var(--pch-radius-sm);
   color: inherit;
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease;
+  transition: background-color 0.15s ease;
 }
 
-/* 链接悬停只高亮，不位移 */
-.pch-post:hover {
-  background: color-mix(in srgb, var(--pch-bg) 72%, transparent);
-  border-color: var(--pch-border);
+/* 悬停只换底色，不位移 */
+.pch-post:hover { background: var(--pch-hover); }
+
+.pch-post:focus-visible {
+  outline: 2px solid var(--pch-primary);
+  outline-offset: -2px;
 }
 
 .pch-post-idx {
   flex: none;
   width: 22px;
-  color: var(--pch-dim);
+  color: var(--pch-faint);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
-  opacity: 0.6;
 }
 
-/* 收藏行的书签图标用正文色，经父级 0.6 透明度后仍比灰色序号更实 */
-.pch-post-idx svg { color: var(--pch-text); }
+.pch-post-idx svg { color: var(--pch-dim); }
 
 .pch-post-body {
   flex: 1;
@@ -545,7 +681,8 @@ html.dark #pch-root .pch-shell {
 
 .pch-post-title {
   overflow: hidden;
-  font-size: 13.6px;
+  color: var(--pch-text);
+  font-size: 13.5px;
   font-weight: 500;
   line-height: 1.45;
   white-space: nowrap;
@@ -564,7 +701,7 @@ html.dark #pch-root .pch-shell {
 .pch-post-arrow {
   flex: none;
   display: inline-flex;
-  color: var(--pch-dim);
+  color: var(--pch-faint);
   opacity: 0;
   transform: translateX(-2px);
   transition: opacity 0.18s ease, transform 0.18s ease;
@@ -572,7 +709,7 @@ html.dark #pch-root .pch-shell {
 
 .pch-post:hover .pch-post-arrow,
 .pch-post:focus-visible .pch-post-arrow {
-  opacity: 0.8;
+  opacity: 1;
   transform: none;
 }
 
@@ -582,8 +719,8 @@ html.dark #pch-root .pch-shell {
   max-width: 96px;
   margin-left: 6px;
   padding: 1px 6px;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--pch-primary) 10%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--pch-primary) 9%, transparent);
   color: color-mix(in srgb, var(--pch-primary) 82%, var(--pch-text));
   font-size: 10.5px;
   vertical-align: 1px;
@@ -596,8 +733,8 @@ html.dark #pch-root .pch-shell {
 
 .pch-skeleton {
   height: 54px;
-  margin: 0 4px 6px;
-  border-radius: 12px;
+  margin: 0 2px 4px;
+  border-radius: var(--pch-radius-sm);
   background: linear-gradient(
     90deg,
     var(--pch-muted) 25%,
@@ -628,15 +765,16 @@ html.dark #pch-root .pch-shell {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
   margin-bottom: 2px;
-  border-radius: 14px;
+  border-radius: var(--pch-radius);
   background: var(--pch-muted);
-  color: var(--pch-dim);
+  color: var(--pch-faint);
 }
 
 .pch-empty strong {
+  color: var(--pch-strong);
   font-size: 14px;
   font-weight: 600;
 }
@@ -653,16 +791,16 @@ html.dark #pch-root .pch-shell {
   align-items: center;
   gap: 6px;
   margin-top: 6px;
-  padding: 8px 16px;
+  padding: 7px 15px;
   border: 1px solid var(--pch-border);
-  border-radius: 999px;
+  border-radius: var(--pch-radius-sm);
   background: var(--pch-bg);
   color: var(--pch-text);
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.18s ease, border-color 0.18s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .pch-cta:hover {
@@ -679,7 +817,7 @@ html.dark #pch-root .pch-shell {
 .pch-nav-group h4 {
   margin: 0 0 9px;
   padding: 0 4px;
-  color: var(--pch-dim);
+  color: var(--pch-faint);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.09em;
@@ -698,14 +836,14 @@ html.dark #pch-root .pch-shell {
   gap: 7px;
   padding: 7px 11px;
   border: 1px solid var(--pch-border);
-  border-radius: 10px;
+  border-radius: var(--pch-radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
   font-size: 12.5px;
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .pch-chip:hover {
@@ -733,14 +871,14 @@ html.dark #pch-root .pch-shell {
   min-width: 0;
   padding: 11px 12px;
   border: 1px solid var(--pch-border);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--pch-bg) 45%, transparent);
+  border-radius: var(--pch-radius-sm);
+  background: color-mix(in srgb, var(--pch-bg) 55%, transparent);
   color: inherit;
   font: inherit;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.18s ease, border-color 0.18s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .pch-nav-card:hover {
@@ -755,7 +893,7 @@ html.dark #pch-root .pch-shell {
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--pch-radius-sm);
   background: var(--pch-muted);
   color: var(--pch-text);
 }
@@ -791,7 +929,7 @@ html.dark #pch-root .pch-shell {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 26px 16px;
+  padding: 12px 2px 0;
   color: var(--pch-dim);
   font-size: 11.5px;
 }
@@ -816,64 +954,67 @@ html.dark #pch-root .pch-shell {
 
 /* ============================ 8. 窄屏适配 ============================ */
 
-@media (max-width: 920px) {
-  .pch-shell { height: min(840px, 100%); }
+@media (max-width: 980px) {
+  .pch-shell { height: min(860px, 100%); }
 
   .pch-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
-    padding: 8px 16px 0;
-    gap: 12px;
+    gap: 16px;
   }
 
   .pch-tiles {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: repeat(2, 84px);
+    grid-auto-rows: 88px;
+    align-self: stretch;
+    max-height: 44vh;
+    padding-right: 0;
   }
 
-  .pch-tile--hero { grid-column: span 2; grid-row: span 1; }
+  .pch-tile[data-size="wide"]  { grid-column: span 2; grid-row: span 1; }
+  .pch-tile[data-size="large"] { grid-column: span 2; grid-row: span 2; }
 
-  .pch-tile--hero .pch-tile-label { font-size: 17px; }
+  .pch-tile[data-size="large"] .pch-tile-icon svg { width: 24px; height: 24px; }
+  .pch-tile[data-size="large"] .pch-tile-label { font-size: 15px; }
+  .pch-tile[data-size="large"] .pch-tile-sub { font-size: 11.5px; }
 
-  .pch-tile-label { font-size: 13px; }
-
-  .pch-top { padding: 14px 18px 6px; }
-  .pch-foot { padding: 8px 18px 12px; }
+  .pch-top { height: 52px; }
 }
 
 @media (max-width: 620px) {
   #pch-root { padding: 0; }
 
-  .pch-tab-hint { display: none; }
-
   .pch-shell {
     width: 100%;
     max-width: 100%;
     height: 100%;
-    border-radius: 0;
-    border: 0;
+    padding: 12px 14px;
   }
+
+  .pch-tab-hint { display: none; }
 
   .pch-tiles {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: repeat(3, 76px);
+    grid-auto-rows: 78px;
+    max-height: 40vh;
   }
 
-  .pch-tile--hero { grid-column: span 3; }
+  .pch-tile[data-size="large"] { grid-column: span 3; grid-row: span 2; }
+  .pch-tile[data-size="wide"]  { grid-column: span 2; }
 
   .pch-links { grid-template-columns: 1fr; }
 
   .pch-clock { display: none; }
 
-  .pch-top { padding: 12px 14px 4px; }
-  .pch-body { padding: 6px 12px 0; }
-  .pch-main { padding: 12px 12px 10px; }
-
-  /* 窄屏底栏只保留自动显示说明，版本号让位给正文 */
-  .pch-foot {
-    padding: 8px 14px 12px;
-    font-size: 11px;
+  /* 极窄屏只留头像，避免顶栏被昵称挤爆 */
+  .pch-user-name { display: none; }
+  .pch-user {
+    width: 38px;
+    padding: 0 0 0 3px;
+    justify-content: center;
   }
+
+  .pch-main { padding: 12px 12px 10px; border-radius: 12px; }
 
   .pch-version { display: none; }
 }
