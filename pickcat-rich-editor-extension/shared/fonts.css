@@ -1,0 +1,101 @@
+/**
+ * 鸿蒙字体（HarmonyOS Sans）——扩展自有界面统一字体
+ *
+ * 供设置页、弹窗、收藏夹工作台等扩展页面 @import 使用；
+ * 字体文件随扩展分发（fonts/*.woff2），本地加载，不发任何网络请求。
+ * 拉丁 / 希腊 / 西里尔用 HarmonyOS Sans，中文按「简 → 繁」逐级兜底。
+ */
+
+@font-face {
+  font-family: "HarmonyOS Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_Bold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_Black.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "HarmonyOS Sans SC";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_SC_Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans SC";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_SC_Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans SC";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_SC_Bold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans SC";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_SC_Black.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "HarmonyOS Sans TC";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_TC_Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans TC";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_TC_Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans TC";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_TC_Bold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "HarmonyOS Sans TC";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("../fonts/HarmonyOS_Sans_TC_Black.woff2") format("woff2");
+}
+
+:root {
+  --font-harmony: "HarmonyOS Sans", "HarmonyOS Sans SC", "HarmonyOS Sans TC",
+    system-ui, -apple-system, "Segoe UI", roboto, "Helvetica Neue",
+    "Noto Sans", "Liberation Sans", arial, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}

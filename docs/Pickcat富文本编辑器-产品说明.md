@@ -53,7 +53,7 @@
 
 **第一步：安装脚本**
 1. 浏览器安装 [Tampermonkey（篡改猴）](https://www.tampermonkey.net/) 扩展。
-2. 新建脚本，把 `pickcat-rich-editor.user.js` 的内容整段粘贴进去，保存。
+2. 新建脚本，把 `legacy/pickcat-rich-editor.user.js` 的内容整段粘贴进去，保存。
 3. 打开任意 Pickcat 帖子编辑页，脚本会自动在原生编辑器上方注入可视化面板。
 
 **第二步：三种视图，随心切换**

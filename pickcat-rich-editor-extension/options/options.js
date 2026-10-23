@@ -214,6 +214,26 @@ load().catch((e) => setStatus('读取配置失败：' + e.message, 'err'));
 // 提示：用户在模板里删空了会用默认模板
 $('userPrompt').placeholder = DEFAULT_USER_PROMPT;
 
+// ============================ 起始页浮层设置（即时生效） ============================
+
+/** 起始页设置键，与 home/content.js 保持一致 */
+const HOME_KEY = 'pcr_home';
+
+async function loadHomeSetting() {
+  const raw = await chrome.storage.local.get(HOME_KEY);
+  const s = raw[HOME_KEY] || {};
+  $('homeEnabled').checked = s.enabled !== false;   // 缺省视为开启
+}
+
+$('homeEnabled').addEventListener('change', async (e) => {
+  const raw = await chrome.storage.local.get(HOME_KEY);
+  const cur = raw[HOME_KEY] || {};
+  await chrome.storage.local.set({ [HOME_KEY]: { ...cur, enabled: e.target.checked } });
+  setStatus(e.target.checked ? '已开启起始页浮层' : '已关闭起始页自动显示', 'ok');
+});
+
+loadHomeSetting().catch((e) => setStatus('读取起始页设置失败：' + e.message, 'err'));
+
 // ============================ 收藏夹 Plus 设置（改动即时生效） ============================
 
 /** 触发浏览器下载 */
@@ -325,3 +345,95 @@ $('favClear').addEventListener('click', async () => {
 });
 
 loadFav().catch((e) => setFavStatus('读取收藏夹设置失败：' + e.message));
+
+// ============================ 侧栏导航：滚动时高亮当前分区 ============================
+
+(function navSpy() {
+  const links = Array.from(document.querySelectorAll('.nav-item'));
+  const items = links
+    .map((a) => ({ a, sec: document.querySelector(a.getAttribute('href')) }))
+    .filter((it) => it.sec);
+  if (!items.length) return;
+
+  function update() {
+    const line = window.scrollY + 90;
+    let cur = items[0];
+    items.forEach((it) => { if (it.sec.offsetTop <= line) cur = it; });
+    links.forEach((a) => a.classList.toggle('is-active', a === cur.a));
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+})();
+
+// ============================ 主题切换（跟随系统 / 亮色 / 暗色） ============================
+
+/** 与 theme-init.js 保持同一个 key */
+const THEME_KEY = 'pco_theme';
+const THEME_MODES = ['system', 'light', 'dark'];
+const themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+let themeMode = 'system';
+
+function resolvedTheme(mode) {
+  if (mode === 'light' || mode === 'dark') return mode;
+  return themeMedia.matches ? 'dark' : 'light';
+}
+
+/** 把当前模式映射到 <html data-theme>，并同步菜单勾选态 */
+function paintTheme() {
+  document.documentElement.dataset.theme = resolvedTheme(themeMode);
+  document.querySelectorAll('#themeMenu [data-theme]').forEach((btn) => {
+    const on = btn.dataset.theme === themeMode;
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-checked', String(on));
+  });
+}
+
+function setTheme(mode, persist) {
+  themeMode = THEME_MODES.includes(mode) ? mode : 'system';
+  paintTheme();
+  if (persist) chrome.storage.local.set({ [THEME_KEY]: themeMode });
+}
+
+const themeBtn = $('themeBtn');
+const themeMenu = $('themeMenu');
+
+function toggleThemeMenu(show) {
+  const next = show === undefined ? themeMenu.hidden : show;
+  themeMenu.hidden = !next;
+  themeBtn.setAttribute('aria-expanded', String(next));
+}
+
+themeBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleThemeMenu(themeMenu.hidden);
+});
+
+themeMenu.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-theme]');
+  if (!btn) return;
+  setTheme(btn.dataset.theme, true);
+  toggleThemeMenu(false);
+  themeBtn.focus();
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.theme')) toggleThemeMenu(false);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !themeMenu.hidden) {
+    toggleThemeMenu(false);
+    themeBtn.focus();
+  }
+});
+
+// 跟随系统时，系统主题变化要即时反映
+themeMedia.addEventListener('change', () => {
+  if (themeMode === 'system') paintTheme();
+});
+
+chrome.storage.local.get(THEME_KEY).then((raw) => {
+  setTheme((raw && raw[THEME_KEY]) || 'system', false);
+}).catch(() => setTheme('system', false));

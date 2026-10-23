@@ -15,6 +15,13 @@
 (() => {
   'use strict';
 
+  // 扩展被重载 / 更新后，旧内容脚本里的异步 chrome.* 调用会以
+  // "Extension context invalidated" 拒绝；这是预期内的噪音，直接吞掉。
+  window.addEventListener('unhandledrejection', (e) => {
+    const msg = (e.reason && e.reason.message) || String(e.reason || '');
+    if (msg.indexOf('Extension context invalidated') !== -1) e.preventDefault();
+  });
+
   const NS = 'pcf';
   const KEYS = { groups: 'pcf_groups', items: 'pcf_items', settings: 'pcf_settings' };
   const SEL = {
@@ -54,8 +61,31 @@
     return palette[h % palette.length];
   };
 
-  const storageGet = (keys) => new Promise((r) => chrome.storage.local.get(keys, r));
-  const storageSet = (obj) => new Promise((r) => chrome.storage.local.set(obj, r));
+  /** 扩展上下文是否仍然有效：重载 / 停用扩展后，旧内容脚本的 chrome.* 会抛 "Extension context invalidated" */
+  const extAlive = () => {
+    try { return !!(chrome && chrome.runtime && chrome.runtime.id); } catch (e) { return false; }
+  };
+
+  const storageGet = (keys) => new Promise((resolve) => {
+    if (!extAlive()) return resolve({});
+    try {
+      chrome.storage.local.get(keys, (raw) => resolve(raw || {}));
+    } catch (e) {
+      resolve({});
+    }
+  });
+
+  const storageSet = (obj) => new Promise((resolve) => {
+    if (!extAlive()) return resolve();
+    try {
+      chrome.storage.local.set(obj, () => {
+        try { void chrome.runtime.lastError; } catch (e) { /* 上下文已失效 */ }
+        resolve();
+      });
+    } catch (e) {
+      resolve();
+    }
+  });
 
   // ============================ 2. 状态 ============================
 
@@ -514,20 +544,32 @@
   // ============================ 11. 启动 ============================
 
   (async () => {
+    if (!extAlive()) return;      // 扩展已重载：旧脚本直接退出
     await loadState();
+    if (!extAlive()) return;
     injectStyle();
 
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'local') return;
-      if (changes[KEYS.settings]) settings = { ...DEFAULT_SETTINGS, ...(changes[KEYS.settings].newValue || {}) };
-      if (changes[KEYS.groups]) groups = (changes[KEYS.groups].newValue || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
-      if (changes[KEYS.items]) items = changes[KEYS.items].newValue || {};
-      refreshBadge();
-    });
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if (changes[KEYS.settings]) settings = { ...DEFAULT_SETTINGS, ...(changes[KEYS.settings].newValue || {}) };
+        if (changes[KEYS.groups]) groups = (changes[KEYS.groups].newValue || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+        if (changes[KEYS.items]) items = changes[KEYS.items].newValue || {};
+        refreshBadge();
+      });
+    } catch (e) {
+      return;                     // 上下文失效，后续看护不再启动
+    }
 
     // SPA 路由与按钮重渲染看护
     let lastHref = location.href;
-    setInterval(() => {
+    const timer = setInterval(() => {
+      if (!extAlive()) {
+        clearInterval(timer);
+        if (mo) mo.disconnect();
+        unmount();
+        return;
+      }
       if (location.href !== lastHref) { lastHref = location.href; unmount(); }
       tick();
     }, 700);

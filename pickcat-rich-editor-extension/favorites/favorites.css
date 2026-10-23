@@ -1,3 +1,5 @@
+@import url("../shared/fonts.css");
+
 /**
  * 收藏夹 Plus 标签页工作台的宿主样式（颜色令牌 + 页面骨架）。
  * console.css 只负责管理台自身的组件样式，令牌由本文件提供。
@@ -11,7 +13,7 @@
   --pcf-subtle: #667085;
   --pcf-accent: #f03e46;
   --pcf-accent-soft: rgba(240, 62, 70, .12);
-  --pcf-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --pcf-font: var(--font-harmony, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
 }
 
 /* theme=dark 或 system 且系统偏好深色 */

@@ -11,8 +11,16 @@
 (() => {
   'use strict';
 
+  // 扩展被重载 / 更新后，旧内容脚本里的异步 chrome.* 调用会以
+  // "Extension context invalidated" 拒绝；这是预期内的噪音，直接吞掉。
+  window.addEventListener('unhandledrejection', (e) => {
+    const msg = (e.reason && e.reason.message) || String(e.reason || '');
+    if (msg.indexOf('Extension context invalidated') !== -1) e.preventDefault();
+  });
+
   const NS = 'pcai';
   const COLLAPSE_KEY = 'pcai_collapsed';   // 折叠状态（localStorage）
+  const WIDTH_KEY = 'pcai_wide';           // 加宽状态（localStorage）：'1' 占满正文宽度
   const MAX_CHARS = 12000;                 // 正文截断上限（字符），避免超上下文
   const CACHE_PREFIX = 'sum:';
 
@@ -314,9 +322,43 @@
 .${NS}-root{
   font-family: var(--pcai-font); color: var(--pcai-text);
   margin: 0 0 16px; font-size: 14px; line-height: 1.7;
+  /* 默认限制可读宽度，避免总结在宽屏上横跨整行影响阅读 */
+  max-width: 760px;
   animation: ${NS}-in .4s cubic-bezier(.22,1,.36,1) both;
 }
 .${NS}-root *{box-sizing:border-box;}
+/* 加宽：占满正文宽度 */
+.${NS}-root.${NS}-is-wide{max-width:100%;}
+@media (max-width:820px){ .${NS}-root{max-width:100%;} }
+
+/* 全屏：脱离正文流，居中浮层展示 */
+.${NS}-root.${NS}-is-full{
+  position:fixed; inset:0; z-index:2147483000;
+  max-width:none; margin:0;
+  display:flex; align-items:center; justify-content:center;
+  padding:clamp(14px,3vw,40px);
+  background:rgba(15,23,42,.34);
+  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  animation:${NS}-full-in .3s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes ${NS}-full-in{from{opacity:0;}to{opacity:1;}}
+.${NS}-root.${NS}-is-full > .${NS}-card{
+  display:flex; flex-direction:column;
+  width:min(1080px,100%); max-height:min(88vh,100%);
+  box-shadow:0 30px 80px rgba(15,23,42,.28);
+  animation:${NS}-full-card .42s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes ${NS}-full-card{from{opacity:0;transform:translateY(14px) scale(.98);}to{opacity:1;transform:none;}}
+.${NS}-root.${NS}-is-full > .${NS}-card > .${NS}-head,
+.${NS}-root.${NS}-is-full > .${NS}-card > .${NS}-tabs,
+.${NS}-root.${NS}-is-full > .${NS}-card > .${NS}-foot{flex:none;}
+.${NS}-root.${NS}-is-full > .${NS}-card > .${NS}-body{
+  flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden;
+}
+.${NS}-root.${NS}-is-full .${NS}-pane{flex:1; min-height:0; overflow-y:auto;}
+.${NS}-root.${NS}-is-full .${NS}-pane[data-pane="chat"]{display:flex;flex-direction:column;overflow:hidden;}
+.${NS}-root.${NS}-is-full .${NS}-msgs{max-height:none; flex:1; overflow-y:auto;}
+html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
 @keyframes ${NS}-in{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
 .${NS}-card{
   border:1px solid var(--pcai-border); border-radius:var(--pcai-r);
@@ -343,6 +385,7 @@
 }
 .${NS}-act svg{width:15px;height:15px;}
 .${NS}-act:hover{background:var(--pcai-surface-hover);color:var(--pcai-text);}
+.${NS}-act.is-on{background:var(--pcai-accent-soft);color:var(--pcai-accent);}
 .${NS}-act:disabled{opacity:.4;cursor:default;}
 
 .${NS}-body{padding:0;}
@@ -480,6 +523,9 @@
     copy: svg('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
     redo: svg('<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/>'),
     collapse: svg('<path d="M6 9l6 6 6-6"/>'),
+    widen: svg('<path d="M4 12h16"/><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/>'),
+    full: svg('<path d="M9 4H4v5"/><path d="M15 20h5v-5"/><path d="M9 20H4v-5"/><path d="M15 4h5v5"/>'),
+    shrink: svg('<path d="M4 9h5V4"/><path d="M20 15h-5v5"/><path d="M4 15h5v5"/><path d="M20 9h-5V4"/>'),
     send: svg('<path d="M5 12h13"/><path d="M12 5l7 7-7 7"/>'),
     close: svg('<path d="M6 6l12 12M18 6L6 18"/>')
   };
@@ -495,6 +541,11 @@
   let closedFor = '';       // 用户手动关闭的帖子 id（本页会话内不再显示）
   let reqId = null;         // 当前进行中的【总结】请求
   let streamText = '';      // 总结的流式累积文本
+
+  // 展示尺寸：标准宽度（限宽）/ 加宽 / 全屏
+  let isFull = false;                       // 全屏状态（仅本页会话，不持久化）
+  let inlineParent = null;                  // 全屏前在正文中的父节点，退出时原位归还
+  let inlineNext = null;                    // 全屏前的下一个兄弟节点
 
   // 提问（对话）状态
   let activeTab = 'sum';    // 'sum' 总结 | 'chat' 提问
@@ -577,6 +628,8 @@
           '<div class="' + NS + '-actions">' +
             '<button class="' + NS + '-act" data-act="copy" title="复制当前内容">' + ICONS.copy + '</button>' +
             '<button class="' + NS + '-act" data-act="redo" title="重新总结（忽略缓存）">' + ICONS.redo + '</button>' +
+            '<button class="' + NS + '-act" data-act="width" title="加宽显示">' + ICONS.widen + '</button>' +
+            '<button class="' + NS + '-act" data-act="full" title="全屏查看">' + ICONS.full + '</button>' +
             '<button class="' + NS + '-act" data-act="fold" title="折叠 / 展开">' + ICONS.collapse + '</button>' +
             '<button class="' + NS + '-act" data-act="close" title="关闭（本页不再显示）">' + ICONS.close + '</button>' +
           '</div>' +
@@ -606,6 +659,8 @@
       paneChat: root.querySelector('[data-pane="chat"]'),
       copyBtn: root.querySelector('[data-act="copy"]'),
       redoBtn: root.querySelector('[data-act="redo"]'),
+      widthBtn: root.querySelector('[data-act="width"]'),
+      fullBtn: root.querySelector('[data-act="full"]'),
       foldBtn: root.querySelector('[data-act="fold"]')
     };
 
@@ -620,6 +675,9 @@
 
     // 事件：Tab 切换与工具按钮统一在根节点上代理
     root.addEventListener('click', (e) => {
+      // 全屏时点击卡片外的遮罩区域退出
+      if (isFull && e.target === root) return exitFull();
+
       const tab = e.target.closest('[data-tab]');
       if (tab) return switchTab(tab.getAttribute('data-tab'));
 
@@ -628,6 +686,8 @@
       const act = btn.getAttribute('data-act');
       if (act === 'copy') return copyCurrent();
       if (act === 'redo') return runSummary({ bypass: true });
+      if (act === 'width') return toggleWidth();
+      if (act === 'full') return isFull ? exitFull() : enterFull();
       if (act === 'fold') return toggleFold();
       if (act === 'close') return closePanel();
     });
@@ -635,8 +695,83 @@
     return root;
   }
 
+  /** 加宽状态：持久化到 localStorage，跨帖子沿用 */
+  const wide = () => localStorage.getItem(WIDTH_KEY) === '1';
+
+  /** 把当前宽度 / 全屏状态同步到 DOM 与按钮 */
+  function applyMode() {
+    if (!panel) return;
+    const w = wide();
+    panel.classList.toggle(NS + '-is-wide', w);
+    panel.classList.toggle(NS + '-is-full', isFull);
+
+    const root = document.documentElement;
+    root.classList.toggle(NS + '-lock', isFull);
+
+    if (refs) {
+      refs.widthBtn.classList.toggle('is-on', w);
+      refs.widthBtn.title = w ? '恢复标准宽度' : '加宽显示';
+      refs.fullBtn.classList.toggle('is-on', isFull);
+      refs.fullBtn.innerHTML = isFull ? ICONS.shrink : ICONS.full;
+      refs.fullBtn.title = isFull ? '退出全屏（Esc）' : '全屏查看';
+    }
+  }
+
+  function toggleWidth() {
+    localStorage.setItem(WIDTH_KEY, wide() ? '0' : '1');
+    applyMode();
+  }
+
+  /** 进入全屏：把面板移到 body 下，避免被正文容器裁切或层叠上下文限制 */
+  function enterFull() {
+    if (!panel || isFull) return;
+    inlineParent = panel.parentElement;
+    inlineNext = panel.nextElementSibling;
+    document.body.appendChild(panel);
+    isFull = true;
+    document.addEventListener('keydown', onFullKey, true);
+    applyMode();
+  }
+
+  /** 退出全屏：优先按原位置归还，原位失效时回退到当前锚点 */
+  function exitFull(restore) {
+    if (!isFull) return;
+    isFull = false;
+    document.removeEventListener('keydown', onFullKey, true);
+
+    if (restore !== false && panel) {
+      if (inlineParent && inlineParent.isConnected) {
+        if (inlineNext && inlineNext.parentNode === inlineParent) {
+          inlineParent.insertBefore(panel, inlineNext);
+        } else {
+          inlineParent.appendChild(panel);
+        }
+      } else {
+        const anchor = findAnchor();
+        if (anchor && anchor.el && anchor.el.parentElement) {
+          if (anchor.mode === 'after') anchor.el.parentElement.insertBefore(panel, anchor.el.nextSibling);
+          else anchor.el.parentElement.insertBefore(panel, anchor.el);
+        }
+      }
+    }
+    inlineParent = null;
+    inlineNext = null;
+    applyMode();
+  }
+
+  /** 全屏下的键盘处理：Esc 退出，并拦截站点可能绑定的同键快捷键 */
+  function onFullKey(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      exitFull();
+    }
+  }
+
   function toggleFold() {
     const next = !collapsed();
+    // 全屏下折叠会只剩一个标题条，先退回正文流
+    if (next && isFull) exitFull();
     localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
     if (!refs) return;
     refs.body.classList.toggle(NS + '-hide', next);
@@ -649,6 +784,7 @@
   function removePanel() {
     abortCurrent();
     abortChat();
+    exitFull(false);   // 若在全屏中：清滚动锁与 Esc 监听，不还原位置
     if (panel && panel.parentElement) panel.parentElement.removeChild(panel);
     panel = null;
     refs = null;
@@ -777,7 +913,9 @@
       '</div>';
     refs.paneSum.querySelector('[data-run]').addEventListener('click', () => runSummary({ bypass: true }));
     refs.paneSum.querySelector('[data-open-settings]').addEventListener('click', () => {
-      try { chrome.runtime.sendMessage({ type: 'open-options' }); } catch (e) { /* 上下文失效忽略 */ }
+      // 回调形式，避免扩展重载后 sendMessage 返回的 Promise 触发未处理 rejection
+      try { chrome.runtime.sendMessage({ type: 'open-options' }, () => { void chrome.runtime.lastError; }); }
+      catch (e) { /* 上下文失效忽略 */ }
     });
     syncButtons();
   }
@@ -1047,6 +1185,7 @@
     } else {
       anchor.el.parentElement.insertBefore(panel, anchor.el);
     }
+    applyMode();   // 回填上次选择的宽度（全屏不跨帖子保留）
 
     // 若本篇曾因字数不足被跳过，重建后仍展示同一条提示
     renderIdle(shortSkip && shortSkip.pid === pid ? shortSkipNote(shortSkip.chars, shortSkip.min) : undefined);

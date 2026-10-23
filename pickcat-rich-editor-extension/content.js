@@ -19,6 +19,13 @@
 (function () {
   'use strict';
 
+  // 扩展被重载 / 更新后，旧内容脚本里的异步 chrome.* 调用会以
+  // "Extension context invalidated" 拒绝；这是预期内的噪音，直接吞掉。
+  window.addEventListener('unhandledrejection', (e) => {
+    const msg = (e.reason && e.reason.message) || String(e.reason || '');
+    if (msg.indexOf('Extension context invalidated') !== -1) e.preventDefault();
+  });
+
   // ============================ 0. 基础常量与工具 ============================
 
   const NS = 'pcr';                       // 样式与类名统一前缀，避免污染站点样式
@@ -1146,9 +1153,14 @@
 /* 拖动中：全局禁止选中，避免拖出文本选区 */
 .${NS}-dragging,.${NS}-dragging *{user-select:none !important;}
 .${NS}-dragging .${NS}-ai-head{cursor:grabbing;}
-.${NS}-ai-chips{flex:none;display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px 4px;}
+/* 快捷指令分组：左列标签、右列胶囊，多行时对齐，避免按钮堆成一片 */
+.${NS}-ai-groups{flex:none;display:flex;flex-direction:column;gap:6px;padding:10px 12px 4px;}
+.${NS}-ai-group{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:start;}
+.${NS}-ai-glabel{font-size:11.5px;line-height:26px;color:var(--pcr-subtle);white-space:nowrap;}
+.${NS}-ai-gchips{display:flex;flex-wrap:wrap;gap:6px;}
 .${NS}-ai-chip{border:1px solid var(--pcr-border);background:var(--pcr-surface);color:var(--pcr-text);
-  font:inherit;font-size:12.5px;padding:4px 11px;border-radius:999px;cursor:pointer;
+  display:inline-flex;align-items:center;height:26px;padding:0 11px;border-radius:999px;cursor:pointer;
+  font:inherit;font-size:12.5px;
   transition:background .22s cubic-bezier(.22,1,.36,1),color .22s,border-color .22s,transform .18s;}
 .${NS}-ai-chip:hover{background:var(--pcr-accent-soft);color:var(--pcr-accent);border-color:var(--pcr-accent);}
 .${NS}-ai-chip:active{transform:scale(.96);}
@@ -2610,17 +2622,40 @@
   // 兜底默认值（字段与 shared/constants.js 的 DEFAULT_CONFIG 一致，这里只取本功能用得到的几项）
   const AI_DEFAULTS = { provider: 'deepseek', apiKey: '', model: 'deepseek-chat', stream: true };
 
-  // 一排快捷指令：点一下即用；prompt 会作为写作指令发给模型
-  const AI_QUICK = [
-    { label: '润色', prompt: '请润色下面这段正文，保持原意与事实不变，让表达更通顺、更专业。' },
-    { label: '改写更自然', prompt: '请把下面这段正文改写得更自然通顺、易读，保持原意。' },
-    { label: '续写', prompt: '请顺着下面这段正文的思路继续往下写一小段，风格保持一致。' },
-    { label: '缩短', prompt: '请把下面这段正文压缩得更精炼，保留核心信息。' },
-    { label: '扩写', prompt: '请把下面这段正文扩写得更充实，补充合理细节，但不要编造关键事实。' },
-    { label: '起标题', prompt: '请为下面这段正文起 5 个吸引人的标题，用 Markdown 无序列表输出。' },
-    { label: '译成英文', prompt: '请把下面这段正文翻译成地道、自然的英文。' },
-    { label: '整理成大纲', prompt: '请把下面这段正文整理成结构化大纲，用 Markdown 多级列表输出。' }
+  // 快捷指令按用途分组：左列固定标签、右侧胶囊，多行时也能整齐对齐（原先把 8 个按钮挤成一片）
+  const AI_QUICK_GROUPS = [
+    {
+      label: '改表达',
+      items: [
+        { label: '润色', prompt: '请润色下面这段正文，保持原意与事实不变，让表达更通顺、更专业。' },
+        { label: '更自然', prompt: '请把下面这段正文改写得更自然通顺、易读，保持原意。' },
+        { label: '缩短', prompt: '请把下面这段正文压缩得更精炼，保留核心信息。' },
+        { label: '扩写', prompt: '请把下面这段正文扩写得更充实，补充合理细节，但不要编造关键事实。' }
+      ]
+    },
+    {
+      label: '理结构',
+      items: [
+        { label: '整理成大纲', prompt: '请把下面这段正文整理成结构化大纲，用 Markdown 多级列表输出。' },
+        { label: '起标题', prompt: '请为下面这段正文起 5 个吸引人的标题，用 Markdown 无序列表输出。' }
+      ]
+    },
+    {
+      label: '换语言',
+      items: [
+        { label: '译成英文', prompt: '请把下面这段正文翻译成地道、自然的英文。' }
+      ]
+    },
+    {
+      label: '接着写',
+      items: [
+        { label: '续写', prompt: '请顺着下面这段正文的思路继续往下写一小段，风格保持一致。' }
+      ]
+    }
   ];
+
+  // 扁平化索引：与 data-ai-chip 的下标一一对应
+  const AI_QUICK = AI_QUICK_GROUPS.reduce((all, g) => all.concat(g.items), []);
 
   // 系统提示词：只输出结果本身 + 用 Markdown 排版（本功能为写作场景，与详情页总结的默认提示词区分开）
   const AI_SYSTEM_PROMPT = '你是一个专业、克制的中文写作助手。用户会提供一段「当前正文」作为参考并给出写作指令，'
@@ -2899,7 +2934,8 @@
   }
 
   function aiOpenOptions() {
-    try { chrome.runtime.sendMessage({ type: 'open-options' }); }
+    // 回调形式：不返回 Promise，扩展刚被重载时也不会产生未处理的 rejection
+    try { chrome.runtime.sendMessage({ type: 'open-options' }, () => { void chrome.runtime.lastError; }); }
     catch (e) { toast('请在浏览器扩展栏打开「扩展选项」设置页'); }
   }
 
@@ -3006,8 +3042,17 @@
     el.className = NS + '-pop ' + NS + '-ai';
     el.setAttribute('role', 'dialog');
 
-    const chips = AI_QUICK.map((q, i) =>
-      '<button type="button" class="' + NS + '-ai-chip" data-ai-chip="' + i + '">' + escapeHtml(q.label) + '</button>'
+    let chipIndex = 0;
+    const groups = AI_QUICK_GROUPS.map((g) =>
+      '<div class="' + NS + '-ai-group">' +
+        '<span class="' + NS + '-ai-glabel">' + escapeHtml(g.label) + '</span>' +
+        '<div class="' + NS + '-ai-gchips">' +
+          g.items.map((q) =>
+            '<button type="button" class="' + NS + '-ai-chip" data-ai-chip="' + (chipIndex++) + '">' +
+              escapeHtml(q.label) + '</button>'
+          ).join('') +
+        '</div>' +
+      '</div>'
     ).join('');
 
     el.innerHTML =
@@ -3023,7 +3068,7 @@
             '<path d="M6 6l12 12M18 6L6 18"/></svg>' +
         '</button>' +
       '</div>' +
-      '<div class="' + NS + '-ai-chips">' + chips + '</div>' +
+      '<div class="' + NS + '-ai-groups">' + groups + '</div>' +
       '<div class="' + NS + '-ai-custom">' +
         '<textarea class="' + NS + '-ai-input" rows="1" spellcheck="false" ' +
           'placeholder="输入自定义写作要求，如：改写成小红书风格，Ctrl+回车生成"></textarea>' +

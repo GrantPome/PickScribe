@@ -10,7 +10,7 @@
 [![Chrome 扩展](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4.svg)](https://developer.chrome.com/docs/extensions)
 
 > PickScribe 是一个 **Chrome 扩展（Manifest V3）**，不再需要 Tampermonkey。
-> 仓库里仍保留早期油猴脚本 `pickcat-rich-editor.user.js`，但推荐使用扩展版。
+> 仓库的 `legacy/` 目录仍保留早期油猴脚本 `pickcat-rich-editor.user.js`，但推荐使用扩展版。
 > ⚠️ 扩展与油猴脚本**请勿同时启用**，否则会注入两个编辑面板。
 
 ---
@@ -174,13 +174,18 @@ pickscribe/
 │   ├── popup/                           # 扩展图标弹窗（开关 + 快速切模型）
 │   ├── fonts/                           # 鸿蒙字体（HarmonyOS Sans，多语言 woff2）
 │   └── icons/                           # 扩展图标
-├── plan.md                              # AI 总结助手项目规划
-├── ai-plugins-plan.md                   # AI 插件族（第二辑）规划
-├── pickcat-rich-editor.user.js          # 早期油猴脚本（保留兼容）
-├── CHANGELOG.md                         # 更新日志
-├── Pickcat富文本编辑器-产品说明.md        # 早期产品说明
+├── docs/                                # 规划与产品文档
+│   ├── plan.md                          # AI 总结助手项目规划
+│   ├── ai-plugins-plan.md               # AI 插件族（第二辑）规划
+│   ├── Pickcat富文本编辑器-产品说明.md    # 早期产品说明
+│   ├── pickcat-收藏夹Plus-PRD.html      # 收藏夹 Plus 需求文档
+│   └── changelog-post.md                # 发版公告草稿
+├── releases/                            # 发布产物（ZIP / CRX / 签名私钥，不纳入版本库）
+├── legacy/
+│   └── pickcat-rich-editor.user.js      # 早期油猴脚本（保留兼容）
 ├── assets/
 │   └── pickscribe-banner.png            # 宣传图
+├── CHANGELOG.md                         # 更新日志
 └── README.md
 ```
 
