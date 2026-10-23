@@ -723,7 +723,7 @@
     if (!isHomePage()) return;
 
     const cfg = await readHomeConfig();
-    if (cfg && cfg.enabled === false) return;
+    if (!cfg || cfg.enabled !== true) return;   // 默认不开启：只有用户显式开启过才自动显示
 
     // 等站点首屏开始渲染后再出现，避免先看到一片空白
     await sleep(320);

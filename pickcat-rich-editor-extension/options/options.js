@@ -222,7 +222,7 @@ const HOME_KEY = 'pcr_home';
 async function loadHomeSetting() {
   const raw = await chrome.storage.local.get(HOME_KEY);
   const s = raw[HOME_KEY] || {};
-  $('homeEnabled').checked = s.enabled !== false;   // 缺省视为开启
+  $('homeEnabled').checked = s.enabled === true;   // 默认关闭，仅显式开启后勾选
 }
 
 $('homeEnabled').addEventListener('change', async (e) => {
