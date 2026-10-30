@@ -32,8 +32,9 @@
   const MOUNT_FLAG = 'pcrMounted';        // textarea 上的挂载标记，防止重复注入
   const HINT_KEY = 'pcr_hint_closed';     // 新手提示是否已关闭
   const TOOLBAR_KEY = 'pcr_toolbar_style'; // 工具栏布局：compact（默认，紧凑单行）| line（仅分割线）| groups（仿 Word 功能组）
-  const FONT_KEY = 'pcr_harmony_font';    // 鸿蒙字体开关：'0' 为关闭，缺省或其它值视为开启
+  const FONT_KEY = 'pcr_harmony_font';    // 鸿蒙字体开关：由设置页写入 chrome.storage.local，默认开启
   const FONT_STYLE_ID = NS + '-font-style'; // 字体样式节点 id，开关与兜底恢复都靠它定位
+  let fontOn = true;                       // 鸿蒙字体开关状态（设置页写入 storage.local）
 
   /** 该页面是否是帖子编辑页（SPA 路由变化时用于兜底判断） */
   const isEditorPage = () => /\/forum\/editor(\/|$|\?)/.test(location.pathname + location.search);
@@ -757,7 +758,6 @@
     layout: svg('<rect x="3" y="4.5" width="18" height="6" rx="1.6"/><rect x="3" y="13.5" width="18" height="6" rx="1.6"/>'),
     search: svg('<circle cx="10.7" cy="10.7" r="6.1"/><path d="m15.3 15.3 4.3 4.3"/>'),
     help: svg('<circle cx="12" cy="12" r="9"/><path d="M9.4 9.2a2.6 2.6 0 1 1 3.6 2.4c-.7.4-1 .9-1 1.7v.2"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>'),
-    font: svg('<path d="M5 19 12 5.5 19 19"/><path d="M8.4 14.6h7.2"/><path d="M4 21.6h16"/>'),
     rich: svg('<path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/>'),
     split: svg('<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M12 4.5v15"/>'),
     source: svg('<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 9.5h6M7 13.5h10"/>'),
@@ -808,9 +808,9 @@
     return '';
   }
 
-  /** 鸿蒙字体是否开启（默认开启） */
+  /** 鸿蒙字体是否开启（由设置页控制，默认开启） */
   function harmonyFontOn() {
-    try { return localStorage.getItem(FONT_KEY) !== '0'; } catch (e) { return true; }
+    return fontOn;
   }
 
   /** 生成 @font-face 与 --font-sans 覆盖样式；取不到字体文件时返回空串 */
@@ -849,22 +849,22 @@
     if (el) el.disabled = !harmonyFontOn();
   }
 
-  /** 同步面板按钮的选中态与提示文案 */
-  function syncFontBtn() {
-    const b = root && root.querySelector('.' + NS + '-btn[data-key="font"]');
-    if (!b) return;
-    const on = harmonyFontOn();
-    b.classList.toggle('is-on', on);
-    b.setAttribute('data-tip', '鸿蒙字体：' + (on ? '已开启（点击关闭）' : '已关闭（点击开启）'));
-  }
-
-  /** 面板按钮：开关整站字体 */
-  function toggleHarmonyFont() {
-    const on = !harmonyFontOn();
-    try { localStorage.setItem(FONT_KEY, on ? '1' : '0'); } catch (e) { /* noop */ }
-    applyFontState();
-    syncFontBtn();
-    toast(on ? '已启用鸿蒙字体' : '已恢复站点原字体');
+  /** 从设置页读取字体开关（键 pcr_harmony_font，默认开启），并在设置改动后即时应用 */
+  function loadFontSetting() {
+    try {
+      chrome.storage.local.get(FONT_KEY, (raw) => {
+        fontOn = raw[FONT_KEY] !== false && raw[FONT_KEY] !== '0';
+        applyFontState();
+      });
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local' || !changes[FONT_KEY]) return;
+        const v = changes[FONT_KEY].newValue;
+        fontOn = v !== false && v !== '0';
+        applyFontState();
+      });
+    } catch (e) {
+      // 非扩展环境（油猴等）不支持 storage，沿用默认开启
+    }
   }
 
   /** 站点令牌 + 兜底色，注入到 <head> 一次即可 */
@@ -903,14 +903,15 @@
 .${NS}-root *{box-sizing:border-box;}
 
 /* —— 顶部：模式切换 + 状态 —— */
-.${NS}-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
-.${NS}-tabs{display:inline-flex;padding:3px;gap:2px;background:var(--pcr-canvas);border:1px solid var(--pcr-border);border-radius:var(--pcr-r-surface);}
+.${NS}-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;
+  padding:4px 6px;background:#fff;border:0;flex-wrap:wrap;}
+.${NS}-tabs{display:inline-flex;padding:3px;gap:2px;background:#fff;border:0;border-radius:var(--pcr-r-surface);}
 .${NS}-tab{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--pcr-subtle);
   font:inherit;font-size:13px;padding:5px 12px;border-radius:var(--pcr-r-control);cursor:pointer;
   transition:background .26s cubic-bezier(.22,1,.36,1),color .26s;}
 .${NS}-tab svg{width:15px;height:15px;}
 .${NS}-tab:hover{background:var(--pcr-surface-hover);color:var(--pcr-text);}
-.${NS}-tab.is-on{background:var(--pcr-surface);color:var(--pcr-accent);box-shadow:0 1px 2px rgba(0,0,0,.08);}
+.${NS}-tab.is-on{background:var(--pcr-accent-soft);color:var(--pcr-accent);}
 .${NS}-head-right{display:flex;align-items:center;gap:10px;}
 .${NS}-synced{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--pcr-subtle);}
 .${NS}-synced .dot{width:6px;height:6px;border-radius:50%;background:#37c26b;box-shadow:0 0 0 3px rgba(55,194,107,.16);}
@@ -922,8 +923,8 @@
    · 分组线（tb-grouped）  ：组间细线 + 组高对齐，但不显示组名
    · 功能组（tb-grouped + tb-labels）：在分组线基础上再显示组名，仿 Word 功能区 */
 .${NS}-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:5px 6px;
-  background:var(--pcr-surface);border:1px solid var(--pcr-border);border-bottom:0;
-  border-radius:var(--pcr-r-surface) var(--pcr-r-surface) 0 0;}
+  background:transparent;border:0;border-bottom:1px solid var(--pcr-border);
+  border-radius:0;}
 .${NS}-group{display:flex;align-items:center;padding:0 4px;}
 .${NS}-group-row{display:flex;align-items:center;gap:1px;}
 .${NS}-group-label{display:none;}
@@ -984,15 +985,15 @@
 .${NS}-dd-item .${NS}-glyph{font-size:12.5px;min-width:18px;text-align:center;}
 
 /* —— 编辑区 —— */
-.${NS}-editor-wrap{background:var(--pcr-surface);border:1px solid var(--pcr-border);
+.${NS}-editor-wrap{background:#fff;border:0;
   border-radius:0 0 var(--pcr-r-surface) var(--pcr-r-surface);overflow:hidden;}
 /* 切换视图时给编辑区一个轻微淡入，避免内容“硬切” */
 @keyframes ${NS}FadeIn{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:translateY(0);}}
 .${NS}-fade{animation:${NS}FadeIn .3s cubic-bezier(.16,1,.3,1) both;}
 .${NS}-editor{min-height:320px;max-height:640px;overflow:auto;padding:16px 18px;outline:none;
-  font-size:15px;line-height:1.75;color:var(--pcr-text);word-break:break-word;}
+  background:#fff;font-size:15px;line-height:1.75;color:var(--pcr-text);word-break:break-word;}
 .${NS}-editor:empty::before{content:attr(data-placeholder);color:var(--pcr-subtle);opacity:.75;pointer-events:none;}
-.${NS}-editor:focus{background:var(--pcr-surface);}
+.${NS}-editor:focus{background:#fff;}
 .${NS}-editor h1{font-size:26px;line-height:1.35;margin:.6em 0 .4em;font-weight:700;}
 .${NS}-editor h2{font-size:22px;line-height:1.35;margin:.6em 0 .4em;font-weight:700;}
 .${NS}-editor h3{font-size:18px;line-height:1.4;margin:.5em 0 .35em;font-weight:650;}
@@ -1040,7 +1041,7 @@
   padding:10px 12px;margin:.6em 0;text-align:center;color:var(--pcr-accent);white-space:pre-wrap;}
 /* 全屏编辑 */
 .${NS}-root.is-fullscreen{position:fixed;inset:0;z-index:9999;margin:0;padding:14px 16px;
-  background:var(--pcr-canvas);display:flex;flex-direction:column;overflow:auto;}
+  background:#fff;display:flex;flex-direction:column;overflow:auto;}
 .${NS}-root.is-fullscreen .${NS}-editor-wrap{flex:1;display:flex;flex-direction:column;min-height:0;}
 .${NS}-root.is-fullscreen .${NS}-editor{max-height:none;flex:1;min-height:0;}
 
@@ -2135,14 +2136,11 @@
     headRight.appendChild(synced);
     const layoutBtn = makeBtn({ key: 'layout', html: ICONS.layout, tip: '工具栏布局', onClick: () => toggleToolbarStyle() });
     headRight.appendChild(layoutBtn);
-    const fontBtn = makeBtn({ key: 'font', html: ICONS.font, tip: '鸿蒙字体', onClick: () => toggleHarmonyFont() });
-    headRight.appendChild(fontBtn);
     const helpBtn = makeBtn({ html: ICONS.help, tip: '新手帮助', onClick: (b) => openHelp(b) });
     headRight.appendChild(helpBtn);
     head.appendChild(headRight);
     root.appendChild(head);
     syncLayoutBtn();   // 布局按钮建好后，同步它的选中态与提示
-    syncFontBtn();     // 字体按钮同理
 
     // —— 工具栏：按钮顺序沿用站点原有习惯；默认紧凑单行，可循环切成「分组线」「功能组」——
     const bar = document.createElement('div');
@@ -2735,8 +2733,9 @@
     }
   }, 700);
 
-  // 鸿蒙字体：与编辑页无关，整站生效，脚本启动即注入（默认开启，可在面板右上角开关）
+  // 鸿蒙字体：与编辑页无关，整站生效，脚本启动即注入（开关在设置页「站点外观」里）
   injectFontStyle();
+  loadFontSetting();
 
   // 初始尝试
   mount();

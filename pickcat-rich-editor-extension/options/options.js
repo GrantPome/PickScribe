@@ -855,6 +855,23 @@ async function loadNotify() {
 
 loadNotify().catch((e) => setStatus('读取站内通知设置失败：' + e.message, 'err'));
 
+// ============================ 站点外观：鸿蒙字体开关（即时生效） ============================
+
+/** 键 pcr_harmony_font：与 content.js 的 FONT_KEY 保持一致，控制整站字体替换 */
+const HARMONY_FONT_KEY = 'pcr_harmony_font';
+
+async function loadAppearance() {
+  const raw = await chrome.storage.local.get(HARMONY_FONT_KEY);
+  $('appearanceHarmonyFont').checked = raw[HARMONY_FONT_KEY] !== false && raw[HARMONY_FONT_KEY] !== '0';
+}
+
+$('appearanceHarmonyFont').addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ [HARMONY_FONT_KEY]: e.target.checked });
+  setStatus(e.target.checked ? '已启用鸿蒙字体' : '已恢复站点原字体', 'ok');
+});
+
+loadAppearance().catch((e) => setStatus('读取站点外观设置失败：' + e.message, 'err'));
+
 // ============================ 关于：显示实际版本号 ============================
 
 $('aboutVersion').textContent = 'v' + chrome.runtime.getManifest().version;

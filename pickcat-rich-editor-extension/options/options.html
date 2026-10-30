@@ -69,6 +69,10 @@
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/><path d="M18 16.5 18.6 18l1.5.6-1.5.6-.6 1.5-.6-1.5L15.9 18l1.5-.6.6-1.5Z"/></svg>
             AI 功能
           </a>
+          <a class="nav-item" href="#sec-appearance">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19 12 5.5 19 19"/><path d="M8.4 14.6h7.2"/><path d="M4 21.6h16"/></svg>
+            站点外观
+          </a>
           <a class="nav-item" href="#sec-about">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
             关于
@@ -424,6 +428,23 @@
           <button id="importBtn" class="btn">导入配置</button>
           <input id="importFile" type="file" accept="application/json" hidden />
         </div>
+      </section>
+
+      <!-- 站点外观 -->
+      <section class="card" id="sec-appearance">
+        <div class="card-head">
+          <h2>站点外观</h2>
+          <p>影响整个站点的显示效果，改动即时生效，无需点右上角保存。</p>
+        </div>
+
+        <h3 class="sub-head">字体</h3>
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="appearanceHarmonyFont" />
+            <span>使用鸿蒙字体（HarmonyOS Sans）替换整站字体</span>
+          </label>
+        </div>
+        <p class="note">字体文件随扩展本地分发，不联网；只覆盖站点的正文与组件字体，代码块、公式仍使用各自的等宽 / 数学字体。关闭后恢复站点原字体。</p>
       </section>
 
       <!-- 关于 -->
