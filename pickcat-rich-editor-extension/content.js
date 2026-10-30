@@ -1251,6 +1251,7 @@
   let root = null;         // 整个面板根节点
   let origWrapper = null;  // 站点原生编辑器容器（工具栏 + textarea + 字数统计）
   let nativeToolbar = null; // 站点原生工具栏（可视化模式下需一并隐藏）
+  let nativeHiddenEls = [];  // 可视化模式下被隐藏的原生工具行 / 全屏 / 预览按钮
   let mode = 'rich';       // rich | split | source
   let lock = false;        // 同步锁，防止双向同步互相触发形成死循环
   let pendingBack = null;  // 站点弹窗完成后「自动切回可视化」的一次性监听，切视图时需清理
@@ -2568,15 +2569,58 @@
     return parent;
   }
 
+  /** 从原生工具栏向上找到「整条工具行」容器（含右侧的全屏 / 预览等操作），遇到输入框就停 */
+  function findNativeBarScope(el) {
+    const card = (origWrapper && origWrapper.parentElement) || null;
+    if (!el || !card) return el;
+    let node = el;
+    while (node.parentElement && node.parentElement !== card) {
+      const p = node.parentElement;
+      if (isOwnNode(p)) break;
+      if (origWrapper && p === origWrapper) break;
+      // 再往上会连标题输入框 / 正文输入框一起藏掉，必须停
+      if (p.querySelector('textarea, [contenteditable="true"], input[type="text"], input:not([type])')) break;
+      node = p;
+    }
+    return node;
+  }
+
   /** 可视化模式隐藏站点原生工具栏；源码 / 分屏模式恢复（站点弹窗要按它定位） */
   function syncNativeToolbar(show) {
     // 卡片级标记：站点把工具行重渲染成新节点后，元素级 class 会丢，这一层仍然生效
     const card = (origWrapper && origWrapper.parentElement) || null;
     if (card) card.classList.toggle(NS + '-native-off', !show);
+
+    if (show) {
+      // 恢复：把上一轮标记过的节点依次还原
+      nativeHiddenEls.forEach((el) => { if (el && el.isConnected) el.classList.remove(NS + '-native-collapsed'); });
+      nativeHiddenEls = [];
+      return;
+    }
+
     if (!nativeToolbar || !nativeToolbar.isConnected) nativeToolbar = findNativeToolbar();
-    if (!nativeToolbar) return;
-    nativeToolbar.dataset.pcrNativeBar = '1';
-    nativeToolbar.classList.toggle(NS + '-native-collapsed', !show);
+
+    const targets = [];
+    if (nativeToolbar) {
+      targets.push(nativeToolbar);
+      // 站点的「全屏 / 预览」操作常常在工具行外侧的同一行里，需要整条行一起隐藏
+      const bar = findNativeBarScope(nativeToolbar);
+      if (bar && bar !== nativeToolbar) targets.push(bar);
+    }
+    // 兜底：按无障碍标签把全屏 / 预览按钮单独藏掉（工具行被拆成多块时也能覆盖）
+    if (card) {
+      card.querySelectorAll('button, [role="button"], a').forEach((b) => {
+        if (isOwnNode(b)) return;
+        const label = ((b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '') + ' ' + (b.textContent || '')).trim();
+        if (/(全屏|预览|最大化|fullscreen|preview)/i.test(label)) targets.push(b);
+      });
+    }
+
+    nativeHiddenEls = Array.from(new Set(targets));
+    nativeHiddenEls.forEach((el) => {
+      el.dataset.pcrNativeBar = '1';
+      el.classList.add(NS + '-native-collapsed');
+    });
   }
 
   /** 可视化模式下的兜底：站点重渲染原生容器 / 工具行后，重新定位并隐藏 */
