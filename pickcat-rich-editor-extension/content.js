@@ -892,6 +892,8 @@
   --pcr-r-surface: var(--ui-radius, .5rem);
   --pcr-r-control: var(--ui-radius-sm, .375rem);
   --pcr-font: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  /* 写作区纸面底色：跟随站点页面底色（浅色纯白、深色深底），与卡片背景一致，避免深浅色下与周边色块割裂 */
+  --pcr-paper: var(--ui-bg, #ffffff);
 }
 .${NS}-root{
   font-family: var(--pcr-font);
@@ -899,13 +901,15 @@
   margin-bottom: 12px;
   font-size: 14px;
   line-height: 1.6;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 .${NS}-root *{box-sizing:border-box;}
 
 /* —— 顶部：模式切换 + 状态 —— */
 .${NS}-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;
-  padding:4px 6px;background:#fff;border:0;flex-wrap:wrap;}
-.${NS}-tabs{display:inline-flex;padding:3px;gap:2px;background:#fff;border:0;border-radius:var(--pcr-r-surface);}
+  padding:4px 6px;background:transparent;border:0;flex-wrap:wrap;}
+.${NS}-tabs{display:inline-flex;padding:3px;gap:2px;background:transparent;border:0;border-radius:var(--pcr-r-surface);}
 .${NS}-tab{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--pcr-subtle);
   font:inherit;font-size:13px;padding:5px 12px;border-radius:var(--pcr-r-control);cursor:pointer;
   transition:background .26s cubic-bezier(.22,1,.36,1),color .26s;}
@@ -913,6 +917,8 @@
 .${NS}-tab:hover{background:var(--pcr-surface-hover);color:var(--pcr-text);}
 .${NS}-tab.is-on{background:var(--pcr-accent-soft);color:var(--pcr-accent);}
 .${NS}-head-right{display:flex;align-items:center;gap:10px;}
+/* 全屏模式（插件全屏或站点原生全屏）下隐藏视图切换滑块 */
+.${NS}-no-tabs .${NS}-tabs{display:none;}
 .${NS}-synced{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--pcr-subtle);}
 .${NS}-synced .dot{width:6px;height:6px;border-radius:50%;background:#37c26b;box-shadow:0 0 0 3px rgba(55,194,107,.16);}
 .${NS}-synced.is-busy .dot{background:var(--pcr-accent);box-shadow:0 0 0 3px var(--pcr-accent-soft);}
@@ -952,6 +958,8 @@
 .${NS}-btn:hover{background:var(--pcr-surface-hover);color:var(--pcr-text);}
 .${NS}-btn:active{transform:scale(.94);}
 .${NS}-btn.is-on{background:var(--pcr-accent-soft);color:var(--pcr-accent);}
+/* 工具栏最右侧独立按钮（全屏）：用自动外边距把剩余空间全部吃掉 */
+.${NS}-btn-end{margin-left:auto;}
 .${NS}-glyph{font-size:14px;line-height:1;font-weight:700;font-family:Georgia,'Times New Roman',serif;}
 .${NS}-glyph.italic{font-style:italic;font-weight:600;}
 .${NS}-glyph.under{text-decoration:underline;text-underline-offset:2px;}
@@ -985,15 +993,26 @@
 .${NS}-dd-item .${NS}-glyph{font-size:12.5px;min-width:18px;text-align:center;}
 
 /* —— 编辑区 —— */
-.${NS}-editor-wrap{background:#fff;border:0;
+.${NS}-editor-wrap{background:var(--pcr-paper);border:0;
   border-radius:0 0 var(--pcr-r-surface) var(--pcr-r-surface);overflow:hidden;}
+/* 分屏对照：富文本区底部加横向分割线，与下方站点源码区区分（全屏左右对照时改为竖线） */
+.${NS}-root.${NS}-is-split:not(.is-fullscreen) .${NS}-editor-wrap{border-bottom:1px solid var(--pcr-border);
+  margin-bottom:10px;padding-bottom:4px;}
+/* 编辑区容器：默认纵向，全屏分屏时改为左右两栏 */
+.${NS}-row{display:flex;flex-direction:column;min-height:0;min-width:0;}
+.${NS}-root.is-fullscreen .${NS}-row{flex:1;}
+/* 全屏 + 分屏对照：插件编辑区在左，站点源码区在右 */
+.${NS}-root.is-fullscreen.${NS}-fs-split .${NS}-row{flex-direction:row;}
+.${NS}-root.is-fullscreen.${NS}-fs-split .${NS}-editor-wrap{flex:1 1 50%;min-width:0;border:0;
+  border-right:1px solid var(--pcr-border);margin:0;padding:0;}
+.${NS}-fs-native{flex:1 1 50%;min-width:0;overflow:auto;background:transparent;}
 /* 切换视图时给编辑区一个轻微淡入，避免内容“硬切” */
 @keyframes ${NS}FadeIn{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:translateY(0);}}
 .${NS}-fade{animation:${NS}FadeIn .3s cubic-bezier(.16,1,.3,1) both;}
 .${NS}-editor{min-height:320px;max-height:640px;overflow:auto;padding:16px 18px;outline:none;
-  background:#fff;font-size:15px;line-height:1.75;color:var(--pcr-text);word-break:break-word;}
+  background:var(--pcr-paper);font-size:15px;line-height:1.75;color:var(--pcr-text);word-break:break-word;}
 .${NS}-editor:empty::before{content:attr(data-placeholder);color:var(--pcr-subtle);opacity:.75;pointer-events:none;}
-.${NS}-editor:focus{background:#fff;}
+.${NS}-editor:focus{background:var(--pcr-paper);}
 .${NS}-editor h1{font-size:26px;line-height:1.35;margin:.6em 0 .4em;font-weight:700;}
 .${NS}-editor h2{font-size:22px;line-height:1.35;margin:.6em 0 .4em;font-weight:700;}
 .${NS}-editor h3{font-size:18px;line-height:1.4;margin:.5em 0 .35em;font-weight:650;}
@@ -1041,7 +1060,8 @@
   padding:10px 12px;margin:.6em 0;text-align:center;color:var(--pcr-accent);white-space:pre-wrap;}
 /* 全屏编辑 */
 .${NS}-root.is-fullscreen{position:fixed;inset:0;z-index:9999;margin:0;padding:14px 16px;
-  background:#fff;display:flex;flex-direction:column;overflow:auto;}
+  background:var(--pcr-canvas);display:flex;flex-direction:column;overflow:auto;box-sizing:border-box;
+  max-width:100vw;overflow-x:hidden;}
 .${NS}-root.is-fullscreen .${NS}-editor-wrap{flex:1;display:flex;flex-direction:column;min-height:0;}
 .${NS}-root.is-fullscreen .${NS}-editor{max-height:none;flex:1;min-height:0;}
 
@@ -2044,6 +2064,35 @@
     richToSource();
   }
 
+  let splitNativeRestore = null;  // 全屏左右对照时，站点源码区被临时移到面板内，这里记录它的原位
+
+  /** 全屏 + 分屏对照：把站点源码区移到面板右侧，形成左右对照；退出时还原原位 */
+  function layoutSplitFullscreen(on) {
+    if (!root) return;
+    const row = root.querySelector('.' + NS + '-row');
+    if (!row) return;
+    const want = !!on && mode === 'split';
+    if (want && origWrapper && !splitNativeRestore && origWrapper.parentElement) {
+      splitNativeRestore = { parent: origWrapper.parentElement, next: origWrapper.nextSibling };
+      origWrapper.classList.add(NS + '-fs-native');
+      row.appendChild(origWrapper);
+    } else if (!want && splitNativeRestore) {
+      const { parent, next } = splitNativeRestore;
+      origWrapper.classList.remove(NS + '-fs-native');
+      if (parent && parent.isConnected) {
+        parent.insertBefore(origWrapper, next && next.parentElement === parent ? next : null);
+      }
+      splitNativeRestore = null;
+    }
+    root.classList.toggle(NS + '-fs-split', want);
+  }
+
+  /** 全屏模式（插件全屏或站点原生全屏）下隐藏视图切换滑块 */
+  function syncTabsVisibility() {
+    if (!root) return;
+    root.classList.toggle(NS + '-no-tabs', root.classList.contains('is-fullscreen') || siteFullscreenOn());
+  }
+
   /** 全屏编辑开关（再次点击退出） */
   function toggleFullscreen() {
     if (!root) return;
@@ -2051,6 +2100,9 @@
     const b = root.querySelector('.' + NS + '-btn[data-key="fullscreen"]');
     if (b) b.classList.toggle('is-on', on);
     document.documentElement.style.overflow = on ? 'hidden' : '';
+    // 分屏对照下进入全屏时自动切成左右对照
+    layoutSplitFullscreen(on);
+    syncTabsVisibility();
   }
 
   /** 构建整个面板 DOM */
@@ -2240,7 +2292,6 @@
     // —— 视图 ——
     group('视图');
     add(makeBtn({ key: 'clear', html: ICONS.clear, tip: '清除格式', onClick: () => exec('removeFormat') }));
-    add(makeBtn({ key: 'fullscreen', html: I(SITE_LABELS.fullscreen, ICONS.fullscreen), tip: '全屏编辑', onClick: toggleFullscreen }));
 
     // —— AI（彩色图标，一眼区分于工具栏其余单色 stroke 图标）——
     group('AI');
@@ -2261,6 +2312,11 @@
       bar.appendChild(box);
     });
 
+    // 全屏按钮固定在工具栏最右侧，与常规格式按钮拉开距离
+    const fsBtn = makeBtn({ key: 'fullscreen', html: I(SITE_LABELS.fullscreen, ICONS.fullscreen), tip: '全屏编辑', onClick: toggleFullscreen });
+    fsBtn.classList.add(NS + '-btn-end');
+    bar.appendChild(fsBtn);
+
     root.appendChild(bar);
 
     // —— 编辑区 ——
@@ -2272,7 +2328,10 @@
     editor.setAttribute('spellcheck', 'false');
     editor.setAttribute('data-placeholder', '在这里开始写你的帖子…支持加粗、标题、列表、图片等，排版所见即所得');
     wrap.appendChild(editor);
-    root.appendChild(wrap);
+    const row = document.createElement('div');
+    row.className = NS + '-row';
+    row.appendChild(wrap);
+    root.appendChild(row);
 
     // —— 新手提示条（可关闭，记忆状态）——
     if (localStorage.getItem(HINT_KEY) !== '1') {
@@ -2475,6 +2534,11 @@
     mode = next;
     if (!root) return;
     root.querySelectorAll('.' + NS + '-tab').forEach((t) => t.classList.toggle('is-on', t.dataset.mode === next));
+    // 分屏对照时，在富文本区与站点源码区之间画一条横向分割线
+    root.classList.toggle(NS + '-is-split', next === 'split');
+    // 全屏 + 分屏：源码区挪到右侧做左右对照；离开分屏 / 退出全屏时归位
+    layoutSplitFullscreen(root.classList.contains('is-fullscreen'));
+    syncTabsVisibility();
     const showToolbar = next !== 'source';
     root.querySelector('.' + NS + '-toolbar').classList.toggle(NS + '-hidden', !showToolbar);
     const wrap = root.querySelector('.' + NS + '-editor-wrap');
@@ -2489,7 +2553,8 @@
     // 需要用到站点弹窗时由 delegateSiteAction 临时切到源码视图再显示。
     if (origWrapper) origWrapper.classList.toggle(NS + '-native-collapsed', next === 'rich');
     // 原生工具栏单独处理：它常常不在 origWrapper 里，站点还会重渲染它
-    syncNativeToolbar(next !== 'rich');
+    // 分屏对照也只保留插件工具栏，站点原生工具栏仅在源码视图显示
+    syncNativeToolbar(next === 'source');
 
     if (next === 'source') {
       // 以富文本为准，刷新源码，并把焦点交给原生输入框
@@ -2621,6 +2686,36 @@
     });
   }
 
+  /** 站点原生工具栏里的「全屏 / 最大化」按钮（可见状态下才返回） */
+  function findNativeFullscreenBtn() {
+    const scope = (origWrapper && origWrapper.parentElement) || document;
+    const nodes = scope.querySelectorAll('button, [role="button"], a');
+    for (const b of nodes) {
+      if (isOwnNode(b)) continue;
+      const label = ((b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '') + ' ' + (b.textContent || '')).trim();
+      if (!/(全屏|最大化|fullscreen)/i.test(label)) continue;
+      const r = b.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return b;
+    }
+    return null;
+  }
+
+  /** 站点原生编辑器是否正处于全屏（浏览器全屏 / 按钮已变「退出」/ 祖先铺满视口的固定浮层） */
+  function siteFullscreenOn() {
+    if (document.fullscreenElement) return true;
+    const btn = findNativeFullscreenBtn();
+    if (btn && /退出|exit/i.test((btn.getAttribute('aria-label') || '') + (btn.getAttribute('title') || '') + (btn.textContent || ''))) return true;
+    let p = textarea && textarea.parentElement;
+    while (p && p !== document.body) {
+      if (getComputedStyle(p).position === 'fixed') {
+        const r = p.getBoundingClientRect();
+        if (r.width >= innerWidth * .9 && r.height >= innerHeight * .9) return true;
+      }
+      p = p.parentElement;
+    }
+    return false;
+  }
+
   /** 可视化模式下的兜底：站点重渲染原生容器 / 工具行后，重新定位并隐藏 */
   function keepNativeHidden() {
     if (!textarea || !textarea.isConnected) { mount(); return; }
@@ -2721,6 +2816,8 @@
     if (routeChanged || !root || !document.body.contains(root)) mount();
     // 站点会重渲染原生工具栏（尤其是选中 / 失焦时），这里持续把可视化模式下的原生工具栏藏好
     else if (mode === 'rich') keepNativeHidden();
+    // 站点原生全屏（源码视图）时隐藏视图切换滑块，退出后恢复
+    syncTabsVisibility();
   }, 600);
 
   // 常驻看护 2：框架（Vue v-model）可能直接改写 textarea.value 且不派发 input，
