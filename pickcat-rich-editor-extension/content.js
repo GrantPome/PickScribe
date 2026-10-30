@@ -8,8 +8,8 @@
  * 3. Markdown ↔ HTML 的转换全部自研，覆盖工具栏涉及的全部格式；对颜色/高亮/对齐这类
  *    Markdown 标准之外的样式，用内联 HTML（<span style>、<u>、<p style="text-align">）承载，
  *    保证“所见即所得”且格式不丢失。
- * 4. UI 直接复用站点设计令牌（Nuxt UI 的 --ui-accent / --ui-surface / --ui-canvas /
- *    --ui-foreground / --ui-border / --radius-* 等），站点切换浅色 / 深色主题时令牌随之翻转，
+ * 4. UI 直接复用站点设计令牌（Nuxt UI 的 --ui-primary / --ui-bg / --ui-text /
+ *    --ui-border / --ui-radius 等，并对旧版 --ui-accent 等令牌兜底），站点切换浅色 / 深色主题时令牌随之翻转，
  *    面板自动跟随，无需硬编码配色。
  * 5. 可选把整站字体替换为鸿蒙字体（HarmonyOS Sans，本扩展自带 woff2，覆盖站点 --font-sans 令牌），
  *    默认开启，面板右上角可随时切回站点原字体；等宽字体与 KaTeX 数学字体不受影响。
@@ -880,16 +880,17 @@
    因此深浅色切换时 --pcr-* 会随站点令牌一起自动翻转，面板无需额外 JS 监听。
    括号内为站点令牌缺失时的兜底浅色值。 */
 :root{
-  --pcr-accent: var(--ui-accent, #f03e46);
-  --pcr-accent-soft: var(--ui-accent-soft, rgba(240,62,70,.12));
+  --pcr-accent: var(--ui-primary, var(--ui-accent, #fa322d));
+  --pcr-accent-soft: color-mix(in oklab, var(--pcr-accent) 12%, transparent);
   --pcr-border: var(--ui-border, #d4dbe4);
-  --pcr-surface: var(--ui-surface, #ffffff);
-  --pcr-surface-hover: var(--ui-surface-hover, rgba(0,0,0,.045));
-  --pcr-canvas: var(--ui-canvas, #f3f4f6);
-  --pcr-text: var(--ui-foreground, #171717);
-  --pcr-subtle: var(--ui-muted, #5f6875);
-  --pcr-r-surface: var(--radius-surface, .5rem);
-  --pcr-r-control: var(--radius-control, .375rem);
+  --pcr-surface: var(--ui-bg-elevated, var(--ui-surface, #ffffff));
+  --pcr-surface-hover: color-mix(in oklab, var(--pcr-text) 7%, transparent);
+  --pcr-canvas: var(--ui-bg-muted, var(--ui-canvas, #f3f4f6));
+  --pcr-text: var(--ui-text, var(--ui-foreground, #171717));
+  --pcr-subtle: var(--ui-text-muted, var(--ui-muted, #5f6875));
+  --pcr-error: var(--ui-error, #dc2626);
+  --pcr-r-surface: var(--ui-radius, .5rem);
+  --pcr-r-control: var(--ui-radius-sm, .375rem);
   --pcr-font: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
 }
 .${NS}-root{
@@ -1120,6 +1121,11 @@
    弹窗才能定位正确；操作完成后自动切回可视化。 */
 .${NS}-native-collapsed{display:none !important;}
 
+/* 原生工具栏可能被站点重渲染成新节点，元素级标记会丢；
+   在编辑器卡片上打标记，用后代选择器兜底，避免和插件工具栏重复显示。 */
+.${NS}-native-off [role="toolbar"]:not(.${NS}-toolbar),
+.${NS}-native-off [data-pcr-native-bar="1"]{display:none !important;}
+
 /* —— AI 写作助手窗口 ——
    沿用通用浮层的变量与交互约定，但覆盖为「固定在视口上的独立窗口」：
    尺寸更大、内部用纵向 flex 分区（结果区自适应占满剩余高度）；
@@ -1134,7 +1140,7 @@
 .${NS}-ai-head{flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;
   border-bottom:1px solid var(--pcr-border);cursor:move;}
 .${NS}-ai-title{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:13.5px;}
-.${NS}-ai-title svg{width:16px;height:16px;flex:none;}
+.${NS}-ai-title svg{width:16px;height:16px;flex:none;color:var(--pcr-accent);}
 .${NS}-ai-sub{margin-left:auto;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   font-size:11.5px;color:var(--pcr-subtle);background:var(--pcr-canvas);
   border:1px solid var(--pcr-border);border-radius:999px;padding:1px 8px;}
@@ -1218,6 +1224,19 @@
 .${NS}-ai-act.is-primary{background:var(--pcr-accent);border-color:var(--pcr-accent);color:#fff;font-weight:500;}
 .${NS}-ai-act.is-primary:hover{background:var(--pcr-accent);filter:brightness(1.06);}
 .${NS}-ai-act:disabled{opacity:.45;cursor:default;}
+/* 停止生成（标题栏）：复用 .pcr-ai-x 尺寸，主色提示 */
+.${NS}-ai-stop{color:var(--pcr-accent);}
+.${NS}-ai-stop:hover{background:var(--pcr-accent-soft);color:var(--pcr-accent);}
+.${NS}-ai-hide{display:none !important;}
+/* Token 胶囊：放在操作栏最左侧，详情进 title */
+.${NS}-ai-usage{
+  display:inline-flex;align-items:center;gap:4px;margin-right:auto;align-self:center;
+  padding:1px 8px;border:1px solid var(--pcr-border);border-radius:999px;
+  background:var(--pcr-canvas);color:var(--pcr-subtle);
+  font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.${NS}-ai-usage:empty{display:none;}
+.${NS}-ai-usage.is-est{opacity:.86;}
 `;
     const style = document.createElement('style');
     style.id = NS + '-style';
@@ -1231,6 +1250,7 @@
   let textarea = null;     // 站点原始 Markdown 输入框
   let root = null;         // 整个面板根节点
   let origWrapper = null;  // 站点原生编辑器容器（工具栏 + textarea + 字数统计）
+  let nativeToolbar = null; // 站点原生工具栏（可视化模式下需一并隐藏）
   let mode = 'rich';       // rich | split | source
   let lock = false;        // 同步锁，防止双向同步互相触发形成死循环
   let pendingBack = null;  // 站点弹窗完成后「自动切回可视化」的一次性监听，切视图时需清理
@@ -2469,6 +2489,8 @@
     // 站点原生编辑器容器：可视化模式下整体隐藏（避免残留白色色块），
     // 需要用到站点弹窗时由 delegateSiteAction 临时切到源码视图再显示。
     if (origWrapper) origWrapper.classList.toggle(NS + '-native-collapsed', next === 'rich');
+    // 原生工具栏单独处理：它常常不在 origWrapper 里，站点还会重渲染它
+    syncNativeToolbar(next !== 'rich');
 
     if (next === 'source') {
       // 以富文本为准，刷新源码，并把焦点交给原生输入框
@@ -2493,6 +2515,76 @@
       document.querySelector('textarea[name="content"]') ||
       document.querySelector('form textarea') ||
       document.querySelector('textarea');
+  }
+
+  /** 节点是否属于脚本自己注入的面板 */
+  function isOwnNode(el) {
+    return !!(el && ((root && root.contains(el)) || (el.closest && el.closest('.' + NS + '-root'))));
+  }
+
+  /** 找站点原生工具栏：优先 role=toolbar，其次「输入框上方、同一列的纯图标行」 */
+  function findNativeToolbar() {
+    if (!textarea) return null;
+    let node = textarea.parentElement;
+    for (let depth = 0; node && depth < 6; depth++, node = node.parentElement) {
+      const bars = Array.from(node.querySelectorAll('[role="toolbar"]')).filter((el) => !isOwnNode(el));
+      if (bars.length) return bars[0];
+    }
+
+    const taRect = textarea.getBoundingClientRect();
+    const hasGeom = taRect.width > 0 && taRect.height > 0;
+    const isIconBtn = (b) => {
+      if (isOwnNode(b) || (b.textContent || '').trim() || !b.querySelector('svg')) return false;
+      if (!hasGeom) return true;   // 原生输入框已隐藏时只做结构判断
+      const r = b.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.width <= 48 && r.height <= 48;
+    };
+    node = textarea.parentElement;
+    for (let depth = 0; node && depth < 6; depth++, node = node.parentElement) {
+      let hit = null;
+      node.querySelectorAll('div, nav, ul').forEach((el) => {
+        if (hit || isOwnNode(el)) return;
+        if (el.querySelector('textarea, input, [contenteditable="true"]')) return;
+        if (Array.from(el.children).filter(isIconBtn).length < 3) return;
+        if (!hasGeom) { hit = el; return; }
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0 || r.height > 64) return;
+        if (r.top >= taRect.top) return;                             // 必须在输入框上方
+        if (r.left > taRect.right || r.right < taRect.left) return;  // 与输入框同一列
+        hit = el;
+      });
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /** 站点原生编辑器容器：优先「含有工具栏的最近祖先」，否则退回直接父级 */
+  function locateOrigWrapper(ta) {
+    const t = ta || textarea;
+    if (!t) return null;
+    const parent = t.parentElement;
+    const guess = parent && parent.parentElement ? parent.parentElement : parent;
+    if (guess && !isOwnNode(guess) && guess.querySelector('[role="toolbar"]')) return guess;
+    return parent;
+  }
+
+  /** 可视化模式隐藏站点原生工具栏；源码 / 分屏模式恢复（站点弹窗要按它定位） */
+  function syncNativeToolbar(show) {
+    // 卡片级标记：站点把工具行重渲染成新节点后，元素级 class 会丢，这一层仍然生效
+    const card = (origWrapper && origWrapper.parentElement) || null;
+    if (card) card.classList.toggle(NS + '-native-off', !show);
+    if (!nativeToolbar || !nativeToolbar.isConnected) nativeToolbar = findNativeToolbar();
+    if (!nativeToolbar) return;
+    nativeToolbar.dataset.pcrNativeBar = '1';
+    nativeToolbar.classList.toggle(NS + '-native-collapsed', !show);
+  }
+
+  /** 可视化模式下的兜底：站点重渲染原生容器 / 工具行后，重新定位并隐藏 */
+  function keepNativeHidden() {
+    if (!textarea || !textarea.isConnected) { mount(); return; }
+    if (!origWrapper || !origWrapper.isConnected) origWrapper = locateOrigWrapper(textarea);
+    if (origWrapper) origWrapper.classList.add(NS + '-native-collapsed');
+    syncNativeToolbar(false);
   }
 
   function mount() {
@@ -2539,11 +2631,8 @@
     }
 
     // 定位站点原生编辑器容器（工具栏 + 输入框 的公共父级）
-    origWrapper = ta.parentElement && ta.parentElement.parentElement ? ta.parentElement.parentElement : ta.parentElement;
-    if (origWrapper && !origWrapper.querySelector('[role="toolbar"]')) {
-      // 结构不符时退回到直接父级，保证“插到编辑器上方”依然成立
-      origWrapper = ta.parentElement;
-    }
+    origWrapper = locateOrigWrapper(ta);
+    nativeToolbar = findNativeToolbar();
 
     // 构建面板并插到原生编辑器上方
     const panel = buildPanel();
@@ -2588,6 +2677,8 @@
     lastHref = location.href;
     if (routeChanged) closeAIWriter();   // 编辑页内切换路由（如 新建 / 编辑）时，同样收起
     if (routeChanged || !root || !document.body.contains(root)) mount();
+    // 站点会重渲染原生工具栏（尤其是选中 / 失焦时），这里持续把可视化模式下的原生工具栏藏好
+    else if (mode === 'rich') keepNativeHidden();
   }, 600);
 
   // 常驻看护 2：框架（Vue v-model）可能直接改写 textarea.value 且不派发 input，
@@ -2681,18 +2772,12 @@
   const aiPending = new Map();
   let aiSeq = 0;
 
-  /** 彩色 AI 图标：自带 <svg> 与渐变、显式写死颜色，避免被工具栏的 currentColor 覆盖成单色 */
+  /** AI 图标：与站点一致的单色图标，继承当前文字颜色 */
   function aiIcon() {
-    const gid = NS + '-ai-g' + Math.random().toString(36).slice(2, 8);  // 随机 id，多实例不冲突
-    return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none">' +
-      '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1">' +
-        '<stop offset="0" stop-color="#8b5cf6"/>' +
-        '<stop offset=".52" stop-color="#ec4899"/>' +
-        '<stop offset="1" stop-color="#f59e0b"/>' +
-      '</linearGradient></defs>' +
-      '<path d="M10 2.5 11.7 8.3 17.5 10 11.7 11.7 10 17.5 8.3 11.7 2.5 10 8.3 8.3Z" fill="url(#' + gid + ')"/>' +
-      '<path d="M17.8 3 18.5 5.5 21 6.2 18.5 6.9 17.8 9.4 17.1 6.9 14.6 6.2 17.1 5.5Z" fill="#f59e0b"/>' +
-      '<path d="M18.4 14.6 19 16.4 20.8 17 19 17.6 18.4 19.4 17.8 17.6 16 17 17.8 16.4Z" fill="#ec4899"/>' +
+    return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">' +
+      '<path d="M10 2.5 11.7 8.3 17.5 10 11.7 11.7 10 17.5 8.3 11.7 2.5 10 8.3 8.3Z"/>' +
+      '<path d="M17.8 3 18.5 5.5 21 6.2 18.5 6.9 17.8 9.4 17.1 6.9 14.6 6.2 17.1 5.5Z" opacity=".55"/>' +
+      '<path d="M18.4 14.6 19 16.4 20.8 17 19 17.6 18.4 19.4 17.8 17.6 16 17 17.8 16.4Z" opacity=".35"/>' +
       '</svg>';
   }
 
@@ -2899,6 +2984,7 @@
     if (!aiRefs) return;
     aiRefs.result.innerHTML = '<div class="' + NS + '-ai-loading"><span class="' + NS + '-ai-spin"></span>'
       + '<span>正在生成…</span></div>';
+    aiClearUsage();
   }
 
   /** 流式渲染：走 sanitizeHtml 兜底，防止模型输出里混入危险 HTML */
@@ -2939,6 +3025,48 @@
     catch (e) { toast('请在浏览器扩展栏打开「扩展选项」设置页'); }
   }
 
+  /** Token 缩写：1234 → 1.2k（窄胶囊里只做概览，详情进 title） */
+  function aiFmtToken(n) {
+    const v = Math.max(0, Math.round(Number(n) || 0));
+    if (v < 1000) return String(v);
+    if (v < 1000000) return (v / 1000).toFixed(v < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k';
+    return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  }
+
+  function aiSetUsage(u) {
+    if (!aiRefs || !aiRefs.usage) return;
+    if (!u || !u.total) { aiClearUsage(); return; }
+    const est = !!u.estimated;
+    aiRefs.usage.textContent = (est ? '≈' : '') + '↑' + aiFmtToken(u.prompt) + ' ↓' + aiFmtToken(u.completion) +
+      ' · ' + aiFmtToken(u.total);
+    aiRefs.usage.classList.toggle('is-est', est);
+    aiRefs.usage.title = [
+      est ? '服务商未返回 usage，以下为本地估算值' : '本次用量（服务商返回）',
+      '输入 ' + u.prompt + ' Tokens',
+      '输出 ' + u.completion + ' Tokens',
+      '合计 ' + u.total + ' Tokens'
+    ].join('\n');
+  }
+
+  function aiClearUsage() {
+    if (!aiRefs || !aiRefs.usage) return;
+    aiRefs.usage.textContent = '';
+    aiRefs.usage.classList.remove('is-est');
+    aiRefs.usage.title = '';
+  }
+
+  /** 停止当前生成：保留已输出片段，不再继续追加 */
+  function aiStop() {
+    if (!aiBusy) return;
+    aiAbort();
+    aiBusy = false;
+    aiClearUsage();
+    if (aiStreamText.trim()) aiRenderDone();
+    else aiRefs && (aiRefs.result.innerHTML = '<div class="' + NS + '-ai-ph">已停止生成。</div>');
+    toast('已停止生成');
+    syncAIBtns();
+  }
+
   /** 同步面板里各按钮的可用状态 */
   function syncAIBtns() {
     if (!aiRefs) return;
@@ -2949,6 +3077,7 @@
     aiRefs.btnReplace.disabled = aiBusy || !hasText || !aiCtx.selectedText;   // 无选中则禁用「替换」
     aiRefs.btnCopy.disabled = !hasText;
     aiRefs.btnAgain.disabled = aiBusy || !aiLastInstruction;
+    if (aiRefs.btnStop) aiRefs.btnStop.classList.toggle(NS + '-ai-hide', !aiBusy);
     aiRefs.sub.textContent = aiConfig.model || '';
   }
 
@@ -2989,14 +3118,15 @@
         aiReqId = null;
         aiBusy = false;
         aiStreamText = msg.text || aiStreamText;
-        if (!aiStreamText.trim()) aiRenderError('模型没有返回内容，请更换指令或模型后重试。');
-        else aiRenderDone();
+        if (!aiStreamText.trim()) { aiRenderError('模型没有返回内容，请更换指令或模型后重试。'); aiClearUsage(); }
+        else { aiRenderDone(); aiSetUsage(msg.usage); }
         syncAIBtns();
       },
       onError(err) {
         aiReqId = null;
         aiBusy = false;
         aiRenderError((err && err.message) || '生成失败，请稍后重试');
+        aiClearUsage();
         syncAIBtns();
       }
     });
@@ -3059,6 +3189,10 @@
       '<div class="' + NS + '-ai-head">' +
         '<span class="' + NS + '-ai-title">' + aiIcon() + '<span>AI 写作助手</span></span>' +
         '<span class="' + NS + '-ai-sub"></span>' +
+        '<button type="button" class="' + NS + '-ai-x ' + NS + '-ai-stop ' + NS + '-ai-hide" data-ai="stop" title="停止生成">' +
+          '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+            '<rect x="7" y="7" width="10" height="10" rx="2"/></svg>' +
+        '</button>' +
         '<button type="button" class="' + NS + '-ai-x" data-ai="dock" title="浮动 / 侧边栏">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">' +
             '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>' +
@@ -3076,6 +3210,7 @@
       '</div>' +
       '<div class="' + NS + '-ai-result"></div>' +
       '<div class="' + NS + '-ai-actions">' +
+        '<span class="' + NS + '-ai-usage"></span>' +
         '<button type="button" class="' + NS + '-ai-act is-primary" data-ai="insert">插入到正文</button>' +
         '<button type="button" class="' + NS + '-ai-act" data-ai="replace">替换选中内容</button>' +
         '<button type="button" class="' + NS + '-ai-act" data-ai="copy">复制</button>' +
@@ -3092,7 +3227,9 @@
       btnInsert: el.querySelector('[data-ai="insert"]'),
       btnReplace: el.querySelector('[data-ai="replace"]'),
       btnCopy: el.querySelector('[data-ai="copy"]'),
-      btnAgain: el.querySelector('[data-ai="again"]')
+      btnAgain: el.querySelector('[data-ai="again"]'),
+      btnStop: el.querySelector('[data-ai="stop"]'),
+      usage: el.querySelector('.' + NS + '-ai-usage')
     };
 
     // 按钮按下时阻止默认，保住编辑器光标 / 选区；输入框保持原生焦点行为
@@ -3117,6 +3254,7 @@
       else if (act === 'replace') aiDoReplace();
       else if (act === 'copy') aiDoCopy();
       else if (act === 'again') { if (aiLastInstruction) aiRun(aiLastInstruction); }
+      else if (act === 'stop') aiStop();
       else if (act === 'settings') aiOpenOptions();
       else if (act === 'dock') toggleAIDock();
       else if (act === 'close') closeAIWriter();

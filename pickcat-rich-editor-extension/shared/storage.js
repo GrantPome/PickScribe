@@ -70,6 +70,67 @@ export async function clearCache() {
   return n;
 }
 
+// ============================ Token 用量统计 ============================
+
+const EMPTY_USAGE = { prompt: 0, completion: 0, total: 0, calls: 0, models: {}, updated: 0 };
+
+function num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+}
+
+/** 累加一次请求的 Token 用量（只统计真实调用，缓存命中不计入） */
+export async function recordUsage(usage, model) {
+  if (!usage) return null;
+  const prompt = num(usage.prompt);
+  const completion = num(usage.completion);
+  const total = num(usage.total) || prompt + completion;
+  if (!prompt && !completion && !total) return null;
+
+  const raw = await chrome.storage.local.get(STORAGE_KEYS.usage);
+  const cur = raw[STORAGE_KEYS.usage] || EMPTY_USAGE;
+  const models = { ...(cur.models || {}) };
+  const key = String(model || 'default');
+  const item = models[key] || { prompt: 0, completion: 0, total: 0, calls: 0 };
+  models[key] = {
+    prompt: num(item.prompt) + prompt,
+    completion: num(item.completion) + completion,
+    total: num(item.total) + total,
+    calls: num(item.calls) + 1
+  };
+
+  const next = {
+    prompt: num(cur.prompt) + prompt,
+    completion: num(cur.completion) + completion,
+    total: num(cur.total) + total,
+    calls: num(cur.calls) + 1,
+    models,
+    updated: Date.now()
+  };
+  await chrome.storage.local.set({ [STORAGE_KEYS.usage]: next });
+  return next;
+}
+
+/** 读取累计用量（无数据时返回 0 结构） */
+export async function getUsageStats() {
+  const raw = await chrome.storage.local.get(STORAGE_KEYS.usage);
+  const cur = raw[STORAGE_KEYS.usage] || EMPTY_USAGE;
+  return {
+    prompt: num(cur.prompt),
+    completion: num(cur.completion),
+    total: num(cur.total),
+    calls: num(cur.calls),
+    models: cur.models || {},
+    updated: num(cur.updated)
+  };
+}
+
+/** 清空用量统计 */
+export async function clearUsageStats() {
+  await chrome.storage.local.set({ [STORAGE_KEYS.usage]: { ...EMPTY_USAGE, models: {} } });
+  return true;
+}
+
 /** 导出全部数据（配置 + 缓存） */
 export async function exportAll() {
   const raw = await chrome.storage.local.get([STORAGE_KEYS.config, STORAGE_KEYS.cache]);

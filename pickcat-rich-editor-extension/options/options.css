@@ -440,6 +440,35 @@ code {
 
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* Token 累计用量：四列数据块，与站点卡片内的统计块风格一致 */
+.usage {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+}
+.usage-item {
+  padding: 10px 12px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg-muted);
+}
+.usage-item span {
+  display: block;
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.usage-item strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--ui-text-highlighted);
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+#usageModels { word-break: break-word; }
+
 .btn {
   height: 34px;
   border: 0;
@@ -497,6 +526,13 @@ a.btn svg { width: 15px; height: 15px; flex: none; }
   color: var(--ui-error);
 }
 .btn:disabled { opacity: .5; cursor: default; background: transparent; }
+
+/* ============================ AI 功能：多小节卡片 ============================ */
+
+#sec-ai .sub-head { margin: 22px 0 10px; }
+#sec-ai .card-head + .sub-head { margin-top: 0; }
+#sec-ai .divider + .sub-head { margin-top: 0; }
+#sec-ai .note { margin: 8px 0 10px; }
 
 /* ============================ 起始页自定义列表 ============================ */
 
@@ -633,6 +669,7 @@ a.btn svg { width: 15px; height: 15px; flex: none; }
 @media (max-width: 560px) {
   .topbar-inner { gap: 6px; }
   #testBtn { display: none; }
+  .usage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

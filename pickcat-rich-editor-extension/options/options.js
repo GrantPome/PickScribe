@@ -4,10 +4,11 @@
  */
 import {
   PROVIDERS, getProvider, LENGTHS, LANGS, TRIGGERS,
-  DEFAULT_CONFIG, DEFAULT_USER_PROMPT, DEFAULT_SYSTEM_PROMPT
+  DEFAULT_CONFIG, DEFAULT_USER_PROMPT, DEFAULT_SYSTEM_PROMPT,
+  NOTIFY_CONFIG_KEY, NOTIFY_DEFAULTS, NOTIFY_INTERVALS
 } from '../shared/constants.js';
-import { getConfig, setConfig, clearCache, exportAll, importAll } from '../shared/storage.js';
-import { chat } from '../background/llm-client.js';
+import { getConfig, setConfig, clearCache, exportAll, importAll, getUsageStats, clearUsageStats } from '../shared/storage.js';
+import { chat, estimateTokens, estimateMessagesTokens } from '../background/llm-client.js';
 import {
   BEHAVIOR_OPTIONS, ON_UNFAVORITE_OPTIONS, SYNC_FREQ_OPTIONS, DENSITY_OPTIONS,
   SORT_OPTIONS, THEME_OPTIONS,
@@ -111,6 +112,27 @@ function setStatus(text, kind) {
   el.className = 'status' + (kind ? ' ' + kind : '');
 }
 
+// ============================ Token 用量统计 ============================
+
+const fmtInt = (n) => Number(n || 0).toLocaleString('zh-CN');
+
+async function renderUsage() {
+  const s = await getUsageStats();
+  $('usagePrompt').textContent = fmtInt(s.prompt);
+  $('usageCompletion').textContent = fmtInt(s.completion);
+  $('usageTotal').textContent = fmtInt(s.total);
+  $('usageCalls').textContent = fmtInt(s.calls);
+
+  const models = Object.keys(s.models || {});
+  $('usageModels').textContent = models.length
+    ? '按模型：' + models.map((m) => m + ' ' + fmtInt(s.models[m].total)).join(' · ')
+    : '';
+
+  $('usageNote').textContent = s.updated
+    ? '仅统计真实调用，缓存命中不计入；最近更新于 ' + new Date(s.updated).toLocaleString('zh-CN') + '。'
+    : '还没有调用记录。仅统计真实调用，缓存命中不计入；服务商未返回 usage 时按字符估算。';
+}
+
 // ============================ 测试连接 ============================
 
 function sampleMessages(c) {
@@ -158,20 +180,33 @@ $('testBtn').addEventListener('click', async () => {
   $('testBtn').disabled = true;
   setStatus('正在测试连接…');
   try {
+    let usage = null;
+    const messages = sampleMessages(values);
     const text = await chat({
       baseUrl: values.baseUrl,
       apiKey: values.apiKey,
       model: values.model,
-      messages: sampleMessages(values),
+      messages,
       temperature: 0.2,
-      maxTokens: 64
+      maxTokens: 64,
+      onUsage: (u) => { usage = u; }
     });
-    setStatus('连接成功：' + String(text).trim().slice(0, 40), 'ok');
+    // 服务商没返回 usage 时按字符估算，保证设置页也能看到大约的消耗
+    const tokenText = usage
+      ? ' · 本次 ↑' + usage.prompt + ' ↓' + usage.completion + '（共 ' + usage.total + ' Tokens）'
+      : ' · 本次 ≈' + (estimateMessagesTokens(messages) + estimateTokens(text)) + ' Tokens（估算）';
+    setStatus('连接成功：' + String(text).trim().slice(0, 40) + tokenText, 'ok');
   } catch (e) {
     setStatus('连接失败：' + (e && e.message ? e.message : e), 'err');
   } finally {
     $('testBtn').disabled = false;
   }
+});
+
+$('clearUsage').addEventListener('click', async () => {
+  await clearUsageStats();
+  await renderUsage();
+  setStatus('已清空用量统计', 'ok');
 });
 
 $('clearCache').addEventListener('click', async () => {
@@ -209,7 +244,14 @@ $('importFile').addEventListener('change', async (e) => {
 
 // ============================ 启动 ============================
 
-load().catch((e) => setStatus('读取配置失败：' + e.message, 'err'));
+load().then(renderUsage).catch((e) => setStatus('读取配置失败：' + e.message, 'err'));
+
+// 统计随后台调用实时更新（设置页开着时也能看到数字变化）
+try {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.pcai_usage) renderUsage().catch(() => {});
+  });
+} catch (e) { /* 非扩展环境忽略 */ }
 
 // 提示：用户在模板里删空了会用默认模板
 $('userPrompt').placeholder = DEFAULT_USER_PROMPT;
@@ -667,6 +709,152 @@ $('favClear').addEventListener('click', async () => {
 
 loadFav().catch((e) => setFavStatus('读取收藏夹设置失败：' + e.message));
 
+// ============================ 搜索页设置（改动即时生效） ============================
+
+/**
+ * 搜索页设置（键 pcs_settings）：与 search/content.js 的定义保持同步。
+ * 默认全部开启，任何一项改动内容脚本都会通过 storage 监听即时应用。
+ */
+const SEARCH_SETTINGS_KEY = 'pcs_settings';
+const SEARCH_HISTORY_KEY = 'pcs_history';
+const SEARCH_DEFAULTS = { enabled: true, sticky: true, history: true, historyLimit: 8 };
+
+let searchCfg = { ...SEARCH_DEFAULTS };
+let searchHistory = [];
+
+function normalizeSearch(raw) {
+  const c = (raw && typeof raw === 'object') ? raw : {};
+  return {
+    enabled: c.enabled !== false,
+    sticky: c.sticky !== false,
+    history: c.history !== false,
+    historyLimit: Math.min(20, Math.max(1, Number(c.historyLimit) || SEARCH_DEFAULTS.historyLimit))
+  };
+}
+
+function paintSearch() {
+  $('searchEnabled').checked = searchCfg.enabled;
+  $('searchSticky').checked = searchCfg.sticky;
+  $('searchHistory').checked = searchCfg.history;
+  $('searchHistoryLimit').value = searchCfg.historyLimit;
+  $('searchHistoryLimit').disabled = !searchCfg.history;
+  $('searchHistoryNote').textContent = searchHistory.length
+    ? '当前已记录 ' + searchHistory.length + ' 条搜索词，最近一条在搜索首屏可直接点击。'
+    : '还没有搜索记录。关闭记录后已有记录不会自动删除，可用上方按钮清除。';
+}
+
+async function saveSearch() {
+  await chrome.storage.local.set({ [SEARCH_SETTINGS_KEY]: searchCfg });
+  await saveSearchHistory();
+  setStatus('搜索页设置已保存', 'ok');
+}
+
+async function saveSearchHistory() {
+  await chrome.storage.local.set({ [SEARCH_HISTORY_KEY]: searchHistory });
+}
+
+function bindSearchSwitch(id, key) {
+  $(id).addEventListener('change', async (e) => {
+    searchCfg[key] = e.target.checked;
+    paintSearch();
+    await saveSearch();
+  });
+}
+
+bindSearchSwitch('searchEnabled', 'enabled');
+bindSearchSwitch('searchSticky', 'sticky');
+bindSearchSwitch('searchHistory', 'history');
+
+$('searchHistoryLimit').addEventListener('change', async (e) => {
+  searchCfg.historyLimit = Math.min(20, Math.max(1, Number(e.target.value) || SEARCH_DEFAULTS.historyLimit));
+  searchHistory = searchHistory.slice(0, searchCfg.historyLimit);
+  paintSearch();
+  await saveSearch();
+});
+
+$('searchClearHistory').addEventListener('click', async () => {
+  searchHistory = [];
+  await chrome.storage.local.remove(SEARCH_HISTORY_KEY);
+  paintSearch();
+  setStatus('已清除搜索记录', 'ok');
+});
+
+async function loadSearch() {
+  const raw = await chrome.storage.local.get([SEARCH_SETTINGS_KEY, SEARCH_HISTORY_KEY]);
+  searchCfg = normalizeSearch(raw[SEARCH_SETTINGS_KEY]);
+  searchHistory = Array.isArray(raw[SEARCH_HISTORY_KEY]) ? raw[SEARCH_HISTORY_KEY] : [];
+  paintSearch();
+}
+
+loadSearch().catch((e) => setStatus('读取搜索页设置失败：' + e.message, 'err'));
+
+// 搜索页开着时新产生记录，设置页里的计数同步刷新
+try {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes[SEARCH_HISTORY_KEY]) {
+      const next = changes[SEARCH_HISTORY_KEY].newValue;
+      searchHistory = Array.isArray(next) ? next : [];
+      paintSearch();
+    }
+  });
+} catch (e) { /* 非扩展环境忽略 */ }
+
+// ============================ 站内通知设置（改动即时生效） ============================
+
+/** 键 pco_notify：与 background/notifications.js 的读取保持同步 */
+let notifyCfg = null;
+
+function paintNotify() {
+  $('notifyEnabled').checked = notifyCfg.enabled;
+  $('notifyInterval').value = String(notifyCfg.intervalMinutes);
+  $('notifyPickcat').checked = notifyCfg.hosts.pickcat !== false;
+  $('notifyCdsq').checked = notifyCfg.hosts.cdsq !== false;
+}
+
+async function saveNotify() {
+  await chrome.storage.local.set({ [NOTIFY_CONFIG_KEY]: notifyCfg });
+  setStatus('站内通知设置已保存', 'ok');
+}
+
+$('notifyEnabled').addEventListener('change', (e) => {
+  notifyCfg.enabled = e.target.checked;
+  saveNotify();
+});
+
+$('notifyInterval').addEventListener('change', (e) => {
+  notifyCfg.intervalMinutes = Number(e.target.value) || NOTIFY_DEFAULTS.intervalMinutes;
+  saveNotify();
+});
+
+$('notifyPickcat').addEventListener('change', (e) => {
+  notifyCfg.hosts = { ...notifyCfg.hosts, pickcat: e.target.checked };
+  saveNotify();
+});
+
+$('notifyCdsq').addEventListener('change', (e) => {
+  notifyCfg.hosts = { ...notifyCfg.hosts, cdsq: e.target.checked };
+  saveNotify();
+});
+
+$('notifyTest').addEventListener('click', () => {
+  chrome.runtime.sendMessage({ type: 'notify-test' }, () => void chrome.runtime.lastError);
+  setStatus('已请求发送测试通知，若没弹出请检查系统通知权限', 'ok');
+});
+
+async function loadNotify() {
+  fillSelect($('notifyInterval'), NOTIFY_INTERVALS, String(NOTIFY_DEFAULTS.intervalMinutes));
+  const raw = await chrome.storage.local.get(NOTIFY_CONFIG_KEY);
+  const saved = raw[NOTIFY_CONFIG_KEY] || {};
+  notifyCfg = {
+    ...NOTIFY_DEFAULTS,
+    ...saved,
+    hosts: { ...NOTIFY_DEFAULTS.hosts, ...(saved.hosts || {}) }
+  };
+  paintNotify();
+}
+
+loadNotify().catch((e) => setStatus('读取站内通知设置失败：' + e.message, 'err'));
+
 // ============================ 关于：显示实际版本号 ============================
 
 $('aboutVersion').textContent = 'v' + chrome.runtime.getManifest().version;
@@ -691,7 +879,7 @@ $('aboutVersion').textContent = 'v' + chrome.runtime.getManifest().version;
     items.forEach((it) => { if (it.sec.getBoundingClientRect().top <= LINE) cur = it; });
 
     // 末尾分区较短时，页面滚到底也越不过 LINE，此时直接高亮最后一项；
-    // 否则「AI 数据 / 关于」永远选不中（会一直停在收藏夹 Plus）。
+    // 否则「AI 功能 / 关于」永远选不中（会一直停在收藏夹 Plus）。
     const doc = document.documentElement;
     const scrollable = doc.scrollHeight - window.innerHeight > 120;
     const atBottom = window.innerHeight + window.scrollY >= doc.scrollHeight - 2;

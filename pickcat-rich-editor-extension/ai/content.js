@@ -298,25 +298,30 @@
   // ============================ 5. 样式注入 ============================
 
   const FALLBACK = {
-    accent: '#f03e46', accentSoft: 'rgba(240,62,70,.12)', border: '#d4dbe4',
-    surface: '#ffffff', surfaceHover: 'rgba(0,0,0,.045)', canvas: '#f3f4f6',
-    text: '#171717', subtle: '#5f6875'
+    primary: '#fa322d', border: 'oklch(92.2% 0 none)', surface: '#ffffff',
+    canvas: 'oklch(97% 0 none)', input: 'oklch(94.6% 0 none)',
+    text: 'oklch(26.9% 0 none)', subtle: 'oklch(43.9% 0 none)',
+    error: 'oklch(50.5% 0.213 27.5)'
   };
 
   function injectStyle() {
     if (document.getElementById(NS + '-style')) return;
     const css = `
 :root{
-  --pcai-accent: var(--ui-accent, ${FALLBACK.accent});
-  --pcai-accent-soft: var(--ui-accent-soft, ${FALLBACK.accentSoft});
+  /* 直接映射站点实测的 Nuxt UI 设计令牌，深浅色随站点自动翻转；
+     同时保留旧版 --ui-accent / --ui-surface 兜底，避免站点改版时样式丢失 */
+  --pcai-primary: var(--ui-primary, var(--ui-accent, ${FALLBACK.primary}));
+  --pcai-primary-soft: color-mix(in oklab, var(--pcai-primary) 12%, transparent);
   --pcai-border: var(--ui-border, ${FALLBACK.border});
-  --pcai-surface: var(--ui-surface, ${FALLBACK.surface});
-  --pcai-surface-hover: var(--ui-surface-hover, ${FALLBACK.surfaceHover});
-  --pcai-canvas: var(--ui-canvas, ${FALLBACK.canvas});
-  --pcai-text: var(--ui-foreground, ${FALLBACK.text});
-  --pcai-subtle: var(--ui-muted, ${FALLBACK.subtle});
-  --pcai-r: var(--radius-surface, .5rem);
-  --pcai-rc: var(--radius-control, .375rem);
+  --pcai-surface: var(--ui-bg-elevated, var(--ui-surface, ${FALLBACK.surface}));
+  --pcai-canvas: var(--ui-bg-muted, var(--ui-canvas, ${FALLBACK.canvas}));
+  --pcai-input: var(--ui-bg-input, var(--ui-canvas, ${FALLBACK.input}));
+  --pcai-text: var(--ui-text, var(--ui-foreground, ${FALLBACK.text}));
+  --pcai-subtle: var(--ui-text-muted, var(--ui-muted, ${FALLBACK.subtle}));
+  --pcai-error: var(--ui-error, ${FALLBACK.error});
+  --pcai-hover: color-mix(in oklab, var(--pcai-text) 7%, transparent);
+  --pcai-r: var(--ui-radius, .5rem);
+  --pcai-rc: var(--ui-radius-sm, .375rem);
   --pcai-font: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
 }
 .${NS}-root{
@@ -337,7 +342,7 @@
   max-width:none; margin:0;
   display:flex; align-items:center; justify-content:center;
   padding:clamp(14px,3vw,40px);
-  background:rgba(15,23,42,.34);
+  background:rgba(15,23,42,.38);
   -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
   animation:${NS}-full-in .3s cubic-bezier(.22,1,.36,1) both;
 }
@@ -364,15 +369,16 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
   border:1px solid var(--pcai-border); border-radius:var(--pcai-r);
   background:var(--pcai-surface); overflow:hidden;
 }
+html.dark .${NS}-card{box-shadow:0 1px 2px rgba(0,0,0,.24);}
 .${NS}-head{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:9px 12px;border-bottom:1px solid var(--pcai-border);
 }
 .${NS}-head.is-plain{border-bottom:0;}
-.${NS}-title{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:13.5px;}
-.${NS}-title svg{width:16px;height:16px;color:var(--pcai-accent);}
+.${NS}-title{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:13px;}
+.${NS}-title svg{width:16px;height:16px;color:var(--pcai-primary);}
 .${NS}-model{
-  font-weight:400;font-size:11.5px;color:var(--pcai-subtle);
+  font-weight:400;font-size:11px;color:var(--pcai-subtle);
   background:var(--pcai-canvas);border:1px solid var(--pcai-border);
   border-radius:999px;padding:1px 8px;
 }
@@ -384,9 +390,10 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
   transition:background .26s cubic-bezier(.22,1,.36,1),color .26s;
 }
 .${NS}-act svg{width:15px;height:15px;}
-.${NS}-act:hover{background:var(--pcai-surface-hover);color:var(--pcai-text);}
-.${NS}-act.is-on{background:var(--pcai-accent-soft);color:var(--pcai-accent);}
+.${NS}-act:hover{background:var(--pcai-hover);color:var(--pcai-text);}
+.${NS}-act.is-on{background:var(--pcai-primary-soft);color:var(--pcai-primary);}
 .${NS}-act:disabled{opacity:.4;cursor:default;}
+.${NS}-stop{color:var(--pcai-primary);}
 
 .${NS}-body{padding:0;}
 
@@ -401,15 +408,15 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
 .${NS}-content li{margin:2px 0;}
 .${NS}-content code{
   background:var(--pcai-canvas);border:1px solid var(--pcai-border);
-  border-radius:4px;padding:1px 5px;font-size:12.5px;
+  border-radius:var(--pcai-rc);padding:1px 5px;font-size:12.5px;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 .${NS}-content strong{font-weight:600;color:var(--pcai-text);}
-.${NS}-content a{color:var(--pcai-accent);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .26s cubic-bezier(.22,1,.36,1);}
-.${NS}-content a:hover{border-bottom-color:var(--pcai-accent);}
+.${NS}-content a{color:var(--pcai-primary);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .26s cubic-bezier(.22,1,.36,1);}
+.${NS}-content a:hover{border-bottom-color:var(--pcai-primary);}
 .${NS}-content hr{border:0;border-top:1px solid var(--pcai-border);margin:10px 0;}
 .${NS}-content blockquote{
-  margin:0 0 8px;padding:6px 10px;border-left:3px solid var(--pcai-accent);
+  margin:0 0 8px;padding:6px 10px;border-left:3px solid var(--pcai-primary);
   background:var(--pcai-canvas);border-radius:0 var(--pcai-rc) var(--pcai-rc) 0;color:var(--pcai-subtle);
 }
 .${NS}-content blockquote p{margin:0 0 4px;white-space:normal;}
@@ -425,7 +432,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
 
 /* 光标：流式输出时闪烁 */
 .${NS}-caret{display:inline-block;width:2px;height:1em;vertical-align:-2px;
-  background:var(--pcai-accent);margin-left:2px;animation:${NS}-blink 1s steps(1) infinite;}
+  background:var(--pcai-primary);margin-left:2px;animation:${NS}-blink 1s steps(1) infinite;}
 @keyframes ${NS}-blink{50%{opacity:0;}}
 
 /* 待触发 / 加载 / 出错 */
@@ -436,14 +443,14 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
 .${NS}-btn{
   display:inline-flex;align-items:center;gap:6px;
   border:1px solid var(--pcai-border);background:var(--pcai-surface);color:var(--pcai-text);
-  font:inherit;font-size:13px;padding:6px 14px;border-radius:var(--pcai-rc);cursor:pointer;
+  font:inherit;font-size:12.5px;padding:6px 14px;border-radius:var(--pcai-rc);cursor:pointer;
   transition:background .26s cubic-bezier(.22,1,.36,1),color .26s,border-color .26s;
 }
 .${NS}-btn svg{width:15px;height:15px;}
-.${NS}-btn:hover{background:var(--pcai-surface-hover);}
+.${NS}-btn:hover{background:var(--pcai-hover);}
 .${NS}-btn.is-primary{
-  background:var(--pcai-accent);border-color:var(--pcai-accent);
-  color:#fff;font-weight:500;
+  background:var(--pcai-primary);border-color:var(--pcai-primary);
+  color:var(--ui-text-inverted, #fff);font-weight:500;
 }
 .${NS}-btn.is-primary:hover{filter:brightness(.94);}
 .${NS}-btn:disabled{opacity:.55;cursor:default;}
@@ -451,46 +458,73 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
 .${NS}-loading{display:flex;align-items:center;gap:9px;color:var(--pcai-subtle);font-size:13px;}
 .${NS}-spin{
   width:14px;height:14px;border-radius:50%;
-  border:2px solid var(--pcai-accent-soft);border-top-color:var(--pcai-accent);
+  border:2px solid var(--pcai-primary-soft);border-top-color:var(--pcai-primary);
   animation:${NS}-rot .7s linear infinite;
 }
 @keyframes ${NS}-rot{to{transform:rotate(360deg);}}
 .${NS}-err{font-size:13px;color:var(--pcai-text);}
 .${NS}-err-tip{color:var(--pcai-subtle);font-size:12.5px;margin-top:4px;}
 .${NS}-foot{
-  padding:6px 12px 8px;font-size:11.5px;color:var(--pcai-subtle);
-  display:flex;justify-content:space-between;gap:8px;
+  padding:6px 12px 8px;font-size:11px;color:var(--pcai-subtle);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
 }
+.${NS}-foot-right{display:inline-flex;align-items:center;gap:6px;min-width:0;}
+.${NS}-usage{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:1px 7px;border:1px solid var(--pcai-border);border-radius:999px;
+  background:var(--pcai-canvas);color:var(--pcai-subtle);
+  font-size:10.5px;font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.${NS}-usage:empty{display:none;}
+.${NS}-usage.is-est{opacity:.86;}
 .${NS}-hide{display:none !important;}
 
-/* 分段 Tab：总结 / 提问 */
-.${NS}-tabs{display:flex;gap:2px;padding:8px 12px 0;}
-.${NS}-tab{
-  border:0;background:transparent;color:var(--pcai-subtle);font:inherit;font-size:12.5px;
-  padding:4px 12px;border-radius:999px;cursor:pointer;
-  transition:background .3s cubic-bezier(.22,1,.36,1),color .3s cubic-bezier(.22,1,.36,1);
+/* 分段 Tab：与站点 / 回帖助手一致的胶囊滑块 */
+.${NS}-tabs{
+  position:relative;display:flex;gap:4px;margin:8px 12px 0;
+  padding:3px;border-radius:999px;background:var(--pcai-canvas);
 }
-.${NS}-tab:hover{background:var(--pcai-surface-hover);color:var(--pcai-text);}
-.${NS}-tab.is-on{background:var(--pcai-accent-soft);color:var(--pcai-accent);font-weight:500;}
+.${NS}-ink{
+  position:absolute;top:3px;bottom:3px;left:0;z-index:0;
+  border-radius:999px;background:var(--pcai-surface);
+  box-shadow:0 1px 3px rgba(15,23,42,.12);pointer-events:none;
+  transition:left .32s cubic-bezier(.22,1,.36,1),width .32s cubic-bezier(.22,1,.36,1);
+}
+html.dark .${NS}-ink{box-shadow:0 1px 3px rgba(0,0,0,.4);}
+.${NS}-tab{
+  position:relative;z-index:1;flex:1;height:28px;
+  border:0;background:transparent;color:var(--pcai-subtle);font:inherit;font-size:12.5px;
+  border-radius:999px;cursor:pointer;transition:color .22s;
+}
+.${NS}-tab:hover{color:var(--pcai-text);}
+.${NS}-tab.is-on{color:var(--pcai-text);font-weight:500;}
 
 /* 两个内容面板：总结区与提问区 */
 .${NS}-pane{padding:12px;}
 .${NS}-pane[data-pane="chat"]{padding:0;display:flex;flex-direction:column;}
 .${NS}-empty{padding:12px;color:var(--pcai-subtle);font-size:12.5px;line-height:1.7;}
+.${NS}-asks{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 12px;}
+.${NS}-ask{
+  border:1px solid var(--pcai-border);background:var(--pcai-surface);color:var(--pcai-text);
+  font:inherit;font-size:12px;padding:4px 10px;border-radius:999px;cursor:pointer;
+  transition:background .22s cubic-bezier(.22,1,.36,1),color .22s,border-color .22s;
+}
+.${NS}-ask:hover{background:var(--pcai-primary-soft);color:var(--pcai-primary);border-color:var(--pcai-primary);}
 .${NS}-msgs{
   padding:12px 12px 2px;max-height:340px;overflow-y:auto;
   display:flex;flex-direction:column;gap:9px;
 }
 .${NS}-msg{display:flex;flex-direction:column;gap:3px;animation:${NS}-in .3s cubic-bezier(.22,1,.36,1) both;}
-.${NS}-msg-role{font-size:11.5px;color:var(--pcai-subtle);}
+.${NS}-msg-role{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--pcai-subtle);}
+.${NS}-msg-usage{font-variant-numeric:tabular-nums;opacity:.8;}
 .${NS}-msg-body{padding:7px 10px;border-radius:var(--pcai-rc);font-size:13.5px;}
-.${NS}-msg.is-user .${NS}-msg-body{background:var(--pcai-accent-soft);}
+.${NS}-msg.is-user .${NS}-msg-body{background:var(--pcai-primary-soft);}
 .${NS}-msg.is-ai .${NS}-msg-body{background:var(--pcai-canvas);}
 .${NS}-msg.is-ai .${NS}-content p:last-child{margin-bottom:0;}
-.${NS}-msg-err{color:var(--pcai-accent);font-size:12.5px;}
+.${NS}-msg-err{color:var(--pcai-error);font-size:12.5px;}
 
 /* 提问输入行 */
-.${NS}-ask{
+.${NS}-ask-row{
   display:flex;gap:8px;align-items:flex-end;
   padding:8px 12px 12px;border-top:1px solid var(--pcai-border);
 }
@@ -498,11 +532,11 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
   flex:1;min-width:0;resize:none;overflow-y:auto;
   min-height:34px;max-height:110px;
   padding:7px 10px;border:1px solid var(--pcai-border);border-radius:var(--pcai-rc);
-  background:var(--pcai-canvas);color:var(--pcai-text);
+  background:var(--pcai-input);color:var(--pcai-text);
   font:inherit;font-size:13.5px;line-height:1.5;
   transition:border-color .26s cubic-bezier(.22,1,.36,1),box-shadow .26s cubic-bezier(.22,1,.36,1);
 }
-.${NS}-q:focus{outline:none;border-color:var(--pcai-accent);box-shadow:0 0 0 3px var(--pcai-accent-soft);}
+.${NS}-q:focus{outline:none;border-color:var(--pcai-primary);box-shadow:0 0 0 3px var(--pcai-primary-soft);}
 .${NS}-q:disabled{opacity:.6;}
 .${NS}-send{flex:none;padding:7px 12px;}
 `;
@@ -527,6 +561,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
     full: svg('<path d="M9 4H4v5"/><path d="M15 20h5v-5"/><path d="M9 20H4v-5"/><path d="M15 4h5v5"/>'),
     shrink: svg('<path d="M4 9h5V4"/><path d="M20 15h-5v5"/><path d="M4 15h5v5"/><path d="M20 9h-5V4"/>'),
     send: svg('<path d="M5 12h13"/><path d="M12 5l7 7-7 7"/>'),
+    stop: svg('<rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/>'),
     close: svg('<path d="M6 6l12 12M18 6L6 18"/>')
   };
 
@@ -551,6 +586,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
   let activeTab = 'sum';    // 'sum' 总结 | 'chat' 提问
   let chatMessages = [];    // 对话历史 [{ role:'user'|'ai', text, error }]
   let chatReqId = null;     // 当前进行中的【提问】请求
+  let sessionUsage = { prompt: 0, completion: 0, total: 0, calls: 0 };   // 本页累计 Token
 
   // Port：与 Service Worker 的长连接（断线自动重连）
   let port = null;
@@ -626,7 +662,8 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
             '<span>AI 助手</span><span class="' + NS + '-model"></span>' +
           '</div>' +
           '<div class="' + NS + '-actions">' +
-            '<button class="' + NS + '-act" data-act="copy" title="复制当前内容">' + ICONS.copy + '</button>' +
+            '<button class="' + NS + '-act ' + NS + '-stop ' + NS + '-hide" data-act="stop" title="停止生成">' + ICONS.stop + '</button>' +
+            '<button class="' + NS + '-act" data-act="copy" title="复制 Markdown">' + ICONS.copy + '</button>' +
             '<button class="' + NS + '-act" data-act="redo" title="重新总结（忽略缓存）">' + ICONS.redo + '</button>' +
             '<button class="' + NS + '-act" data-act="width" title="加宽显示">' + ICONS.widen + '</button>' +
             '<button class="' + NS + '-act" data-act="full" title="全屏查看">' + ICONS.full + '</button>' +
@@ -634,9 +671,10 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
             '<button class="' + NS + '-act" data-act="close" title="关闭（本页不再显示）">' + ICONS.close + '</button>' +
           '</div>' +
         '</div>' +
-        '<div class="' + NS + '-tabs">' +
-          '<button class="' + NS + '-tab is-on" data-tab="sum">总结</button>' +
-          '<button class="' + NS + '-tab" data-tab="chat">提问</button>' +
+        '<div class="' + NS + '-tabs" role="tablist">' +
+          '<span class="' + NS + '-ink"></span>' +
+          '<button class="' + NS + '-tab is-on" role="tab" data-tab="sum">总结</button>' +
+          '<button class="' + NS + '-tab" role="tab" data-tab="chat">提问</button>' +
         '</div>' +
         '<div class="' + NS + '-body">' +
           '<div class="' + NS + '-pane" data-pane="sum"></div>' +
@@ -644,7 +682,10 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
         '</div>' +
         '<div class="' + NS + '-foot">' +
           '<span class="' + NS + '-foot-left">由 AI 生成，仅供参考</span>' +
-          '<span class="' + NS + '-foot-right"></span>' +
+          '<span class="' + NS + '-foot-right">' +
+            '<span class="' + NS + '-usage"></span>' +
+            '<span class="' + NS + '-provider"></span>' +
+          '</span>' +
         '</div>' +
       '</div>';
 
@@ -652,11 +693,15 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
       head: root.querySelector('.' + NS + '-head'),
       body: root.querySelector('.' + NS + '-body'),
       tabsRow: root.querySelector('.' + NS + '-tabs'),
+      ink: root.querySelector('.' + NS + '-ink'),
       foot: root.querySelector('.' + NS + '-foot'),
       model: root.querySelector('.' + NS + '-model'),
+      usage: root.querySelector('.' + NS + '-usage'),
+      provider: root.querySelector('.' + NS + '-provider'),
       tabs: Array.from(root.querySelectorAll('[data-tab]')),
       paneSum: root.querySelector('[data-pane="sum"]'),
       paneChat: root.querySelector('[data-pane="chat"]'),
+      stopBtn: root.querySelector('[data-act="stop"]'),
       copyBtn: root.querySelector('[data-act="copy"]'),
       redoBtn: root.querySelector('[data-act="redo"]'),
       widthBtn: root.querySelector('[data-act="width"]'),
@@ -678,6 +723,9 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
       // 全屏时点击卡片外的遮罩区域退出
       if (isFull && e.target === root) return exitFull();
 
+      const ask = e.target.closest('[data-ask]');
+      if (ask) return askQuestion(ask.getAttribute('data-ask'));
+
       const tab = e.target.closest('[data-tab]');
       if (tab) return switchTab(tab.getAttribute('data-tab'));
 
@@ -690,6 +738,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
       if (act === 'full') return isFull ? exitFull() : enterFull();
       if (act === 'fold') return toggleFold();
       if (act === 'close') return closePanel();
+      if (act === 'stop') return stopActive();
     });
 
     return root;
@@ -697,6 +746,20 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
 
   /** 加宽状态：持久化到 localStorage，跨帖子沿用 */
   const wide = () => localStorage.getItem(WIDTH_KEY) === '1';
+
+  /** Tab 胶囊滑块：跟随当前激活的 Tab 定位（与站点分段控件同款） */
+  function moveInk(animate) {
+    if (!refs || !refs.ink) return;
+    const btn = refs.tabs.find((b) => b.getAttribute('data-tab') === activeTab);
+    if (!btn) return;
+    if (!animate) refs.ink.style.transition = 'none';
+    refs.ink.style.left = btn.offsetLeft + 'px';
+    refs.ink.style.width = btn.offsetWidth + 'px';
+    if (!animate) {
+      void refs.ink.offsetWidth;
+      refs.ink.style.transition = '';
+    }
+  }
 
   /** 把当前宽度 / 全屏状态同步到 DOM 与按钮 */
   function applyMode() {
@@ -715,6 +778,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
       refs.fullBtn.innerHTML = isFull ? ICONS.shrink : ICONS.full;
       refs.fullBtn.title = isFull ? '退出全屏（Esc）' : '全屏查看';
     }
+    requestAnimationFrame(() => moveInk(false));
   }
 
   function toggleWidth() {
@@ -779,6 +843,8 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
     refs.head.classList.toggle('is-plain', next);
     refs.foot.classList.toggle(NS + '-hide', next);
     refs.foldBtn.style.transform = next ? 'rotate(180deg)' : '';
+    // 展开后 Tab 才有实际宽度，补一次滑块定位
+    if (!next) requestAnimationFrame(() => moveInk(false));
   }
 
   function removePanel() {
@@ -795,11 +861,92 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
     removePanel();
   }
 
-  /** 配置变化后同步面板上展示的模型名与服务商 */
+  /** 配置变化后同步面板上展示的模型名与服务商（不要覆盖同一行的 Token 胶囊） */
   function syncPanelInfo() {
     if (!refs) return;
     refs.model.textContent = config.model || '';
-    refs.foot.querySelector('.' + NS + '-foot-right').textContent = PROVIDER_NAMES[config.provider] || '';
+    if (refs.provider) refs.provider.textContent = PROVIDER_NAMES[config.provider] || '';
+  }
+
+  // —— Token 用量展示 ——
+
+  /** 千分位缩写：1234 → 1.2k；只用于窄容器里的概览，详情放 Tooltip */
+  function fmtToken(n) {
+    const v = Math.max(0, Math.round(Number(n) || 0));
+    if (v < 1000) return String(v);
+    if (v < 1000000) return (v / 1000).toFixed(v < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k';
+    return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  }
+
+  /** 累计本页会话用量（缓存命中不计入） */
+  function addSessionUsage(u) {
+    if (!u) return;
+    sessionUsage.prompt += Number(u.prompt) || 0;
+    sessionUsage.completion += Number(u.completion) || 0;
+    sessionUsage.total += Number(u.total) || 0;
+    sessionUsage.calls += 1;
+  }
+
+  /** 底栏 Token 胶囊：本次用量 + 本页累计（详情见 Tooltip） */
+  function setUsage(u, cached) {
+    if (!refs || !refs.usage) return;
+    if (cached) {
+      refs.usage.textContent = '缓存命中 · 0 Token';
+      refs.usage.classList.remove('is-est');
+      refs.usage.title = '本次结果来自本地缓存，没有调用模型，不消耗 Token';
+      return;
+    }
+    if (!u || !u.total) { clearUsageChip(); return; }
+
+    const est = !!u.estimated;
+    refs.usage.textContent =
+      (est ? '≈' : '') + '↑' + fmtToken(u.prompt) + ' ↓' + fmtToken(u.completion) + ' · ' + fmtToken(u.total);
+    refs.usage.classList.toggle('is-est', est);
+
+    const lines = [
+      est
+        ? '服务商未返回 usage，以下为本地估算值（按字符数折算）'
+        : '本次用量（服务商返回）',
+      '输入 ' + u.prompt + ' Tokens',
+      '输出 ' + u.completion + ' Tokens',
+      '合计 ' + u.total + ' Tokens'
+    ];
+    if (sessionUsage.calls) {
+      lines.push('', '本页累计：' + sessionUsage.calls + ' 次请求 · ' + sessionUsage.total + ' Tokens');
+    }
+    refs.usage.title = lines.join('\n');
+  }
+
+  function clearUsageChip() {
+    if (!refs || !refs.usage) return;
+    refs.usage.textContent = '';
+    refs.usage.classList.remove('is-est');
+    refs.usage.title = '';
+  }
+
+  /** 停止当前生成：总结请求中断后保留已生成片段，提问请求保留已输出内容 */
+  function stopActive() {
+    if (reqId) {
+      abortCurrent();
+      if (streamText) {
+        renderDone(streamText, false);
+        if (refs) refs.foot.querySelector('.' + NS + '-foot-left').textContent = '已停止生成 · 仅供参考';
+      } else {
+        renderIdle('已停止生成，可重新开始总结。');
+      }
+      toast('已停止生成');
+    } else if (chatReqId) {
+      abortChat();
+      const a = chatMessages[chatMessages.length - 1];
+      if (a && a.role === 'ai') {
+        a.stopped = true;
+        if (!a.text) a.error = '已停止生成。';
+      }
+      renderChatMsgs();
+      scrollChatBottom();
+      toast('已停止生成');
+    }
+    syncButtons();
   }
 
   /** 复制按钮：总结 Tab 复制总结，提问 Tab 复制最后一条回答 */
@@ -830,6 +977,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
     const busy = !!reqId || !!chatReqId;
     refs.redoBtn.disabled = activeTab !== 'sum' || busy;
     refs.copyBtn.disabled = activeTab === 'sum' ? !streamText : !lastAiText();
+    if (refs.stopBtn) refs.stopBtn.classList.toggle(NS + '-hide', !busy);
   }
 
   function toast(msg) {
@@ -869,6 +1017,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
         '<button class="' + NS + '-btn is-primary" data-run="1">' + ICONS.spark + '开始总结</button>' +
       '</div>';
     refs.paneSum.querySelector('[data-run]').addEventListener('click', () => runSummary({}));
+    clearUsageChip();
     syncButtons();
   }
 
@@ -878,6 +1027,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
     refs.paneSum.innerHTML =
       '<div class="' + NS + '-loading"><span class="' + NS + '-spin"></span>' +
       '<span>' + (cachedHint ? '读取缓存…' : '正在阅读并总结…') + '</span></div>';
+    clearUsageChip();
     syncButtons();
   }
 
@@ -917,6 +1067,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
       try { chrome.runtime.sendMessage({ type: 'open-options' }, () => { void chrome.runtime.lastError; }); }
       catch (e) { /* 上下文失效忽略 */ }
     });
+    clearUsageChip();
     syncButtons();
   }
 
@@ -926,6 +1077,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
   function switchTab(tab) {
     activeTab = tab === 'chat' ? 'chat' : 'sum';
     applyTab();
+    moveInk(true);
     if (activeTab === 'chat') {
       ensureChatDom();
       renderChatMsgs();
@@ -949,7 +1101,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
     refs.paneChat.dataset.ready = '1';
     refs.paneChat.innerHTML =
       '<div class="' + NS + '-msgs"></div>' +
-      '<div class="' + NS + '-ask">' +
+      '<div class="' + NS + '-ask-row">' +
         '<textarea class="' + NS + '-q" rows="1" placeholder="就这篇帖子提问，回车发送，Shift+回车换行"></textarea>' +
         '<button class="' + NS + '-btn is-primary ' + NS + '-send" title="发送">' + ICONS.send + '</button>' +
       '</div>';
@@ -976,7 +1128,16 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
     if (!box) return;
 
     if (!chatMessages.length) {
-      box.innerHTML = '<div class="' + NS + '-empty">还没有提问。AI 会结合这篇帖子的内容回答，并支持连续追问。</div>';
+      const asks = [
+        '这篇帖子的核心结论是什么？',
+        '帮我提炼 3 个关键要点',
+        '作者给出的依据有哪些？'
+      ];
+      box.innerHTML =
+        '<div class="' + NS + '-empty">还没有提问。AI 会结合这篇帖子的内容回答，并支持连续追问。</div>' +
+        '<div class="' + NS + '-asks">' +
+          asks.map((q) => '<button class="' + NS + '-ask" data-ask="' + escapeHtml(q) + '">' + escapeHtml(q) + '</button>').join('') +
+        '</div>';
       syncButtons();
       return;
     }
@@ -995,8 +1156,17 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
         body = '<div class="' + NS + '-msg-body"><div class="' + NS + '-content">' + renderMarkdown(m.text) +
           (last && chatReqId ? '<span class="' + NS + '-caret"></span>' : '') + '</div></div>';
       }
+
+      let role = isUser ? '你' : 'AI';
+      if (!isUser && m.usage) {
+        role += '<span class="' + NS + '-msg-usage">' +
+          (m.usage.estimated ? '≈' : '') + '↑' + fmtToken(m.usage.prompt) + ' ↓' + fmtToken(m.usage.completion) +
+          '</span>';
+      }
+      if (!isUser && m.stopped) role += '<span class="' + NS + '-msg-usage">已停止</span>';
+
       return '<div class="' + NS + '-msg ' + (isUser ? 'is-user' : 'is-ai') + '">' +
-        '<span class="' + NS + '-msg-role">' + (isUser ? '你' : 'AI') + '</span>' + body + '</div>';
+        '<span class="' + NS + '-msg-role">' + role + '</span>' + body + '</div>';
     }).join('');
 
     syncButtons();
@@ -1083,6 +1253,11 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
       onDone(msg) {
         chatReqId = null;
         answer.text = msg.text || answer.text;
+        if (msg.usage) {
+          answer.usage = msg.usage;
+          addSessionUsage(msg.usage);
+          setUsage(msg.usage, false);
+        }
         renderChatMsgs();
         scrollChatBottom();
       },
@@ -1091,6 +1266,7 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
         answer.error = err && err.message ? err.message : '回答失败，请稍后重试';
         renderChatMsgs();
         scrollChatBottom();
+        syncButtons();
       }
     });
   }
@@ -1135,6 +1311,8 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
       },
       onDone(msg) {
         reqId = null;
+        if (msg.usage) addSessionUsage(msg.usage);
+        setUsage(msg.usage || null, !!msg.cached);
         renderDone(msg.text || streamText, !!msg.cached);
       },
       onError(err) {

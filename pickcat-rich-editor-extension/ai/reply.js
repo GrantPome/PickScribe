@@ -2,7 +2,7 @@
  * Pickcat AI 回帖助手（前缀 pcrr）
  *
  * 只在帖子详情页（/forum/post/<id>）工作：
- *   1. 在回复框的工具行里插入「AI 回复 / AI 润色」两个按钮（与表情、图片按钮同一行）；
+ *   1. 在回复框的工具行里插入一个「AI」按钮（与表情、图片按钮同一行）；
  *   2. 面板提供两个 Tab：帮我写（按帖子内容生成回复）、润色草稿（复用发帖端的润色能力）；
  *   3. 结果只填充到站点回复框，绝不自动发送。
  *
@@ -317,14 +317,11 @@
   let quote = false;
   let polishAction = 'polish';
 
+  /** 与站点一致的单色图标：继承当前文字颜色（主色 / 按钮色） */
   function icon() {
-    const gid = NS + '-g' + Math.random().toString(36).slice(2, 8);
-    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none">'
-      + '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="1">'
-      + '<stop offset="0" stop-color="#8b5cf6"/><stop offset=".52" stop-color="#ec4899"/><stop offset="1" stop-color="#f59e0b"/>'
-      + '</linearGradient></defs>'
-      + '<path d="M10 2.5 11.7 8.3 17.5 10 11.7 11.7 10 17.5 8.3 11.7 2.5 10 8.3 8.3Z" fill="url(#' + gid + ')"/>'
-      + '<path d="M17.8 3 18.5 5.5 21 6.2 18.5 6.9 17.8 9.4 17.1 6.9 14.6 6.2 17.1 5.5Z" fill="#f59e0b"/>'
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">'
+      + '<path d="M10 2.5 11.7 8.3 17.5 10 11.7 11.7 10 17.5 8.3 11.7 2.5 10 8.3 8.3Z"/>'
+      + '<path d="M17.8 3 18.5 5.5 21 6.2 18.5 6.9 17.8 9.4 17.1 6.9 14.6 6.2 17.1 5.5Z" opacity=".55"/>'
       + '</svg>';
   }
 
@@ -357,6 +354,9 @@
       '<div class="' + NS + '-head">' +
         '<span class="' + NS + '-title">' + icon() + '<span>AI 回帖助手</span></span>' +
         '<span class="' + NS + '-model"></span>' +
+        '<button type="button" class="' + NS + '-ico ' + NS + '-stop ' + NS + '-hide" data-act="stop" title="停止生成">' +
+          '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>' +
+        '</button>' +
         '<button type="button" class="' + NS + '-ico" data-act="settings" title="打开 AI 设置">' +
           svgIco('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>') +
         '</button>' +
@@ -403,6 +403,7 @@
 
       '<div class="' + NS + '-foot">' +
         '<span class="' + NS + '-tip">只填充，不发送</span>' +
+        '<span class="' + NS + '-usage"></span>' +
         '<button type="button" class="' + NS + '-btn is-primary" data-act="fill" disabled>填入输入框</button>' +
         '<button type="button" class="' + NS + '-btn" data-act="copy" disabled>复制</button>' +
         '<button type="button" class="' + NS + '-btn" data-act="again" disabled>再生成</button>' +
@@ -418,7 +419,9 @@
       out: el.querySelector('[data-role="out"]'),
       fill: el.querySelector('[data-act="fill"]'),
       copy: el.querySelector('[data-act="copy"]'),
-      again: el.querySelector('[data-act="again"]')
+      again: el.querySelector('[data-act="again"]'),
+      stop: el.querySelector('[data-act="stop"]'),
+      usage: el.querySelector('.' + NS + '-usage')
     };
 
     el.addEventListener('click', onClick);
@@ -436,15 +439,14 @@
 
   let tools = null;
 
-  /** 两个工具栏按钮：AI 回复 / AI 润色 */
+  /** 工具栏入口：一个「AI」按钮，面板内再切换「帮我写 / 润色草稿」 */
   function buildTools() {
     const el = document.createElement('span');
     el.className = NS + '-tools';
     el.innerHTML =
-      '<button type="button" class="' + NS + '-tool" data-tool="write" title="根据帖子内容生成一条回复">' +
-        icon() + '<span>AI 回复</span></button>' +
-      '<button type="button" class="' + NS + '-tool" data-tool="polish" title="润色回复框里已经写好的内容">' +
-        icon() + '<span>AI 润色</span></button>';
+      '<button type="button" class="' + NS + '-tool" data-tool="write" ' +
+        'title="AI 回帖助手：生成回复或润色草稿" aria-label="AI 回帖助手">' +
+        icon() + '<span>AI</span></button>';
 
     // 按下时阻止默认行为：否则输入框失焦后站点会收起工具行，按钮还没点就被移除
     el.addEventListener('mousedown', (e) => { e.preventDefault(); });
@@ -453,8 +455,8 @@
       if (!b) return;
       e.preventDefault();
       e.stopPropagation();
-      if (open && activeTab === b.getAttribute('data-tool')) { closePanel(); return; }
-      openPanel(b.getAttribute('data-tool'));
+      if (open) { closePanel(); return; }
+      openPanel('write');
     });
     return el;
   }
@@ -472,23 +474,31 @@
    * 返回 { parent, after }：把我们的按钮插到 after 之后；找不到返回 null。
    */
   function findToolbarSlot(ta) {
+    // 发送/发布属于操作按钮，不参与「工具行图标」判定，否则按钮会被插到它后面
+    const isSubmit = (b) => {
+      if (b.type === 'submit') return true;
+      const t = ((b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '')).toLowerCase();
+      return /发送|发布|提交|send|submit/.test(t);
+    };
     let node = ta.parentElement;
     for (let depth = 0; node && depth < 7; depth++, node = node.parentElement) {
       const icons = Array.from(node.querySelectorAll('button, [role="button"]'))
         .filter((b) => {
-          if (isOurs(b) || (b.textContent || '').trim() || !b.querySelector('svg')) return false;
+          if (isOurs(b) || isSubmit(b) || (b.textContent || '').trim() || !b.querySelector('svg')) return false;
           const r = b.getBoundingClientRect();
           return r.width > 0 && r.width <= 48 && r.height > 0 && r.height <= 48;
         });
       if (icons.length >= 2) {
-        const group = lca(icons[0], icons[1]) || icons[1].parentElement;
-        return { parent: group, after: icons[1] };
+        // 插到最右侧图标之后：工具行左端常与输入框占位文案重叠，靠右放才不会被文字压住
+        const last = icons[icons.length - 1];
+        const group = lca(icons[0], last) || last.parentElement;
+        return { parent: group, after: last };
       }
     }
     return null;
   }
 
-  /** 把「AI 回复 / AI 润色」放到回复框的工具栏里（工具行未渲染时先贴在输入框下方） */
+  /** 把「AI」入口放到回复框的工具栏里（工具行未渲染时先贴在输入框下方） */
   function ensureInlineTools() {
     const ta = getReplyInput();
     if (!ta) { removeInlineTools(); return; }
@@ -497,13 +507,18 @@
     if (tools && tools.isConnected) {
       // 位置已经正确就不动，避免反复操作站点 DOM
       if (slot ? (tools.parentElement === slot.parent && tools.previousElementSibling === slot.after)
-               : (tools.parentElement === ta.parentElement && tools.previousElementSibling === ta)) return;
+               : (tools.parentElement === ta.parentElement && tools.previousElementSibling === ta)) {
+        return;
+      }
     } else {
       tools = buildTools();
     }
 
-    if (slot) slot.parent.insertBefore(tools, slot.after.nextSibling);
-    else if (ta.parentElement) ta.parentElement.insertBefore(tools, ta.nextSibling);
+    if (slot) {
+      slot.parent.insertBefore(tools, slot.after.nextSibling);
+    } else if (ta.parentElement) {
+      ta.parentElement.insertBefore(tools, ta.nextSibling);
+    }
   }
 
   function removeInlineTools() {
@@ -758,6 +773,19 @@
     else if (act === 'fill') fillToInput();
     else if (act === 'copy') copyResult();
     else if (act === 'again') rerun();
+    else if (act === 'stop') stopGen();
+  }
+
+  /** 停止当前生成：保留已经输出的内容，不再回填未完成的片段 */
+  function stopGen() {
+    if (!busy) return;
+    abort();
+    busy = false;
+    clearUsageChip();
+    if (streamText.trim()) renderFinal();
+    else renderNote('已停止生成。');
+    toast('已停止生成');
+    syncButtons();
   }
 
   function runWrite() {
@@ -816,14 +844,15 @@
         busy = false;
         reqId = null;
         streamText = (msg && msg.text) || streamText;
-        if (!streamText.trim()) { renderError('模型返回了空内容，请重试或更换模型。'); }
-        else renderFinal();
+        if (!streamText.trim()) { renderError('模型返回了空内容，请重试或更换模型。'); clearUsageChip(); }
+        else { renderFinal(); setUsage(msg && msg.usage); }
         syncButtons();
       },
       (err) => {
         busy = false;
         reqId = null;
         renderError((err && err.message) || '生成失败，请稍后重试');
+        clearUsageChip();
         syncButtons();
       }
     );
@@ -831,8 +860,39 @@
 
   // ============================ 10. 结果渲染与操作 ============================
 
+  /** 窄容器里的 Token 缩写：1234 → 1.2k */
+  function fmtToken(n) {
+    const v = Math.max(0, Math.round(Number(n) || 0));
+    if (v < 1000) return String(v);
+    if (v < 1000000) return (v / 1000).toFixed(v < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k';
+    return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  }
+
+  /** 底栏 Token 胶囊：真实 usage 直接显示，估算值前加 ≈ */
+  function setUsage(u) {
+    if (!ui || !ui.usage) return;
+    if (!u || !u.total) { clearUsageChip(); return; }
+    const est = !!u.estimated;
+    ui.usage.textContent = (est ? '≈' : '') + '↑' + fmtToken(u.prompt) + ' ↓' + fmtToken(u.completion);
+    ui.usage.classList.toggle('is-est', est);
+    ui.usage.title = [
+      est ? '服务商未返回 usage，以下为本地估算值' : '本次用量（服务商返回）',
+      '输入 ' + u.prompt + ' Tokens',
+      '输出 ' + u.completion + ' Tokens',
+      '合计 ' + u.total + ' Tokens'
+    ].join('\n');
+  }
+
+  function clearUsageChip() {
+    if (!ui || !ui.usage) return;
+    ui.usage.textContent = '';
+    ui.usage.classList.remove('is-est');
+    ui.usage.title = '';
+  }
+
   function renderLoading() {
     ui.out.innerHTML = '<div class="' + NS + '-loading"><span class="' + NS + '-spin"></span>正在生成…</div>';
+    clearUsageChip();
     schedulePosition();
   }
 
@@ -864,6 +924,7 @@
     ui.fill.disabled = !has;
     ui.copy.disabled = !has;
     ui.again.disabled = busy || !lastRun;
+    if (ui.stop) ui.stop.classList.toggle(NS + '-hide', !busy);
   }
 
   function fillToInput() {
@@ -947,15 +1008,40 @@
     if (open && activeTab === 'polish') refreshDraft();
   }
 
+  /** 合并短时间内的多次触发，避免频繁扫描 DOM */
+  let tickTimer = null;
+  function scheduleTick() {
+    if (tickTimer) return;
+    tickTimer = setTimeout(() => { tickTimer = null; tick(); }, 120);
+  }
+
   function boot() {
-    if (!isPostPage()) return;
-    // 便于排查：确认脚本确实注入成功（控制台可见）
+    // 不能在非帖子页提前 return：站点是 SPA，从列表点进帖子时不会重新注入脚本，
+    // 提前返回会让回帖助手一直处于休眠状态，只有刷新帖子页才恢复。
     document.documentElement.dataset.pcrr = '1';
     try { console.info('[Pickcat AI] 回帖助手已加载'); } catch (e) { /* 忽略 */ }
     loadConfig();
     // 先挂一次，之后交给看护轮询（站点评论区往往异步渲染）
     tick();
     setInterval(tick, 900);
+
+    // 站点评论区与工具行会被异步渲染 / 反复重渲染。只靠 900ms 轮询可能错过
+    // 输入框刚出现或刚被重建的窗口，这里在 DOM 变化时尽快补挂一次。
+    try {
+      const mo = new MutationObserver((records) => {
+        for (let i = 0; i < records.length; i++) {
+          const r = records[i];
+          if (r.type === 'childList' && (r.addedNodes.length || r.removedNodes.length)) {
+            scheduleTick();
+            return;
+          }
+        }
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    } catch (e) { /* 忽略 */ }
+
+    // 滚动到评论区时站点才渲染输入框的情况：滚动后立即补挂
+    document.addEventListener('scroll', scheduleTick, { passive: true, capture: true });
   }
 
   if (window.__pickscribeReplyLoaded) return;

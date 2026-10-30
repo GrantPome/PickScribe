@@ -49,19 +49,7 @@
       <h1 class="side-title">PickScribe 设置</h1>
       <div class="side-card">
         <nav class="nav" aria-label="设置分区">
-          <a class="nav-item is-active" href="#sec-model">
-            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/><path d="M18 16.5 18.6 18l1.5.6-1.5.6-.6 1.5-.6-1.5L15.9 18l1.5-.6.6-1.5Z"/></svg>
-            模型与连接
-          </a>
-          <a class="nav-item" href="#sec-prompt">
-            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 14a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/><path d="M8 8h8M8 12h5"/></svg>
-            提示词与输出
-          </a>
-          <a class="nav-item" href="#sec-behavior">
-            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h6M14 7h6M4 12h10M18 12h2M4 17h3M11 17h9"/><circle cx="12" cy="7" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="17" r="2"/></svg>
-            行为
-          </a>
-          <a class="nav-item" href="#sec-home">
+          <a class="nav-item is-active" href="#sec-home">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg>
             起始页浮层
           </a>
@@ -69,9 +57,17 @@
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21 12 16.5 5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/></svg>
             收藏夹 Plus
           </a>
-          <a class="nav-item" href="#sec-data">
-            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
-            AI 数据
+          <a class="nav-item" href="#sec-search">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+            搜索页
+          </a>
+          <a class="nav-item" href="#sec-notify">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9"/><path d="M10.3 20a2 2 0 0 0 3.4 0"/></svg>
+            站内通知
+          </a>
+          <a class="nav-item" href="#sec-ai">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/><path d="M18 16.5 18.6 18l1.5.6-1.5.6-.6 1.5-.6-1.5L15.9 18l1.5-.6.6-1.5Z"/></svg>
+            AI 功能
           </a>
           <a class="nav-item" href="#sec-about">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
@@ -83,121 +79,6 @@
     </aside>
 
     <main class="main">
-      <!-- 模型与连接 -->
-      <section class="card" id="sec-model">
-        <div class="card-head">
-          <h2>模型与连接</h2>
-          <p>选择服务商，填写模型名与 API Key。全部走 OpenAI 兼容协议。</p>
-        </div>
-
-        <div class="grid">
-          <label class="field">
-            <span>服务商</span>
-            <select id="provider"></select>
-          </label>
-          <label class="field">
-            <span>模型名</span>
-            <input id="model" list="model-list" placeholder="如 deepseek-chat" />
-            <datalist id="model-list"></datalist>
-          </label>
-
-          <label class="field span2">
-            <span>接口地址（Base URL）</span>
-            <input id="baseUrl" placeholder="https://api.example.com/v1" />
-          </label>
-
-          <label class="field span2">
-            <span>API Key</span>
-            <span class="key-wrap">
-              <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
-              <button type="button" id="toggleKey" class="mini">显示</button>
-            </span>
-          </label>
-        </div>
-
-        <div class="callout">
-          <p class="callout-title" id="provider-note"></p>
-          <p class="note" id="key-help"></p>
-        </div>
-
-        <div class="divider"></div>
-
-        <h3 class="sub-head">生成参数</h3>
-        <div class="grid">
-          <label class="field">
-            <span>温度 <em>0–2，越低越稳定</em></span>
-            <input id="temperature" type="number" min="0" max="2" step="0.1" />
-          </label>
-          <label class="field">
-            <span>最大输出 token</span>
-            <input id="maxTokens" type="number" min="128" max="8192" step="128" />
-          </label>
-        </div>
-      </section>
-
-      <!-- 提示词与输出 -->
-      <section class="card" id="sec-prompt">
-        <div class="card-head">
-          <h2>提示词与输出</h2>
-          <p>留空则使用内置提示词。自定义时保留变量占位符即可。</p>
-        </div>
-
-        <label class="field block">
-          <span>系统提示词</span>
-          <textarea id="systemPrompt" rows="3" placeholder="你是一个严谨的阅读助手……"></textarea>
-        </label>
-
-        <label class="field block">
-          <span>用户模板</span>
-          <textarea id="userPrompt" rows="6" placeholder="请阅读下面的帖子……{{lang}}{{length}}"></textarea>
-          <span class="hint">
-            可用变量：<code>{{title}}</code> <code>{{author}}</code> <code>{{content}}</code>
-            <code>{{lang}}</code> <code>{{length}}</code>
-          </span>
-        </label>
-
-        <div class="grid">
-          <label class="field">
-            <span>输出语言</span>
-            <select id="lang"></select>
-          </label>
-          <label class="field">
-            <span>输出长度</span>
-            <select id="length"></select>
-          </label>
-        </div>
-      </section>
-
-      <!-- 行为 -->
-      <section class="card" id="sec-behavior">
-        <div class="card-head">
-          <h2>行为</h2>
-          <p>控制 AI 总结何时出现，以及是否流式显示。</p>
-        </div>
-
-        <div class="grid">
-          <label class="field">
-            <span>触发方式</span>
-            <select id="trigger"></select>
-          </label>
-          <label class="field">
-            <span>自动总结最小字数 <em>低于则跳过，0 不限制</em></span>
-            <input id="minChars" type="number" min="0" max="5000" step="10" />
-          </label>
-        </div>
-
-        <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="stream" />
-            <span>流式输出（边生成边显示）</span>
-          </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="enabled" />
-            <span>在帖子详情页启用 AI 总结面板</span>
-          </label>
-        </div>
-      </section>
-
       <!-- 起始页浮层 -->
       <section class="card" id="sec-home">
         <div class="card-head">
@@ -261,6 +142,16 @@
           <p>为站点收藏补充分组、标签、备注与检索。此区改动即时生效，无需点右上角保存。</p>
         </div>
 
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="favEnabled" />
+            <span>启用收藏夹 Plus（弹窗入口 + 站点注入）</span>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">默认行为</h3>
         <div class="grid">
           <label class="field">
             <span>收藏时行为</span>
@@ -290,10 +181,6 @@
 
         <div class="checks">
           <label class="field checkbox">
-            <input type="checkbox" id="favEnabled" />
-            <span>启用收藏夹 Plus（弹窗入口 + 站点注入）</span>
-          </label>
-          <label class="field checkbox">
             <input type="checkbox" id="favSiteInject" />
             <span>在帖子详情页注入收藏归组（浮动条 / 角标）</span>
           </label>
@@ -319,20 +206,224 @@
         <p class="note" id="favStats"></p>
       </section>
 
-      <!-- AI 数据 -->
-      <section class="card" id="sec-data">
+      <!-- 搜索页 -->
+      <section class="card" id="sec-search">
         <div class="card-head">
-          <h2>AI 数据</h2>
-          <p>缓存以「帖子 + 模型 + 提示词」为键，命中即秒出。</p>
+          <h2>搜索页</h2>
+          <p>站点搜索页的排版、吸顶与搜索记录。此区改动即时生效，无需点右上角保存。</p>
+        </div>
+
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="searchEnabled" />
+            <span>启用搜索页美化（居中搜索 / 搜索引擎式结果排版）</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="searchSticky" />
+            <span>搜索框与筛选栏滚动到顶部时吸顶</span>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">搜索记录</h3>
+        <p class="note">只在搜索首屏显示最近搜过的词，点击即可再次搜索；记录保存在本机，不随账号同步。</p>
+
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="searchHistory" />
+            <span>记录最近搜索的关键词</span>
+          </label>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>最多保留条数</span>
+            <input id="searchHistoryLimit" type="number" min="1" max="20" step="1" />
+          </label>
         </div>
 
         <div class="row">
+          <button id="searchClearHistory" class="btn danger" type="button">清除搜索记录</button>
+        </div>
+        <p class="note" id="searchHistoryNote"></p>
+      </section>
+
+      <!-- 站内通知 -->
+      <section class="card" id="sec-notify">
+        <div class="card-head">
+          <h2>站内通知</h2>
+          <p>后台轮询社区未读消息，通过 Windows 右下角的系统通知弹出。改动即时生效，无需点右上角保存。</p>
+        </div>
+
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="notifyEnabled" />
+            <span>开启系统通知推送（浏览器运行期间后台轮询）</span>
+          </label>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>轮询间隔</span>
+            <select id="notifyInterval"></select>
+          </label>
+        </div>
+
+        <h3 class="sub-head">监听站点</h3>
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="notifyPickcat" />
+            <span>Pickcat 社区（pickcat.dao3.fun）</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="notifyCdsq" />
+            <span>CDSQ 社区（cdsq.dao3.fun）</span>
+          </label>
+        </div>
+
+        <div class="row">
+          <button id="notifyTest" class="btn" type="button">发送测试通知</button>
+        </div>
+
+        <p class="note">首次开启会静默记录当前未读，之后只弹新增通知；点击通知直达对应帖子，工具栏图标上的红色角标为当前未读数。若 Windows 开启了专注助手 / 勿扰，通知可能被系统拦截。</p>
+      </section>
+
+      <!-- AI 功能 -->
+      <section class="card" id="sec-ai">
+        <div class="card-head">
+          <h2>AI 功能</h2>
+          <p>模型连接、生成参数、提示词、触发行为与本地数据统一在此配置。</p>
+        </div>
+
+        <h3 class="sub-head">模型与连接</h3>
+        <p class="note">选择服务商，填写模型名与 API Key。全部走 OpenAI 兼容协议。</p>
+
+        <div class="grid">
+          <label class="field">
+            <span>服务商</span>
+            <select id="provider"></select>
+          </label>
+          <label class="field">
+            <span>模型名</span>
+            <input id="model" list="model-list" placeholder="如 deepseek-chat" />
+            <datalist id="model-list"></datalist>
+          </label>
+
+          <label class="field span2">
+            <span>接口地址（Base URL）</span>
+            <input id="baseUrl" placeholder="https://api.example.com/v1" />
+          </label>
+
+          <label class="field span2">
+            <span>API Key</span>
+            <span class="key-wrap">
+              <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+              <button type="button" id="toggleKey" class="mini">显示</button>
+            </span>
+          </label>
+        </div>
+
+        <div class="callout">
+          <p class="callout-title" id="provider-note"></p>
+          <p class="note" id="key-help"></p>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">生成参数</h3>
+        <div class="grid">
+          <label class="field">
+            <span>温度 <em>0–2，越低越稳定</em></span>
+            <input id="temperature" type="number" min="0" max="2" step="0.1" />
+          </label>
+          <label class="field">
+            <span>最大输出 token</span>
+            <input id="maxTokens" type="number" min="128" max="8192" step="128" />
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">提示词与输出</h3>
+        <p class="note">留空则使用内置提示词。自定义时保留变量占位符即可。</p>
+
+        <label class="field block">
+          <span>系统提示词</span>
+          <textarea id="systemPrompt" rows="3" placeholder="你是一个严谨的阅读助手……"></textarea>
+        </label>
+
+        <label class="field block">
+          <span>用户模板</span>
+          <textarea id="userPrompt" rows="6" placeholder="请阅读下面的帖子……{{lang}}{{length}}"></textarea>
+          <span class="hint">
+            可用变量：<code>{{title}}</code> <code>{{author}}</code> <code>{{content}}</code>
+            <code>{{lang}}</code> <code>{{length}}</code>
+          </span>
+        </label>
+
+        <div class="grid">
+          <label class="field">
+            <span>输出语言</span>
+            <select id="lang"></select>
+          </label>
+          <label class="field">
+            <span>输出长度</span>
+            <select id="length"></select>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">行为</h3>
+        <p class="note">控制 AI 总结何时出现，以及是否流式显示。</p>
+
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="enabled" />
+            <span>在帖子详情页启用 AI 总结面板</span>
+          </label>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>触发方式</span>
+            <select id="trigger"></select>
+          </label>
+          <label class="field">
+            <span>自动总结最小字数 <em>低于则跳过，0 不限制</em></span>
+            <input id="minChars" type="number" min="0" max="5000" step="10" />
+          </label>
+        </div>
+
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="stream" />
+            <span>流式输出（边生成边显示）</span>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">AI 数据</h3>
+        <p class="note">缓存以「帖子 + 模型 + 提示词」为键，命中即秒出；清空后下次打开帖子会重新调用模型。</p>
+
+        <div class="usage" id="usageBox">
+          <div class="usage-item"><span>输入</span><strong id="usagePrompt">0</strong></div>
+          <div class="usage-item"><span>输出</span><strong id="usageCompletion">0</strong></div>
+          <div class="usage-item"><span>合计</span><strong id="usageTotal">0</strong></div>
+          <div class="usage-item"><span>请求次数</span><strong id="usageCalls">0</strong></div>
+        </div>
+        <p class="note" id="usageNote">仅统计真实调用，缓存命中不计入；服务商未返回 usage 时按字符估算。</p>
+        <p class="note" id="usageModels"></p>
+
+        <div class="row">
+          <button id="clearUsage" class="btn">清空用量统计</button>
           <button id="clearCache" class="btn">清空总结缓存</button>
           <button id="exportBtn" class="btn">导出配置</button>
           <button id="importBtn" class="btn">导入配置</button>
           <input id="importFile" type="file" accept="application/json" hidden />
         </div>
-        <p class="note">清空缓存后，下次打开帖子会重新调用模型。</p>
       </section>
 
       <!-- 关于 -->
@@ -345,7 +436,7 @@
         <div class="about">
           <img class="about-logo" src="../icons/logo.svg" alt="PickScribe 图标" width="56" height="56" />
           <div class="about-meta">
-            <p class="about-name">PickScribe <span class="about-ver" id="aboutVersion">v3.4.0</span></p>
+            <p class="about-name">PickScribe <span class="about-ver" id="aboutVersion">v3.4.2</span></p>
             <p class="about-desc">Pickcat 富文本编辑器与 AI 助手：可视化编辑、帖子总结、AI 回帖与收藏夹增强。</p>
           </div>
         </div>

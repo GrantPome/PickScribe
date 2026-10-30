@@ -967,7 +967,7 @@
     cfg = config;
     activeTab = cfg.defaultTab;
 
-    let version = '3.4.0';
+    let version = '3.4.2';
     try { version = chrome.runtime.getManifest().version; } catch (e) { /* noop */ }
 
     root = document.createElement('div');

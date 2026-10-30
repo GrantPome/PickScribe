@@ -160,10 +160,55 @@ export const DEFAULT_CONFIG = {
   stream: true
 };
 
+// ============================ 6. 站内通知（系统通知推送） ============================
+// 后台按固定间隔轮询站点 /api/v1/notification-summary，发现新未读时弹 chrome.notifications。
+
+export const NOTIFY_CONFIG_KEY = 'pco_notify';
+export const NOTIFY_STATE_KEY = 'pco_notify_state';
+
+export const NOTIFY_DEFAULTS = {
+  enabled: false,
+  intervalMinutes: 2,
+  hosts: { pickcat: true, cdsq: true }
+};
+
+/** 参与轮询的站点（与 manifest host_permissions 对应） */
+export const NOTIFY_HOSTS = [
+  { id: 'pickcat', origin: 'https://pickcat.dao3.fun', label: 'Pickcat 社区（pickcat.dao3.fun）' },
+  { id: 'cdsq', origin: 'https://cdsq.dao3.fun', label: 'CDSQ 社区（cdsq.dao3.fun）' }
+];
+
+/** 轮询间隔候选（分钟） */
+export const NOTIFY_INTERVALS = [
+  { id: '1', name: '每 1 分钟（较耗电）' },
+  { id: '2', name: '每 2 分钟' },
+  { id: '3', name: '每 3 分钟' },
+  { id: '5', name: '每 5 分钟' },
+  { id: '10', name: '每 10 分钟' },
+  { id: '15', name: '每 15 分钟' }
+];
+
+/** 通知类型的兜底文案 */
+export const NOTIFY_TYPE_LABELS = {
+  REPLY_CREATED: '收到新回复',
+  WORK_COMMENT_CREATED: '作品收到新评论',
+  WORK_COMMENT_REPLY_CREATED: '评论收到新回复',
+  USER_MENTIONED: '有人提到了你',
+  WORK_COMMENT_MENTIONED: '有人提到了你',
+  POST_LIKED: '帖子收到点赞',
+  WORK_LIKED: '作品收到点赞',
+  WORK_COMMENT_LIKED: '评论收到点赞',
+  TOPIC_EVENT: '系统通知',
+  USER_FOLLOWED: '收到新关注',
+  LEVEL_CERTIFICATION: '等级认证更新',
+  MANAGEMENT_ACTION: '管理操作通知'
+};
+
 // ============================ 5. 存储键与缓存 ============================
 export const STORAGE_KEYS = {
   config: 'pcai_config',
-  cache: 'pcai_cache'
+  cache: 'pcai_cache',
+  usage: 'pcai_usage'
 };
 
 /** 缓存上限（条），超出按最早写入淘汰 */

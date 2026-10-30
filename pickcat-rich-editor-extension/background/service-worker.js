@@ -3,11 +3,19 @@
  * 职责：接收内容脚本的 Port 请求 → 查缓存 → 调用 LLM（流式）→ 增量回传 → 写缓存。
  * 网络请求放在这里，可绕开页面 CSP / CORS，并集中管理 API Key。
  */
-import { streamChat, LLMError } from './llm-client.js';
-import { getConfig, getCached, putCached } from '../shared/storage.js';
+import { streamChat, LLMError, estimateMessagesTokens, estimateTokens } from './llm-client.js';
+import { getConfig, getCached, putCached, recordUsage } from '../shared/storage.js';
+import { sendTestNotification } from './notifications.js';
 
 /** 各连接的进行中请求：port → Map(requestId → AbortController) */
 const inflight = new WeakMap();
+
+/** 用量统计串行写入，避免并发请求互相覆盖 */
+let usageQueue = Promise.resolve();
+function queueUsage(usage, model) {
+  if (!usage) return;
+  usageQueue = usageQueue.then(() => recordUsage(usage, model)).catch(() => {});
+}
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'pcai') return;
@@ -43,7 +51,7 @@ async function handleStart(port, controllers, msg) {
   if (cacheKey && !bypass) {
     const hit = await getCached(cacheKey);
     if (hit && hit.text) {
-      return safePost(port, { type: 'done', id, text: hit.text, cached: true });
+      return safePost(port, { type: 'done', id, text: hit.text, cached: true, usage: hit.usage || null });
     }
   }
 
@@ -54,6 +62,7 @@ async function handleStart(port, controllers, msg) {
   const baseUrl = (config.baseUrl || '').trim() || defaultBaseUrl(config.provider);
 
   let full = '';
+  let reportedUsage = null;   // 服务商在流末尾返回的真实用量
   try {
     for await (const piece of streamChat({
       baseUrl,
@@ -62,7 +71,8 @@ async function handleStart(port, controllers, msg) {
       messages,
       temperature: config.temperature,
       maxTokens: config.maxTokens,
-      signal: controller.signal
+      signal: controller.signal,
+      onUsage: (u) => { reportedUsage = u; }
     })) {
       full += piece;
       if (config.stream) safePost(port, { type: 'chunk', id, delta: piece });
@@ -72,8 +82,18 @@ async function handleStart(port, controllers, msg) {
       throw new LLMError('模型返回了空内容，请检查模型名是否正确', 'empty_response');
     }
 
-    if (cacheKey) await putCached(cacheKey, { text: full, model: config.model });
-    safePost(port, { type: 'done', id, text: full, cached: false });
+    // 服务商未返回 usage 时，按字符估算并在前端标注「≈」
+    const usage = reportedUsage
+      ? { ...reportedUsage, estimated: false }
+      : (() => {
+          const prompt = estimateMessagesTokens(messages);
+          const completion = estimateTokens(full);
+          return { prompt, completion, total: prompt + completion, estimated: true };
+        })();
+
+    if (cacheKey) await putCached(cacheKey, { text: full, model: config.model, usage });
+    queueUsage(usage, config.model);
+    safePost(port, { type: 'done', id, text: full, cached: false, usage });
   } catch (e) {
     const err = e instanceof LLMError ? e : new LLMError(e && e.message ? e.message : '未知错误', 'unknown');
     if (err.code !== 'aborted') safePost(port, { type: 'error', id, code: err.code, message: err.message });
@@ -117,6 +137,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // 交给后台开新标签页。
   if (msg && msg.type === 'open-favorites') {
     chrome.tabs.create({ url: chrome.runtime.getURL('favorites/favorites.html') });
+    sendResponse({ ok: true });
+    return true;
+  }
+  // 设置页「发送测试通知」：验证 chrome.notifications 与系统通知权限
+  if (msg && msg.type === 'notify-test') {
+    sendTestNotification();
     sendResponse({ ok: true });
     return true;
   }

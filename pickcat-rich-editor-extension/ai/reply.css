@@ -24,16 +24,21 @@
   white-space: nowrap;
 }
 
+/* 站点工具行默认 opacity:0 + pointer-events:none，只在评论框聚焦时才显示。
+   这里不再强行常显：评论框收起（未选中）时整行保持隐藏，AI 按钮跟随站点一起
+   出现 / 收起，避免按钮压住「分享你的想法喵…」占位文案。 */
+
 .pcrr-tool {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex: none;
   height: 24px;
-  padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--ui-primary, #ec4899) 24%, transparent);
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--ui-primary, #fa322d) 24%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ui-primary, #ec4899) 8%, transparent);
-  color: var(--ui-primary, #ec4899);
+  background: color-mix(in srgb, var(--ui-primary, #fa322d) 8%, transparent);
+  color: var(--ui-primary, #fa322d);
   font-family: var(--font-sans, "Segoe UI", "Microsoft YaHei", sans-serif);
   font-size: 11.5px;
   font-weight: 600;
@@ -43,8 +48,8 @@
 }
 
 .pcrr-tool:hover {
-  background: color-mix(in srgb, var(--ui-primary, #ec4899) 16%, transparent);
-  border-color: color-mix(in srgb, var(--ui-primary, #ec4899) 40%, transparent);
+  background: color-mix(in srgb, var(--ui-primary, #fa322d) 16%, transparent);
+  border-color: color-mix(in srgb, var(--ui-primary, #fa322d) 40%, transparent);
 }
 
 .pcrr-tool:active { transform: scale(.97); }
@@ -65,7 +70,7 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--ui-border, #e5e7eb);
-  border-radius: 16px;
+  border-radius: var(--ui-radius, 8px);
   background: color-mix(in srgb, var(--ui-bg-elevated, #fff) 96%, transparent);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
   backdrop-filter: blur(14px) saturate(120%);
@@ -143,6 +148,11 @@
 
 .pcrr-ico:hover { background: color-mix(in srgb, var(--ui-text, #171717) 7%, transparent); color: var(--ui-text, #171717); }
 .pcrr-ico svg { width: 15px; height: 15px; }
+
+/* 停止生成：与站点一致的实心方块图标，仅生成中显示 */
+.pcrr-stop { color: var(--ui-primary, #fa322d); }
+.pcrr-stop:hover { background: color-mix(in srgb, var(--ui-primary, #fa322d) 12%, transparent); color: var(--ui-primary, #fa322d); }
+.pcrr-hide { display: none !important; }
 
 /* ============================ 3. Tab ============================ */
 
@@ -238,13 +248,13 @@
   transition: background .2s, color .2s, border-color .2s, transform .16s;
 }
 
-.pcrr-chip:hover { border-color: color-mix(in srgb, var(--ui-primary, #f03e46) 55%, var(--ui-border, #e5e7eb)); }
+.pcrr-chip:hover { border-color: color-mix(in srgb, var(--ui-primary, #fa322d) 55%, var(--ui-border, #e5e7eb)); }
 .pcrr-chip:active { transform: scale(.97); }
 
 .pcrr-chip.is-on {
-  border-color: color-mix(in srgb, var(--ui-primary, #f03e46) 70%, transparent);
-  background: color-mix(in srgb, var(--ui-primary, #f03e46) 12%, transparent);
-  color: var(--ui-primary, #f03e46);
+  border-color: color-mix(in srgb, var(--ui-primary, #fa322d) 70%, transparent);
+  background: color-mix(in srgb, var(--ui-primary, #fa322d) 12%, transparent);
+  color: var(--ui-primary, #fa322d);
   font-weight: 500;
 }
 
@@ -254,7 +264,7 @@
   margin-bottom: 10px;
   padding: 0 10px;
   border: 1px solid var(--ui-border, #e5e7eb);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-sm, 6px);
   background: var(--ui-bg-muted, #f3f4f6);
   color: var(--ui-text, #171717);
   font: inherit;
@@ -265,16 +275,16 @@
 
 .pcrr-extra::placeholder { color: var(--ui-text-muted, #5f6875); opacity: .8; }
 .pcrr-extra:focus {
-  border-color: color-mix(in srgb, var(--ui-primary, #f03e46) 60%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary, #f03e46) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ui-primary, #fa322d) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary, #fa322d) 12%, transparent);
 }
 
 .pcrr-run {
   width: 100%;
   height: 36px;
-  border: 1px solid var(--ui-primary, #f03e46);
-  border-radius: 9px;
-  background: var(--ui-primary, #f03e46);
+  border: 1px solid var(--ui-primary, #fa322d);
+  border-radius: var(--ui-radius-sm, 6px);
+  background: var(--ui-primary, #fa322d);
   color: #fff;
   font: inherit;
   font-size: 13px;
@@ -292,7 +302,7 @@
   margin-bottom: 10px;
   padding: 8px 10px;
   border: 1px dashed var(--ui-border, #e5e7eb);
-  border-radius: 9px;
+  border-radius: var(--ui-radius-sm, 6px);
   background: var(--ui-bg-muted, #f3f4f6);
   color: var(--ui-text-muted, #5f6875);
   font-size: 12px;
@@ -304,7 +314,7 @@
 }
 
 .pcrr-draft strong { color: var(--ui-text, #171717); font-weight: 500; }
-.pcrr-draft.is-empty { color: var(--ui-primary, #f03e46); }
+.pcrr-draft.is-empty { color: var(--ui-primary, #fa322d); }
 
 /* 结果区 */
 .pcrr-out {
@@ -313,7 +323,7 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--ui-border, #e5e7eb);
-  border-radius: 10px;
+  border-radius: var(--ui-radius, 8px);
   background: var(--ui-bg-muted, #f3f4f6);
   overflow-y: auto;
 }
@@ -361,8 +371,8 @@
 .pcrr-spin {
   width: 13px;
   height: 13px;
-  border: 2px solid color-mix(in srgb, var(--ui-primary, #f03e46) 25%, transparent);
-  border-top-color: var(--ui-primary, #f03e46);
+  border: 2px solid color-mix(in srgb, var(--ui-primary, #fa322d) 25%, transparent);
+  border-top-color: var(--ui-primary, #fa322d);
   border-radius: 50%;
   animation: pcrr-rot .7s linear infinite;
 }
@@ -371,7 +381,7 @@
 
 .pcrr-err {
   padding: 12px;
-  color: var(--ui-primary, #f03e46);
+  color: var(--ui-error, #dc2626);
   font-size: 12.5px;
   line-height: 1.7;
 }
@@ -409,12 +419,31 @@
   text-overflow: ellipsis;
 }
 
+/* Token 胶囊：与服务端返回的用量对齐显示 */
+.pcrr-usage {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border: 1px solid var(--ui-border, #e5e7eb);
+  border-radius: 999px;
+  background: var(--ui-bg-muted, #f3f4f6);
+  color: var(--ui-text-muted, #5f6875);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pcrr-usage:empty { display: none; }
+.pcrr-usage.is-est { opacity: .86; }
+
 .pcrr-btn {
   flex: none;
   height: 30px;
   padding: 0 11px;
   border: 1px solid var(--ui-border, #e5e7eb);
-  border-radius: 8px;
+  border-radius: var(--ui-radius-sm, 6px);
   background: var(--ui-bg-elevated, #fff);
   color: var(--ui-text, #171717);
   font: inherit;
@@ -427,8 +456,8 @@
 .pcrr-btn:active { transform: scale(.97); }
 
 .pcrr-btn.is-primary {
-  border-color: var(--ui-primary, #f03e46);
-  background: var(--ui-primary, #f03e46);
+  border-color: var(--ui-primary, #fa322d);
+  background: var(--ui-primary, #fa322d);
   color: #fff;
   font-weight: 500;
 }
@@ -477,6 +506,7 @@ html.dark .pcrr-ink { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
   .pcrr-tool svg { width: 12px; height: 12px; }
   .pcrr-model { display: none; }
   .pcrr-tip { display: none; }
+  .pcrr-usage { display: none; }
   .pcrr-body { padding: 10px; }
 }
 
