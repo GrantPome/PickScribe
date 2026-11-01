@@ -1277,6 +1277,7 @@
   let lock = false;        // 同步锁，防止双向同步互相触发形成死循环
   let pendingBack = null;  // 站点弹窗完成后「自动切回可视化」的一次性监听，切视图时需清理
   let lastTaValue = null;  // 最近一次「脚本自己写入」的 textarea 值，用于识别外部（框架）改写
+  let lastRichRange = null; // 最后一次落在富文本编辑区内的选区，供切到源码视图时映射光标
 
   /** 工具按钮工厂 */
   function makeBtn(opts) {
@@ -1941,18 +1942,66 @@
     return out;
   }
 
+  /** 富文本光标映射用的临时标记：只含字母数字，不会被 Markdown 转义成别的字符 */
+  const CARET_MARK = 'PcrCaretMarker9Qz';
+
+  /** 记住最近一次落在编辑区内的选区（焦点离开编辑区后，仍可用它映射源码光标） */
+  function rememberRichRange() {
+    if (!editor) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    if (!editor.contains(r.startContainer) || !editor.contains(r.endContainer)) return;
+    lastRichRange = r.cloneRange();
+  }
+
   /**
-   * 把富文本光标位置同步到原生 textarea。
-   * 站点原生弹窗是把 Markdown 插入到 textarea 光标处的，可视化模式下 textarea 隐藏、
-   * 光标位置失效，这里把插入点放到文末，保证内容能落到正确位置。
-   * force=true 时即使 textarea 已聚焦也强制放到文末（脚本主动切视图时用）。
+   * 把富文本区当前光标映射成 Markdown 源码里的字符偏移。
+   * 做法：在光标处插入一个唯一标记 → 整篇转成 Markdown → 查到标记的位置 → 移除标记。
+   * 这样不用自己推算「##」「**」「![]()」这些语法字符占了多少位，行内样式 / 链接 / 图片都能对上。
+   * 光标不在编辑区（或标记被转换逻辑吞掉）时返回 null，由调用方决定回退位置。
    */
-  function syncCaretToTextarea(force) {
+  function richCaretMarkdownOffset() {
+    if (!editor) return null;
+    const sel = window.getSelection();
+    let range = null;
+    if (sel && sel.rangeCount && editor.contains(sel.getRangeAt(0).startContainer)) {
+      range = sel.getRangeAt(0);
+    } else if (lastRichRange && editor.contains(lastRichRange.startContainer)) {
+      range = lastRichRange;
+    }
+    if (!range) return null;
+
+    // 有选中文字时映射到选区起点，与「插入」的落点保持一致
+    const caret = range.cloneRange();
+    caret.collapse(true);
+    const mark = document.createTextNode(CARET_MARK);
+    let parent = null;
+    try {
+      caret.insertNode(mark);
+      parent = mark.parentNode;
+      const idx = htmlToMd(editor).indexOf(CARET_MARK);
+      return idx >= 0 ? idx : null;
+    } catch (e) {
+      return null;
+    } finally {
+      // 移除临时标记，把被拆开的文本节点合回去，编辑区内容保持原样
+      if (parent && mark.parentNode === parent) parent.removeChild(mark);
+      if (parent && parent.normalize) parent.normalize();
+    }
+  }
+
+  /**
+   * 把给定偏移写进原生 textarea 的光标位置。
+   * 站点原生弹窗会把 Markdown 插入到 textarea 光标处，所以切到源码视图前要先把光标
+   * 放到「富文本里用户正在写的位置」，而不是文末。offset 为 null 时才回退到文末。
+   */
+  function syncCaretToTextarea(offset) {
     if (!textarea) return;
     try {
-      if (!force && document.activeElement === textarea) return; // 用户自己在源码模式编辑时尊重其光标
-      const end = textarea.value.length;
-      textarea.setSelectionRange(end, end);
+      let pos = (offset == null || offset < 0) ? textarea.value.length : offset;
+      pos = Math.min(pos, textarea.value.length);
+      textarea.setSelectionRange(pos, pos);
     } catch (e) { /* noop */ }
   }
 
@@ -1980,7 +2029,7 @@
    *     延后到 focus 执行完之后。
    */
   function delegateSiteAction(labels, friendlyName) {
-    const clickNative = () => {
+    const clickNative = (caret) => {
       const btn = findSiteButton(labels);   // 每次重新查找，避免用到已被重渲染替换的旧节点
       if (!btn) {
         console.warn('[Pickcat 富文本编辑器] 未找到站点原生按钮：' + friendlyName,
@@ -1988,17 +2037,23 @@
         toast('未找到站点的「' + friendlyName + '」按钮，请改用站点原生工具栏');
         return;
       }
-      syncCaretToTextarea(true);            // 让站点把内容插入到文末
+      if (caret != null) syncCaretToTextarea(caret);   // 让站点把内容插入到用户光标处
       btn.click();
     };
 
-    // 已经是源码 / 分屏视图时，原生编辑器可见，直接点击即可
-    if (mode !== 'rich') { clickNative(); return; }
+    // 已经是源码 / 分屏视图时，原生编辑器可见，直接点击即可：
+    // 源码侧编辑保留 textarea 原光标；分屏里光标仍在富文本侧时，同样映射过去
+    if (mode !== 'rich') {
+      const caret = (mode === 'split' && document.activeElement !== textarea) ? richCaretMarkdownOffset() : null;
+      clickNative(caret);
+      return;
+    }
 
-    setMode('source');
+    // setMode 会把富文本选区映射成源码偏移，这里复用它，避免切换后选区失效导致映射不准
+    const caret = setMode('source');
     toast('已切到源码视图以显示「' + friendlyName + '」窗口，选择完成后会自动返回可视化');
     // 等 setMode 的异步 focus 执行完再点击，避免弹窗刚打开就被焦点变化打断
-    setTimeout(clickNative, 80);
+    setTimeout(() => clickNative(caret), 80);
     // 站点把内容写回 textarea 后会触发 input，捕获到就自动切回可视化（一次性）
     const back = () => {
       textarea.removeEventListener('input', back);
@@ -2175,6 +2230,8 @@
       b.className = NS + '-tab';
       b.dataset.mode = t.m;
       b.innerHTML = t.icon + '<span>' + t.label + '</span>';
+      // 保住编辑区焦点与选区：切到源码时才能把光标映射到同一位置
+      b.addEventListener('mousedown', (e) => e.preventDefault());
       b.addEventListener('click', () => setMode(t.m));
       tabs.appendChild(b);
     });
@@ -2414,6 +2471,7 @@
       if (!editor) return;
       if (document.activeElement === editor || editor.contains(window.getSelection() && window.getSelection().anchorNode)) {
         refreshToolbarState();
+        rememberRichRange();   // 记下光标，切到源码时用它映射位置
       }
     });
     editor.addEventListener('mouseup', () => setTimeout(updateFloatMenu, 0));
@@ -2524,14 +2582,20 @@
     }
   }
 
-  /** 切换视图模式 */
+  /**
+   * 切换视图模式。
+   * 返回值：切到源码视图时本次使用的 Markdown 光标偏移（供调用方复用，如 site 弹窗插入），
+   * 其它情况返回 null。
+   */
   function setMode(next) {
     // 任何视图切换都先清掉上一轮遗留的「自动切回」监听，避免之后被意外触发
     if (pendingBack) {
       textarea && textarea.removeEventListener('input', pendingBack);
       pendingBack = null;
     }
+    const prevMode = mode;
     mode = next;
+    let caretOut = null;
     if (!root) return;
     root.querySelectorAll('.' + NS + '-tab').forEach((t) => t.classList.toggle('is-on', t.dataset.mode === next));
     // 分屏对照时，在富文本区与站点源码区之间画一条横向分割线
@@ -2557,19 +2621,36 @@
     syncNativeToolbar(next === 'source');
 
     if (next === 'source') {
-      // 以富文本为准，刷新源码，并把焦点交给原生输入框
+      // 用户本来就在源码侧编辑（分屏）：保留它在 textarea 里的光标，不要重新映射
+      const editingSource = textarea && document.activeElement === textarea;
+      caretOut = editingSource ? null : richCaretMarkdownOffset();
+      const prevSel = textarea ? { s: textarea.selectionStart, e: textarea.selectionEnd } : null;
+      // 以富文本为准，刷新源码
       richToSource();
       closeFloatMenu();
-      setTimeout(() => textarea && textarea.focus(), 0);
+      setTimeout(() => {
+        if (!textarea || mode !== 'source') return;
+        textarea.focus();
+        if (caretOut != null) syncCaretToTextarea(caretOut);
+        else if (editingSource && prevSel && prevSel.s != null) {
+          // 分屏切过来：光标停在原来源码里的位置，不要跳到文末
+          try { textarea.setSelectionRange(prevSel.s, prevSel.e); } catch (e) { /* noop */ }
+        }
+      }, 0);
     } else if (next === 'split') {
-      // 分屏：以富文本为准刷新源码，两边同时可见
+      // 分屏：以富文本为准刷新源码，并把光标映射到源码侧，两边看到同一个位置。
+      // 必须等 richToSource 写完 textarea 再设光标（重写 value 会把选区重置到文末）
+      const editingSource = textarea && document.activeElement === textarea;
+      const caret = editingSource ? null : richCaretMarkdownOffset();
       richToSource();
+      if (caret != null) syncCaretToTextarea(caret);
     } else {
       // 回到可视化：以源码为准刷新富文本（用户可能刚在源码里改过）
       sourceToRich();
     }
     // 查找浮层开着时，视图切换会改变查找目标（富文本 ↔ 原生输入框），重新扫描一次
     if (findPop) runFind(false, { quiet: true });
+    return caretOut;
   }
 
   // ============================ 8. 挂载与 SPA 监听 ============================

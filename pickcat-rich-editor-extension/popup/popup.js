@@ -1,16 +1,32 @@
 /**
- * Popup：分区切换「AI 助手 / 收藏 Plus」。
- *   - AI 区：沿用原有开关与服务商 / 模型快速切换；
- *   - 收藏 Plus 区：挂载与标签页工作台完全相同的管理台（favorites/console.js），
- *     弹窗宽度按 PRD 4.3 以 790px 设计基准向下自适应，切回 AI 区恢复窄宽度。
+ * Popup：AI 助手快捷面板。
+ *   - 沿用原有开关与服务商 / 模型快速切换；
+ *   - 主题与设置页保持一致（pco_theme，system 跟随系统）。
  */
-import { PROVIDERS, getProvider, DEFAULT_CONFIG } from '../shared/constants.js';
+import { getProvider, DEFAULT_CONFIG } from '../shared/constants.js';
 import { getConfig, patchConfig } from '../shared/storage.js';
-import { mountConsole } from '../favorites/console.js';
 
 const $ = (id) => document.getElementById(id);
 
 let config = { ...DEFAULT_CONFIG };
+
+// ============================ 主题 ============================
+
+/** 与设置页同一个主题键（pco_theme），system 时跟随操作系统深色偏好 */
+async function applyTheme() {
+  try {
+    const raw = await chrome.storage.local.get('pco_theme');
+    const mode = raw && raw.pco_theme;
+    document.documentElement.dataset.theme = mode === 'light' || mode === 'dark' ? mode : 'system';
+  } catch (e) {
+    // 非扩展环境读不到设置时保持跟随系统
+    document.documentElement.dataset.theme = 'system';
+  }
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.pco_theme) applyTheme();
+});
 
 // ============================ AI 区 ============================
 
@@ -32,6 +48,7 @@ function render() {
 }
 
 (async () => {
+  await applyTheme();
   config = { ...DEFAULT_CONFIG, ...(await getConfig()) };
   render();
 })();
@@ -48,37 +65,4 @@ $('model').addEventListener('change', async (e) => {
 $('openOptions').addEventListener('click', () => {
   chrome.runtime.openOptionsPage();
   window.close();
-});
-
-// ============================ 分区切换 ============================
-
-let consoleApi = null;
-let consoleReady = false;
-
-async function showSection(sec) {
-  document.querySelectorAll('.tab').forEach((b) => {
-    b.classList.toggle('is-on', b.getAttribute('data-sec') === sec);
-  });
-  $('sec-ai').hidden = sec !== 'ai';
-  $('sec-fav').hidden = sec !== 'fav';
-  document.body.classList.toggle('wide', sec === 'fav');
-
-  if (sec === 'fav' && !consoleReady) {
-    consoleReady = true;
-    consoleApi = mountConsole($('favRoot'), {
-      mode: 'popup',
-      onOpenTab: () => {
-        chrome.tabs.create({ url: chrome.runtime.getURL('favorites/favorites.html') });
-        window.close();
-      }
-    });
-    await consoleApi.init();
-  } else if (sec === 'fav' && consoleApi) {
-    // 每次切回都刷新，保证在站点上的改动能即时反映
-    await consoleApi.refresh();
-  }
-}
-
-document.querySelectorAll('.tab').forEach((b) => {
-  b.addEventListener('click', () => showSection(b.getAttribute('data-sec')));
 });

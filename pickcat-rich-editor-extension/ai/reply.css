@@ -488,8 +488,15 @@
 
 /* ============================ 7. 深色与窄屏 ============================ */
 
-html.dark #pcrr-panel { box-shadow: 0 24px 64px rgba(0, 0, 0, .5); }
-html.dark .pcrr-ink { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+html.dark #pcrr-panel,
+html[data-theme="dark"] #pcrr-panel { box-shadow: 0 24px 64px rgba(0, 0, 0, .5); }
+html.dark .pcrr-ink,
+html[data-theme="dark"] .pcrr-ink { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] #pcrr-panel { box-shadow: 0 24px 64px rgba(0, 0, 0, .5); }
+  html[data-theme="system"] .pcrr-ink { box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+}
 
 @media (max-width: 560px) {
   #pcrr-panel {

@@ -183,12 +183,19 @@ html.pcs-search.pcs-empty .pcs-hero {
   display: none;
 }
 
-html.dark .pcs-logo-dark {
+html.dark .pcs-logo-dark,
+html[data-theme="dark"] .pcs-logo-dark {
   display: block;
 }
 
-html.dark .pcs-logo-light {
+html.dark .pcs-logo-light,
+html[data-theme="dark"] .pcs-logo-light {
   display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] .pcs-logo-dark { display: block; }
+  html[data-theme="system"] .pcs-logo-light { display: none; }
 }
 
 /* 图片加载失败时退回文字品牌，避免破图 */

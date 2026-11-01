@@ -5,7 +5,7 @@
  *   1. 浮层只做一层很薄的背景模糊，磁贴本身是视觉主体，不再套不透明白卡；
  *   2. 磁贴按 small / wide / large 三档尺寸铺进两列网格，顺序与尺寸都由用户配置；
  *   3. 颜色仍取站点 --ui-* 令牌，深浅色自动跟随，磁贴渐变在深色下也不会刺眼；
- *   4. 右侧内容区是一块半透明玻璃卡片，承载社区精选 / 收藏 / 快捷导航；
+ *   4. 右侧内容区是一块半透明玻璃卡片，承载社区精选 / 快捷导航；
  *   5. 动效沿用站内节奏：420ms、cubic-bezier(.22,1,.36,1)，悬停只提亮不位移。
  *
  * 磁贴尺寸由 content.js 写在磁贴节点上：
@@ -53,7 +53,9 @@
   transition: opacity 0.32s var(--pch-ease);
 }
 
-html.dark #pch-root {
+/* 站点深色：html.dark 或 data-theme="dark"；system 由下方媒体查询跟随系统偏好 */
+html.dark #pch-root,
+html[data-theme="dark"] #pch-root {
   --pch-bg: var(--ui-bg, #1c1c1e);
   --pch-page: var(--ui-bg-muted, #0f0f10);
   --pch-elevated: var(--ui-bg-elevated, #2c2c2e);
@@ -65,6 +67,22 @@ html.dark #pch-root {
   --pch-faint: var(--ui-text-dimmed, oklch(55.6% 0 none));
   --pch-border: var(--ui-border, oklch(26.9% 0 none));
   --pch-primary: var(--ui-primary, color-mix(in oklab, #fa322d 80%, #fff));
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] #pch-root {
+    --pch-bg: var(--ui-bg, #1c1c1e);
+    --pch-page: var(--ui-bg-muted, #0f0f10);
+    --pch-elevated: var(--ui-bg-elevated, #2c2c2e);
+    --pch-input: var(--ui-bg-input, #2c2c2e);
+    --pch-muted: var(--ui-bg-muted, #0f0f10);
+    --pch-text: var(--ui-text, oklch(92.2% 0 none));
+    --pch-strong: var(--ui-text-highlighted, #ffffff);
+    --pch-dim: var(--ui-text-muted, oklch(70.8% 0 none));
+    --pch-faint: var(--ui-text-dimmed, oklch(55.6% 0 none));
+    --pch-border: var(--ui-border, oklch(26.9% 0 none));
+    --pch-primary: var(--ui-primary, color-mix(in oklab, #fa322d 80%, #fff));
+  }
 }
 
 #pch-root *,
@@ -632,7 +650,7 @@ html.pch-scroll-lock body {
   color: var(--pch-text);
 }
 
-/* ---- 帖子 / 收藏列表 ---- */
+/* ---- 帖子列表 ---- */
 
 .pch-list {
   display: flex;
@@ -711,22 +729,6 @@ html.pch-scroll-lock body {
 .pch-post:focus-visible .pch-post-arrow {
   opacity: 1;
   transform: none;
-}
-
-.pch-tag {
-  display: inline-flex;
-  align-items: center;
-  max-width: 96px;
-  margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--pch-primary) 9%, transparent);
-  color: color-mix(in srgb, var(--pch-primary) 82%, var(--pch-text));
-  font-size: 10.5px;
-  vertical-align: 1px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 /* ---- 骨架屏 / 空状态 ---- */

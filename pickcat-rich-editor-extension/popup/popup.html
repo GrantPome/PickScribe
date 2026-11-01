@@ -1,19 +1,12 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="system">
 <head>
   <meta charset="UTF-8" />
   <title>PickScribe</title>
   <link rel="stylesheet" href="popup.css" />
-  <link rel="stylesheet" href="../favorites/console.css" />
 </head>
 <body>
-  <!-- 分区切换：共用同一个扩展图标与弹窗入口，不新增第二个工具栏入口（UI-02 / 4.7） -->
-  <nav class="tabs">
-    <button class="tab is-on" data-sec="ai">AI 助手</button>
-    <button class="tab" data-sec="fav">收藏 Plus</button>
-  </nav>
-
-  <!-- ================= 分区一：AI 总结 ================= -->
+  <!-- ================= AI 总结 ================= -->
   <section class="sec" id="sec-ai">
     <div class="head">
       <span class="logo">AI 总结</span>
@@ -37,11 +30,6 @@
     <div class="foot">
       <button id="openOptions" class="btn">AI 设置</button>
     </div>
-  </section>
-
-  <!-- ================= 分区二：收藏夹 Plus（管理主工作台） ================= -->
-  <section class="sec" id="sec-fav" hidden>
-    <div class="fav-root" id="favRoot"></div>
   </section>
 
   <script type="module" src="popup.js"></script>

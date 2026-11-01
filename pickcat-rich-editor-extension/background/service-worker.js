@@ -133,13 +133,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
-  // 起始页浮层里的「收藏工作台」入口：内容脚本不能直接打开 chrome-extension:// 页面，
-  // 交给后台开新标签页。
-  if (msg && msg.type === 'open-favorites') {
-    chrome.tabs.create({ url: chrome.runtime.getURL('favorites/favorites.html') });
-    sendResponse({ ok: true });
-    return true;
-  }
   // 设置页「发送测试通知」：验证 chrome.notifications 与系统通知权限
   if (msg && msg.type === 'notify-test') {
     sendTestNotification();

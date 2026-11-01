@@ -53,10 +53,6 @@
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg>
             起始页浮层
           </a>
-          <a class="nav-item" href="#sec-fav">
-            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21 12 16.5 5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/></svg>
-            收藏夹 Plus
-          </a>
           <a class="nav-item" href="#sec-search">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
             搜索页
@@ -136,78 +132,7 @@
           <button id="homeReset" class="btn" type="button">恢复默认布局</button>
         </div>
 
-        <p class="note">浮层只读取首页已有内容与本地收藏，不额外请求接口。关闭后不再自动弹出，其他功能不受影响。</p>
-      </section>
-
-      <!-- 收藏夹 Plus -->
-      <section class="card" id="sec-fav">
-        <div class="card-head">
-          <h2>收藏夹 Plus</h2>
-          <p>为站点收藏补充分组、标签、备注与检索。此区改动即时生效，无需点右上角保存。</p>
-        </div>
-
-        <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="favEnabled" />
-            <span>启用收藏夹 Plus（弹窗入口 + 站点注入）</span>
-          </label>
-        </div>
-
-        <div class="divider"></div>
-
-        <h3 class="sub-head">默认行为</h3>
-        <div class="grid">
-          <label class="field">
-            <span>收藏时行为</span>
-            <select id="favBehavior"></select>
-          </label>
-          <label class="field">
-            <span>站点取消收藏时</span>
-            <select id="favUnfavorite"></select>
-          </label>
-          <label class="field">
-            <span>同步触发频率</span>
-            <select id="favSyncFreq"></select>
-          </label>
-          <label class="field">
-            <span>默认视图</span>
-            <select id="favDensity"></select>
-          </label>
-          <label class="field">
-            <span>默认排序</span>
-            <select id="favSort"></select>
-          </label>
-          <label class="field">
-            <span>外观主题</span>
-            <select id="favTheme"></select>
-          </label>
-        </div>
-
-        <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="favSiteInject" />
-            <span>在帖子详情页注入收藏归组（浮动条 / 角标）</span>
-          </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="favAllowExternal" />
-            <span>允许与站点通信以外的外部请求</span>
-          </label>
-        </div>
-
-        <p class="note">分组、标签与备注只保存在本机，除站点自身请求外不发起外部请求。站点收藏夹自动同步将在后续版本接入，当前可用导出 / 导入迁移数据。</p>
-
-        <div class="divider"></div>
-
-        <h3 class="sub-head">数据迁移</h3>
-        <div class="row">
-          <button id="favExportJson" class="btn">导出收藏夹（JSON）</button>
-          <button id="favExportCsv" class="btn">导出 CSV</button>
-          <button id="favExportMd" class="btn">导出 Markdown</button>
-          <button id="favImportBtn" class="btn">导入合并</button>
-          <input id="favImportFile" type="file" accept="application/json" hidden />
-          <button id="favClear" class="btn danger">清空本地收藏数据</button>
-        </div>
-        <p class="note" id="favStats"></p>
+        <p class="note">浮层只读取首页已有内容，不额外请求接口。关闭后不再自动弹出，其他功能不受影响。</p>
       </section>
 
       <!-- 搜索页 -->
@@ -458,7 +383,7 @@
           <img class="about-logo" src="../icons/logo.svg" alt="PickScribe 图标" width="56" height="56" />
           <div class="about-meta">
             <p class="about-name">PickScribe <span class="about-ver" id="aboutVersion">v3.4.2</span></p>
-            <p class="about-desc">Pickcat 富文本编辑器与 AI 助手：可视化编辑、帖子总结、AI 回帖与收藏夹增强。</p>
+            <p class="about-desc">Pickcat 富文本编辑器与 AI 助手：可视化编辑、帖子总结与 AI 回帖。</p>
           </div>
         </div>
 

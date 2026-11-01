@@ -18,8 +18,7 @@
  *
  * 内容来源：
  *   - 社区精选：直接读取首页信息流已有的 article[data-slot="root"]，不发任何额外网络请求；
- *   - 我的收藏：读取收藏夹 Plus 的本地数据 pcf_items；
- *   - 快捷导航：站内固定入口 + 扩展设置 / 收藏工作台。
+ *   - 快捷导航：站内固定入口 + 扩展设置。
  *
  * 工程约定与站内其他模块一致：经典内容脚本、pch- 前缀、复用站点 --ui-* 设计令牌、
  * 常驻路由看护（离开首页立即收起），不修改站点任何业务逻辑。
@@ -31,7 +30,6 @@
   // ============================ 0. 常量 ============================
 
   const HOME_KEY = 'pcr_home';          // 起始页设置
-  const FAV_ITEMS_KEY = 'pcf_items';    // 收藏夹 Plus 的收藏项映射
   const HOME_PATHS = ['/', '/forum'];   // 视为「社区首页」的路径
 
   /** 默认配置：与 options.js 中的定义保持一致 */
@@ -47,17 +45,16 @@
       { id: 'search', size: 'small' },
       { id: 'notifications', size: 'small' },
       { id: 'works', size: 'small' },
-      { id: 'fav-tab', size: 'small' },
       { id: 'settings', size: 'small' },
       { id: 'back', size: 'small' }
     ],
-    tabs: ['feed', 'fav', 'nav']
+    tabs: ['feed', 'nav']
   };
 
   const TILE_SIZES = ['small', 'wide', 'large'];
 
   /** 旧版默认顺序（返回社区大磁贴在最前），用于把没改过顺序的用户平滑迁到新顺序 */
-  const LEGACY_TILE_ORDER = 'back:large,compose:small,search:small,notifications:small,works:small,fav-tab:small,settings:small';
+  const LEGACY_TILE_ORDER = 'back:large,compose:small,search:small,notifications:small,works:small,settings:small';
 
   /** 磁贴定义。顺序即设置页里的展示顺序；color 是磁贴的纯色底色 */
   const TILES = {
@@ -81,10 +78,6 @@
       label: '作品', sub: '浏览作品广场', act: 'works', ico: 'works',
       color: '#7a4dd8'
     },
-    'fav-tab': {
-      label: '收藏', sub: '查看最近收藏', act: 'fav-tab', ico: 'bookmark',
-      color: '#c98a24'
-    },
     library: {
       label: '图盘', sub: '管理上传过的图片', act: 'library', ico: 'image',
       color: '#14807a'
@@ -102,7 +95,6 @@
   /** 内容标签页定义 */
   const TABS = {
     feed: { label: '社区精选' },
-    fav: { label: '我的收藏' },
     nav: { label: '快捷导航' }
   };
 
@@ -121,7 +113,6 @@
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
     works: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
-    bookmark: '<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/>',
     sliders: '<path d="M4 6h16"/><circle cx="9" cy="6" r="2.5"/><path d="M4 12h16"/><circle cx="15" cy="12" r="2.5"/><path d="M4 18h16"/><circle cx="9" cy="18" r="2.5"/>',
     close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     arrow: '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
@@ -142,7 +133,6 @@
   let feedTimer = null;
   let routeTimer = null;
   let feedAttempts = 0;
-  let favLoading = false;
 
   // ============================ 2. 工具函数 ============================
 
@@ -197,18 +187,6 @@
       if (!isNaN(d.getTime())) return (d.getMonth() + 1) + '/' + d.getDate();
     }
     return text;
-  }
-
-  function relativeTime(ts) {
-    const n = Number(ts) || 0;
-    if (!n) return '';
-    const diff = Date.now() - n;
-    if (diff < 60 * 1000) return '刚刚';
-    if (diff < 60 * 60 * 1000) return Math.floor(diff / 60000) + ' 分钟前';
-    if (diff < 24 * 60 * 60 * 1000) return Math.floor(diff / 3600000) + ' 小时前';
-    if (diff < 7 * 24 * 60 * 60 * 1000) return Math.floor(diff / 86400000) + ' 天前';
-    const d = new Date(n);
-    return (d.getMonth() + 1) + '/' + d.getDate();
   }
 
   function $(selector) {
@@ -335,7 +313,6 @@
     ].map(navCard).join('');
 
     const extLinks = [
-      { name: '收藏工作台', desc: '分组、标签、备注与检索', act: 'fav-console', ico: 'bookmark' },
       { name: 'PickScribe 设置', desc: 'AI 模型与起始页开关', act: 'settings', ico: 'sliders' }
     ].map(navCard).join('');
 
@@ -385,10 +362,6 @@
             paneOpen(c, 'feed') +
               '<div class="pch-pane-head"><h3>社区里正在发生</h3><a class="pch-text-btn" href="/">打开社区 →</a></div>' +
               '<div class="pch-list" id="pchFeedList">' + skeletonHtml(5) + '</div>' +
-            '</section>' +
-            paneOpen(c, 'fav') +
-              '<div class="pch-pane-head"><h3>最近收藏</h3><button type="button" class="pch-text-btn" data-act="fav-console">收藏工作台 →</button></div>' +
-              '<div class="pch-list" id="pchFavList"></div>' +
             '</section>' +
             paneOpen(c, 'nav') +
               navHtml() +
@@ -511,68 +484,6 @@
       feedTimer = setTimeout(tick, 700);
     };
     tick();
-  }
-
-  function favRow(item) {
-    const href = safeHref(item.url || ('/forum/post/' + item.id));
-    const tags = (Array.isArray(item.tags) ? item.tags : [])
-      .filter((t) => typeof t === 'string' && t)
-      .slice(0, 2);
-    const meta = [item.author, relativeTime(item.savedAt)].filter(Boolean).join(' · ');
-    const tagHtml = tags.map((t) => '<span class="pch-tag">#' + escapeHtml(t) + '</span>').join('');
-    const title = item.title || item.url || '未命名收藏';
-    const inner = '<span class="pch-post-idx">' + icon('bookmark', 16) + '</span>' +
-      '<span class="pch-post-body">' +
-        '<span class="pch-post-title">' + escapeHtml(title) + '</span>' +
-        '<span class="pch-post-meta">' + escapeHtml(meta) + tagHtml + '</span>' +
-      '</span>' +
-      '<span class="pch-post-arrow">' + icon('arrow', 16) + '</span>';
-
-    if (!href) {
-      return '<div class="pch-post">' + inner + '</div>';
-    }
-    return '<a class="pch-post" href="' + escapeAttr(href) + '">' + inner + '</a>';
-  }
-
-  function renderFavorites() {
-    const list = $('#pchFavList');
-    if (!list || favLoading) return;
-
-    favLoading = true;
-    list.innerHTML = skeletonHtml(3);
-
-    try {
-      chrome.storage.local.get(FAV_ITEMS_KEY, (raw) => {
-        favLoading = false;
-        if (!root || closed) return;
-        if (chrome.runtime.lastError) {
-          list.innerHTML = '<div class="pch-empty"><strong>读取收藏失败</strong><span>请稍后重试。</span></div>';
-          return;
-        }
-
-        const map = (raw && raw[FAV_ITEMS_KEY]) || {};
-        const items = Object.keys(map)
-          .map((k) => map[k])
-          .filter((it) => it && it.id && it.dead !== 'dead')
-          .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))
-          .slice(0, 10);
-
-        if (!items.length) {
-          list.innerHTML = '<div class="pch-empty">' +
-            '<span class="pch-empty-icon">' + icon('bookmark', 22) + '</span>' +
-            '<strong>还没有本地收藏</strong>' +
-            '<span>在帖子详情页点收藏后，这里会显示最近收藏的帖子。</span>' +
-            '<button type="button" class="pch-cta" data-act="fav-console">打开收藏工作台</button>' +
-            '</div>';
-          return;
-        }
-
-        list.innerHTML = items.map(favRow).join('');
-      });
-    } catch (e) {
-      favLoading = false;
-      list.innerHTML = '<div class="pch-empty"><strong>读取收藏失败</strong><span>请稍后重试。</span></div>';
-    }
   }
 
   function updateClock() {
@@ -711,7 +622,6 @@
     repaintTabInk(true);
 
     if (name === 'feed') startFeedPolling();
-    if (name === 'fav') renderFavorites();
   }
 
   function openSearch() {
@@ -783,14 +693,6 @@
         break;
       case 'account':
         go('/settings');
-        break;
-      case 'fav-tab':
-        // 收藏标签页被隐藏时，退回到收藏工作台
-        if (cfg && cfg.tabs.indexOf('fav') !== -1) setTab('fav');
-        else sendMessage({ type: 'open-favorites' });
-        break;
-      case 'fav-console':
-        sendMessage({ type: 'open-favorites' });
         break;
       case 'settings':
         sendMessage({ type: 'open-options' });
@@ -1015,7 +917,6 @@
     }
 
     if (activeTab === 'feed') startFeedPolling();
-    if (activeTab === 'fav') renderFavorites();
 
     // 常驻路由看护：万一站点站内跳转离开首页，立即收起浮层
     routeTimer = setInterval(() => {

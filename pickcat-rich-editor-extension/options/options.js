@@ -9,13 +9,6 @@ import {
 } from '../shared/constants.js';
 import { getConfig, setConfig, clearCache, exportAll, importAll, getUsageStats, clearUsageStats } from '../shared/storage.js';
 import { chat, estimateTokens, estimateMessagesTokens } from '../background/llm-client.js';
-import {
-  BEHAVIOR_OPTIONS, ON_UNFAVORITE_OPTIONS, SYNC_FREQ_OPTIONS, DENSITY_OPTIONS,
-  SORT_OPTIONS, THEME_OPTIONS,
-  getSettings as getFavSettings, patchSettings as patchFavSettings,
-  exportJSON as exportFavJSON, exportCSV as exportFavCSV, exportMarkdown as exportFavMD,
-  importJSON as importFavJSON, resetFavorites, getCounts as getFavCounts
-} from '../shared/favorites.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -276,17 +269,16 @@ const HOME_DEFAULTS = {
     { id: 'search', size: 'small' },
     { id: 'notifications', size: 'small' },
     { id: 'works', size: 'small' },
-    { id: 'fav-tab', size: 'small' },
     { id: 'settings', size: 'small' },
     { id: 'back', size: 'small' }
   ],
-  tabs: ['feed', 'fav', 'nav']
+  tabs: ['feed', 'nav']
 };
 
 const HOME_TILE_SIZES = ['small', 'wide', 'large'];
 
 /** 旧版默认顺序（返回社区大磁贴在最前），用于把没改过顺序的用户平滑迁到新顺序 */
-const LEGACY_TILE_ORDER = 'back:large,compose:small,search:small,notifications:small,works:small,fav-tab:small,settings:small';
+const LEGACY_TILE_ORDER = 'back:large,compose:small,search:small,notifications:small,works:small,settings:small';
 const HOME_TILE_SIZE_LABELS = { small: '小', wide: '宽', large: '大' };
 
 const HOME_TILES = {
@@ -295,13 +287,12 @@ const HOME_TILES = {
   search: { label: '搜索', sub: '查找帖子、用户与关键词' },
   notifications: { label: '消息', sub: '回复、点赞与系统通知' },
   works: { label: '作品', sub: '浏览作品广场' },
-  'fav-tab': { label: '收藏', sub: '查看最近收藏' },
   library: { label: '图盘', sub: '管理上传过的图片' },
   account: { label: '账号设置', sub: '资料、头像与偏好' },
   settings: { label: '设置', sub: 'PickScribe 设置' }
 };
 
-const HOME_TABS = { feed: '社区精选', fav: '我的收藏', nav: '快捷导航' };
+const HOME_TABS = { feed: '社区精选', nav: '快捷导航' };
 
 let homeCfg = null;
 
@@ -597,118 +588,6 @@ $('homeReset').addEventListener('click', async () => {
 
 loadHomeSetting().catch((e) => setStatus('读取起始页设置失败：' + e.message, 'err'));
 
-// ============================ 收藏夹 Plus 设置（改动即时生效） ============================
-
-/** 触发浏览器下载 */
-function download(filename, text, type) {
-  const blob = new Blob([text], { type: type || 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function setFavStatus(text) {
-  const el = $('favStats');
-  if (el) el.textContent = text;
-}
-
-/** 刷新本地数据占用展示（SET-03 数据与隐私） */
-async function refreshFavStats() {
-  const c = await getFavCounts();
-  setFavStatus('当前本地数据：' + c.all + ' 条收藏、' + Object.keys(c.byGroup).length + ' 个分组，其中未分组 ' + c.inbox + ' 条。');
-}
-
-function initFavSelects() {
-  fillSelect($('favBehavior'), BEHAVIOR_OPTIONS, 'panel');
-  fillSelect($('favUnfavorite'), ON_UNFAVORITE_OPTIONS, 'keep');
-  fillSelect($('favSyncFreq'), SYNC_FREQ_OPTIONS, 'popup');
-  fillSelect($('favDensity'), DENSITY_OPTIONS, 'grid');
-  fillSelect($('favSort'), SORT_OPTIONS, 'time-desc');
-  fillSelect($('favTheme'), THEME_OPTIONS, 'system');
-}
-
-async function loadFav() {
-  const s = await getFavSettings();
-  initFavSelects();
-  $('favBehavior').value = s.behavior;
-  $('favUnfavorite').value = s.onUnfavorite;
-  $('favSyncFreq').value = s.syncFreq;
-  $('favDensity').value = s.density;
-  $('favSort').value = s.sort;
-  $('favTheme').value = s.theme;
-  $('favEnabled').checked = !!s.enabled;
-  $('favSiteInject').checked = !!s.siteInject;
-  $('favAllowExternal').checked = !!s.allowExternal;
-  await refreshFavStats();
-}
-
-/** 下拉与开关改动后立即写回 */
-function bindFavSetting(id, key, isCheck) {
-  $(id).addEventListener('change', async (e) => {
-    await patchFavSettings({ [key]: isCheck ? e.target.checked : e.target.value });
-    setFavStatus('收藏夹设置已保存');
-    await refreshFavStats();
-  });
-}
-
-bindFavSetting('favBehavior', 'behavior');
-bindFavSetting('favUnfavorite', 'onUnfavorite');
-bindFavSetting('favSyncFreq', 'syncFreq');
-bindFavSetting('favDensity', 'density');
-bindFavSetting('favSort', 'sort');
-bindFavSetting('favTheme', 'theme');
-bindFavSetting('favEnabled', 'enabled', true);
-bindFavSetting('favSiteInject', 'siteInject', true);
-bindFavSetting('favAllowExternal', 'allowExternal', true);
-
-// 导出（SYN-03）：JSON 完整备份 / CSV 多值列 / Markdown 人读
-$('favExportJson').addEventListener('click', async () => {
-  const data = await exportFavJSON();
-  download('pickscribe-favorites.json', JSON.stringify(data, null, 2));
-  setFavStatus('已导出收藏夹 JSON');
-});
-$('favExportCsv').addEventListener('click', async () => {
-  download('pickscribe-favorites.csv', await exportFavCSV(), 'text/csv;charset=utf-8');
-  setFavStatus('已导出收藏夹 CSV');
-});
-$('favExportMd').addEventListener('click', async () => {
-  download('pickscribe-favorites.md', await exportFavMD(), 'text/markdown;charset=utf-8');
-  setFavStatus('已导出收藏夹 Markdown');
-});
-
-// 导入合并（SYN-04）：以帖子 ID 判重
-$('favImportBtn').addEventListener('click', () => $('favImportFile').click());
-$('favImportFile').addEventListener('change', async (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-  try {
-    const data = JSON.parse(await file.text());
-    const r = await importFavJSON(data);
-    if (r && r.error) { setFavStatus('导入失败：' + r.error); return; }
-    setFavStatus('已导入合并：新增 ' + r.added + ' 条、更新 ' + r.merged + ' 条');
-    await refreshFavStats();
-  } catch (err) {
-    setFavStatus('导入失败：文件格式不正确');
-  }
-  e.target.value = '';
-});
-
-// 清空本地数据（SYN-05）：二次确认，且明确不影响站点收藏
-$('favClear').addEventListener('click', async () => {
-  const yes = confirm('将清空插件本地的分组、标签与备注，站点上的收藏不受影响，且此操作不可恢复。\n\n确认清空请输入「清空收藏夹」：');
-  if (!yes) { setFavStatus('已取消，未清空任何数据'); return; }
-  const word = prompt('请输入「清空收藏夹」以确认：');
-  if (word !== '清空收藏夹') { setFavStatus('确认词不匹配，已取消清空'); return; }
-  const n = await resetFavorites();
-  setFavStatus('已清空本地收藏数据（' + n + ' 条），站点收藏未受影响');
-  await refreshFavStats();
-});
-
-loadFav().catch((e) => setFavStatus('读取收藏夹设置失败：' + e.message));
-
 // ============================ 搜索页设置（改动即时生效） ============================
 
 /**
@@ -896,7 +775,7 @@ $('aboutVersion').textContent = 'v' + chrome.runtime.getManifest().version;
     items.forEach((it) => { if (it.sec.getBoundingClientRect().top <= LINE) cur = it; });
 
     // 末尾分区较短时，页面滚到底也越不过 LINE，此时直接高亮最后一项；
-    // 否则「AI 功能 / 关于」永远选不中（会一直停在收藏夹 Plus）。
+    // 否则「AI 功能 / 关于」永远选不中（会一直停在前一个分区）。
     const doc = document.documentElement;
     const scrollable = doc.scrollHeight - window.innerHeight > 120;
     const atBottom = window.innerHeight + window.scrollY >= doc.scrollHeight - 2;

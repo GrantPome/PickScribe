@@ -304,6 +304,13 @@
     error: 'oklch(50.5% 0.213 27.5)'
   };
 
+  // 站点未提供令牌时的深色兜底（站点令牌存在时以令牌为准）
+  const DARK = {
+    primary: 'color-mix(in oklab, #fa322d 80%, #fff)',
+    border: '#2f343c', surface: '#1e2127', canvas: '#23272e', input: '#262b33',
+    text: '#e7e9ee', subtle: '#9aa3b2', error: '#ff7b72'
+  };
+
   function injectStyle() {
     if (document.getElementById(NS + '-style')) return;
     const css = `
@@ -323,6 +330,28 @@
   --pcai-r: var(--ui-radius, .5rem);
   --pcai-rc: var(--ui-radius-sm, .375rem);
   --pcai-font: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+}
+html.dark, html[data-theme="dark"]{
+  --pcai-primary: var(--ui-primary, var(--ui-accent, ${DARK.primary}));
+  --pcai-border: var(--ui-border, ${DARK.border});
+  --pcai-surface: var(--ui-bg-elevated, var(--ui-surface, ${DARK.surface}));
+  --pcai-canvas: var(--ui-bg-muted, var(--ui-canvas, ${DARK.canvas}));
+  --pcai-input: var(--ui-bg-input, var(--ui-canvas, ${DARK.input}));
+  --pcai-text: var(--ui-text, var(--ui-foreground, ${DARK.text}));
+  --pcai-subtle: var(--ui-text-muted, var(--ui-muted, ${DARK.subtle}));
+  --pcai-error: var(--ui-error, ${DARK.error});
+}
+@media (prefers-color-scheme: dark){
+  html[data-theme="system"]{
+    --pcai-primary: var(--ui-primary, var(--ui-accent, ${DARK.primary}));
+    --pcai-border: var(--ui-border, ${DARK.border});
+    --pcai-surface: var(--ui-bg-elevated, var(--ui-surface, ${DARK.surface}));
+    --pcai-canvas: var(--ui-bg-muted, var(--ui-canvas, ${DARK.canvas}));
+    --pcai-input: var(--ui-bg-input, var(--ui-canvas, ${DARK.input}));
+    --pcai-text: var(--ui-text, var(--ui-foreground, ${DARK.text}));
+    --pcai-subtle: var(--ui-text-muted, var(--ui-muted, ${DARK.subtle}));
+    --pcai-error: var(--ui-error, ${DARK.error});
+  }
 }
 .${NS}-root{
   font-family: var(--pcai-font); color: var(--pcai-text);
@@ -369,7 +398,8 @@ html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
   border:1px solid var(--pcai-border); border-radius:var(--pcai-r);
   background:var(--pcai-surface); overflow:hidden;
 }
-html.dark .${NS}-card{box-shadow:0 1px 2px rgba(0,0,0,.24);}
+html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px rgba(0,0,0,.24);}
+@media (prefers-color-scheme: dark){ html[data-theme="system"] .${NS}-card{box-shadow:0 1px 2px rgba(0,0,0,.24);} }
 .${NS}-head{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:9px 12px;border-bottom:1px solid var(--pcai-border);
@@ -490,7 +520,8 @@ html.dark .${NS}-card{box-shadow:0 1px 2px rgba(0,0,0,.24);}
   box-shadow:0 1px 3px rgba(15,23,42,.12);pointer-events:none;
   transition:left .32s cubic-bezier(.22,1,.36,1),width .32s cubic-bezier(.22,1,.36,1);
 }
-html.dark .${NS}-ink{box-shadow:0 1px 3px rgba(0,0,0,.4);}
+html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rgba(0,0,0,.4);}
+@media (prefers-color-scheme: dark){ html[data-theme="system"] .${NS}-ink{box-shadow:0 1px 3px rgba(0,0,0,.4);} }
 .${NS}-tab{
   position:relative;z-index:1;flex:1;height:28px;
   border:0;background:transparent;color:var(--pcai-subtle);font:inherit;font-size:12.5px;
@@ -514,10 +545,18 @@ html.dark .${NS}-ink{box-shadow:0 1px 3px rgba(0,0,0,.4);}
   padding:12px 12px 2px;max-height:340px;overflow-y:auto;
   display:flex;flex-direction:column;gap:9px;
 }
-.${NS}-msg{display:flex;flex-direction:column;gap:3px;animation:${NS}-in .3s cubic-bezier(.22,1,.36,1) both;}
+/* 单条消息：仅首次创建时播放入场动画（节点复用后不再重播） */
+.${NS}-msg{
+  display:flex;flex-direction:column;gap:3px;max-width:min(88%,680px);
+  animation:${NS}-in .3s cubic-bezier(.22,1,.36,1) both;
+}
+/* AI 在左，我（用户）在右 */
+.${NS}-msg.is-ai{align-self:flex-start;align-items:flex-start;}
+.${NS}-msg.is-user{align-self:flex-end;align-items:flex-end;}
+.${NS}-msg-slot{min-width:0;max-width:100%;display:flex;flex-direction:column;align-items:inherit;}
 .${NS}-msg-role{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--pcai-subtle);}
 .${NS}-msg-usage{font-variant-numeric:tabular-nums;opacity:.8;}
-.${NS}-msg-body{padding:7px 10px;border-radius:var(--pcai-rc);font-size:13.5px;}
+.${NS}-msg-body{padding:7px 10px;border-radius:var(--pcai-rc);font-size:13.5px;overflow-wrap:anywhere;}
 .${NS}-msg.is-user .${NS}-msg-body{background:var(--pcai-primary-soft);}
 .${NS}-msg.is-ai .${NS}-msg-body{background:var(--pcai-canvas);}
 .${NS}-msg.is-ai .${NS}-content p:last-child{margin-bottom:0;}
@@ -1121,55 +1160,113 @@ html.dark .${NS}-ink{box-shadow:0 1px 3px rgba(0,0,0,.4);}
     ta.style.height = Math.min(110, ta.scrollHeight) + 'px';
   }
 
-  /** 渲染消息列表 */
+  /**
+   * 渲染消息列表。
+   * 关键：节点复用 + 增量更新，绝不整体重建 msgs 容器。
+   * 整体重建会让每条消息的入场动画反复重播、滚动位置被重置，表现为「整个面板在跳动」。
+   */
   function renderChatMsgs() {
     if (!refs) return;
     const box = refs.paneChat.querySelector('.' + NS + '-msgs');
     if (!box) return;
 
+    // 无消息：展示引导文案（仅在状态切换时重建一次）
     if (!chatMessages.length) {
-      const asks = [
-        '这篇帖子的核心结论是什么？',
-        '帮我提炼 3 个关键要点',
-        '作者给出的依据有哪些？'
-      ];
-      box.innerHTML =
-        '<div class="' + NS + '-empty">还没有提问。AI 会结合这篇帖子的内容回答，并支持连续追问。</div>' +
-        '<div class="' + NS + '-asks">' +
-          asks.map((q) => '<button class="' + NS + '-ask" data-ask="' + escapeHtml(q) + '">' + escapeHtml(q) + '</button>').join('') +
-        '</div>';
+      if (box.dataset.state !== 'empty') {
+        box.dataset.state = 'empty';
+        const asks = [
+          '这篇帖子的核心结论是什么？',
+          '帮我提炼 3 个关键要点',
+          '作者给出的依据有哪些？'
+        ];
+        box.innerHTML =
+          '<div class="' + NS + '-empty">还没有提问。AI 会结合这篇帖子的内容回答，并支持连续追问。</div>' +
+          '<div class="' + NS + '-asks">' +
+            asks.map((q) => '<button class="' + NS + '-ask" data-ask="' + escapeHtml(q) + '">' + escapeHtml(q) + '</button>').join('') +
+          '</div>';
+      }
       syncButtons();
       return;
     }
 
-    box.innerHTML = chatMessages.map((m, i) => {
-      const isUser = m.role === 'user';
-      const last = i === chatMessages.length - 1;
-      let body;
-      if (isUser) {
-        body = '<div class="' + NS + '-msg-body">' + escapeHtml(m.text).replace(/\n/g, '<br>') + '</div>';
-      } else if (m.error) {
-        body = '<div class="' + NS + '-msg-err">' + escapeHtml(m.error) + '</div>';
-      } else if (!m.text && last && chatReqId) {
-        body = '<div class="' + NS + '-loading"><span class="' + NS + '-spin"></span><span>思考中…</span></div>';
-      } else {
-        body = '<div class="' + NS + '-msg-body"><div class="' + NS + '-content">' + renderMarkdown(m.text) +
-          (last && chatReqId ? '<span class="' + NS + '-caret"></span>' : '') + '</div></div>';
-      }
+    // 从引导态切到消息态：整体清空一次
+    if (box.dataset.state !== 'msgs') {
+      box.dataset.state = 'msgs';
+      box.innerHTML = '';
+    }
 
-      let role = isUser ? '你' : 'AI';
-      if (!isUser && m.usage) {
-        role += '<span class="' + NS + '-msg-usage">' +
-          (m.usage.estimated ? '≈' : '') + '↑' + fmtToken(m.usage.prompt) + ' ↓' + fmtToken(m.usage.completion) +
-          '</span>';
+    const lastIdx = chatMessages.length - 1;
+    for (let i = 0; i < chatMessages.length; i++) {
+      let node = box.children[i];
+      // 只有新消息才创建节点（此时才播放一次入场动画）
+      if (!node) {
+        node = document.createElement('div');
+        node.className = NS + '-msg';
+        node.innerHTML = '<span class="' + NS + '-msg-role"></span><div class="' + NS + '-msg-slot"></div>';
+        box.appendChild(node);
       }
-      if (!isUser && m.stopped) role += '<span class="' + NS + '-msg-usage">已停止</span>';
-
-      return '<div class="' + NS + '-msg ' + (isUser ? 'is-user' : 'is-ai') + '">' +
-        '<span class="' + NS + '-msg-role">' + role + '</span>' + body + '</div>';
-    }).join('');
+      updateMsgNode(node, chatMessages[i], i === lastIdx && !!chatReqId);
+    }
 
     syncButtons();
+  }
+
+  /** 单条消息节点的增量更新：内容没变就不写 DOM，避免流式输出时闪烁与动画重播 */
+  function updateMsgNode(node, m, streaming) {
+    const isUser = m.role === 'user';
+    node.classList.toggle('is-user', isUser);
+    node.classList.toggle('is-ai', !isUser);
+
+    // 角色行：「你」/「AI」，回答还附带 Token 与停止标记
+    let role = isUser ? '你' : 'AI';
+    if (!isUser && m.usage) {
+      role += '<span class="' + NS + '-msg-usage">' +
+        (m.usage.estimated ? '≈' : '') + '↑' + fmtToken(m.usage.prompt) + ' ↓' + fmtToken(m.usage.completion) +
+        '</span>';
+    }
+    if (!isUser && m.stopped) role += '<span class="' + NS + '-msg-usage">已停止</span>';
+    const roleEl = node.querySelector('.' + NS + '-msg-role');
+    if (roleEl && roleEl.innerHTML !== role) roleEl.innerHTML = role;
+
+    const slot = node.querySelector('.' + NS + '-msg-slot');
+    if (!slot) return;
+
+    if (isUser) {
+      if (slot.dataset.kind !== 'user') {
+        slot.dataset.kind = 'user';
+        slot.innerHTML = '<div class="' + NS + '-msg-body">' +
+          escapeHtml(m.text).replace(/\n/g, '<br>') + '</div>';
+      }
+      return;
+    }
+
+    if (m.error) {
+      if (slot.dataset.kind !== 'error' || slot.dataset.msg !== m.error) {
+        slot.dataset.kind = 'error';
+        slot.dataset.msg = m.error;
+        slot.innerHTML = '<div class="' + NS + '-msg-err">' + escapeHtml(m.error) + '</div>';
+      }
+      return;
+    }
+
+    if (!m.text && streaming) {
+      if (slot.dataset.kind !== 'loading') {
+        slot.dataset.kind = 'loading';
+        delete slot.dataset.msg;
+        slot.innerHTML = '<div class="' + NS + '-loading"><span class="' + NS + '-spin"></span><span>思考中…</span></div>';
+      }
+      return;
+    }
+
+    // 正文：文本或流式状态变化时才重建，避免光标与排版反复重置
+    if (slot.dataset.kind !== 'text' || slot.dataset.streaming !== (streaming ? '1' : '0') || slot.dataset.src !== m.text) {
+      slot.dataset.kind = 'text';
+      slot.dataset.streaming = streaming ? '1' : '0';
+      slot.dataset.src = m.text || '';
+      delete slot.dataset.msg;
+      slot.innerHTML = '<div class="' + NS + '-msg-body"><div class="' + NS + '-content">' +
+        renderMarkdown(m.text) + (streaming ? '<span class="' + NS + '-caret"></span>' : '') + '</div></div>';
+    }
   }
 
   function scrollChatBottom() {

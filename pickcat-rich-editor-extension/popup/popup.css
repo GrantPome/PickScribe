@@ -9,21 +9,16 @@
   --accent-soft: rgba(240, 62, 70, .1);
   --canvas: #f1f3f6;
   --font: var(--font-harmony, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+}
 
-  /* 收藏夹 Plus 管理台令牌（console.css 依赖） */
-  --pcf-accent: #f03e46;
-  --pcf-accent-soft: rgba(240, 62, 70, .12);
-  --pcf-border: #e2e6ec;
-  --pcf-surface: #ffffff;
-  --pcf-canvas: #f1f3f6;
-  --pcf-text: #1b1f24;
-  --pcf-subtle: #667085;
-  --pcf-font: var(--font);
+/* 主题由 popup.js 按设置页主题写入 <html data-theme>；
+   system 时跟随操作系统深色偏好。 */
+:root[data-theme="dark"] {
+  --bg: #1e2127; --border: #2f343c; --text: #e7e9ee; --subtle: #9aa3b2; --canvas: #23272e;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root[data-theme="system"] {
     --bg: #1e2127; --border: #2f343c; --text: #e7e9ee; --subtle: #9aa3b2; --canvas: #23272e;
-    --pcf-border: #2f343c; --pcf-surface: #1e2127; --pcf-canvas: #23272e; --pcf-text: #e7e9ee; --pcf-subtle: #9aa3b2;
   }
 }
 
@@ -40,26 +35,9 @@ body {
   font-size: 13px;
   line-height: 1.6;
 }
-/* 收藏 Plus 区：按 PRD 4.3 以 790px 为设计基准（Chrome 弹窗上限约 800px），高度固定、内容区内部滚动 */
-body.wide { width: 780px; height: 560px; }
-
-/* ============================ 分区切换 ============================ */
-.tabs {
-  display: flex; gap: 2px; flex: none;
-  padding: 8px 12px 0;
-  border-bottom: 1px solid var(--border);
-}
-.tab {
-  border: 0; background: transparent; color: var(--subtle);
-  font: inherit; font-size: 12.5px; padding: 5px 12px; border-radius: 8px 8px 0 0; cursor: pointer;
-  transition: background .3s cubic-bezier(.22,1,.36,1), color .3s cubic-bezier(.22,1,.36,1);
-}
-.tab:hover { background: var(--canvas); color: var(--text); }
-.tab.is-on { color: var(--accent); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); }
 
 .sec { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 #sec-ai { padding: 12px 14px 14px; display: block; }
-#sec-fav { padding: 0; }
 
 /* AI 区 */
 .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -101,6 +79,3 @@ body.wide { width: 780px; height: 560px; }
   transition: background .26s cubic-bezier(.22,1,.36,1);
 }
 .btn:hover { background: var(--accent-soft); }
-
-/* 收藏 Plus 区：管理台占满剩余高度 */
-.fav-root { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
