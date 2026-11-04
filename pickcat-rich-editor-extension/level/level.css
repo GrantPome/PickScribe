@@ -1,0 +1,38 @@
+/**
+ * 等级成长弹窗 · 三维度与社区熟悉度进度样式。
+ * 数值挂在标题行右端，使用站点自带的 muted 文本色，避免干扰原有排版。
+ */
+
+.pcl-metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--ui-text-muted, #888);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 能力 / 责任 / 爱卡片标题：贴右侧 */
+.pcl-score {
+  margin-left: auto;
+}
+
+/* 社区熟悉度标题行：贴右侧，并与完成勾选图标留出间距 */
+.pcl-fam {
+  margin-left: auto;
+  margin-right: 6px;
+}
+
+.pcl-metric .pcl-pct {
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+/* 达标后用主题色提示，和弹窗里的完成勾选状态一致 */
+.pcl-metric.is-done {
+  color: var(--ui-primary, #fa322d);
+}

@@ -53,6 +53,10 @@
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg>
             起始页浮层
           </a>
+          <a class="nav-item" href="#sec-overlay">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M2 20h20"/></svg>
+            刷帖体验优化
+          </a>
           <a class="nav-item" href="#sec-search">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
             搜索页
@@ -133,6 +137,45 @@
         </div>
 
         <p class="note">浮层只读取首页已有内容，不额外请求接口。关闭后不再自动弹出，其他功能不受影响。</p>
+      </section>
+
+      <!-- 刷帖体验优化 -->
+      <section class="card" id="sec-overlay">
+        <div class="card-head">
+          <h2>刷帖体验优化</h2>
+          <p>在信息流里点开帖子时，就地展开一层详情浮层，不切换页面。此功能默认开启，可在下方关闭。</p>
+        </div>
+
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayEnabled" />
+            <span>启用帖子浮窗预览（首页 / 论坛 / 分类 / 搜索页点击帖子就地展开）</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayComposerTools" />
+            <span>启用回复框工具条（排版 / 表情 / 图片 / AI，仅在输入框聚焦时展开）</span>
+          </label>
+        </div>
+
+        <p class="note">回复框工具条默认隐藏，不占输入框高度；开启后仅在输入框聚焦时展开，失焦即收起。</p>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">视觉效果</h3>
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayBlur" />
+            <span>遮罩使用背景模糊（毛玻璃）</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayPageScale" />
+            <span>打开浮层时背景页面同步缩放</span>
+          </label>
+        </div>
+
+        <p class="note">两项均默认开启，改动即时生效（浮层已打开时也会立刻切换）。关闭模糊仍保留遮罩变暗；关闭缩放后背景页面保持原尺寸。</p>
+
+        <p class="note">浮层内的正文、回复排序筛选、点赞、收藏与发表回复都使用站点自己的接口。关闭后点击帖子恢复站点原生跳转，其他功能不受影响。</p>
       </section>
 
       <!-- 搜索页 -->
@@ -370,6 +413,17 @@
           </label>
         </div>
         <p class="note">字体文件随扩展本地分发，不联网；只覆盖站点的正文与组件字体，代码块、公式仍使用各自的等宽 / 数学字体。关闭后恢复站点原字体。</p>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">图片</h3>
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="appearanceImageZoom" />
+            <span>点击图片可以像原站点那样查看大图</span>
+          </label>
+        </div>
+        <p class="note">在帖子浮窗的正文与回复里，点击图片会铺满一层深色大图，再点空白处或按 Esc 关闭；表情符号不放大。</p>
       </section>
 
       <!-- 关于 -->

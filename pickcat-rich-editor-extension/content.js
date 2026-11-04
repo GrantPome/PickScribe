@@ -651,6 +651,21 @@
       return chip;
     }
 
+    // 任务列表：保留勾选状态（class / data-checked），否则净化后 - [ ] 语义会丢失
+    if (tag === 'ul' && node.classList && node.classList.contains(NS + '-task-list')) {
+      const ul = doc.createElement('ul');
+      ul.className = NS + '-task-list';
+      node.childNodes.forEach((c) => ul.appendChild(sanitizeNode(c, doc)));
+      return ul;
+    }
+    if (tag === 'li' && node.classList && node.classList.contains(NS + '-task-item')) {
+      const li = doc.createElement('li');
+      li.className = NS + '-task-item';
+      li.setAttribute('data-checked', node.getAttribute('data-checked') === '1' ? '1' : '0');
+      node.childNodes.forEach((c) => li.appendChild(sanitizeNode(c, doc)));
+      return li;
+    }
+
     // 哔哩哔哩视频占位块：保留原始播放器地址，复制粘贴后依然能原样写回源码
     if (tag === 'span' && node.classList && node.classList.contains(NS + '-video-ref')) {
       const url = node.getAttribute('data-url') || '';
@@ -965,14 +980,15 @@
 .${NS}-glyph.under{text-decoration:underline;text-underline-offset:2px;}
 .${NS}-glyph.strike{text-decoration:line-through;}
 
-/* 悬浮提示（新手引导） */
-.${NS}-btn[data-tip]::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 6px);
-  transform:translateX(-50%) translateY(-3px);white-space:nowrap;font-size:12px;font-weight:400;
+/* 悬浮提示（新手引导）：单独挂在 body 上的浮层，由 JS 定位。
+   站点卡片与编辑区普遍带 overflow:hidden，若用按钮的 ::after 定位，靠右按钮的提示会被容器边缘裁掉。 */
+.${NS}-tip{position:fixed;z-index:10005;max-width:min(320px,calc(100vw - 16px));
+  font-family:var(--pcr-font);font-size:12px;font-weight:400;line-height:1.5;text-align:center;
   background:#1f2328;color:#fff;padding:4px 8px;border-radius:6px;
   border:1px solid rgba(255,255,255,.12);  /* 深色页面上给暗色提示块留出边界，避免糊在一起 */
-  opacity:0;pointer-events:none;
-  transition:opacity .24s,transform .24s cubic-bezier(.22,1,.36,1);z-index:60;}
-.${NS}-btn[data-tip]:hover::after{opacity:1;transform:translateX(-50%) translateY(0);}
+  opacity:0;pointer-events:none;transform:translateY(-3px);
+  transition:opacity .24s,transform .24s cubic-bezier(.22,1,.36,1);}
+.${NS}-tip.is-on{opacity:1;transform:translateY(0);}
 
 /* —— 下拉框（标题 / 对齐 / 媒体 合并项）——
    触发器复用 .pcr-btn，只是宽度自适应并带一个小三角；菜单复用 .pcr-pop 浮层，仅覆盖列布局 */
@@ -1258,6 +1274,30 @@
 }
 .${NS}-ai-usage:empty{display:none;}
 .${NS}-ai-usage.is-est{opacity:.86;}
+
+/* —— AI 排版窗口 ——
+   复用写作助手窗口的结构与内部样式，仅覆盖为「居中弹出的固定窗口」，
+   不参与拖动 / 侧边栏，避免与写作助手的窗口状态相互干扰。 */
+.${NS}-af{
+  left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(700px,calc(100vw - 40px));
+  height:min(620px,calc(100vh - 48px));
+  transform-origin:center center;
+  animation:${NS}AfIn .34s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes ${NS}AfIn{
+  from{opacity:0;transform:translate(-50%,-50%) translateY(10px) scale(.97);}
+  to{opacity:1;transform:translate(-50%,-50%) translateY(0) scale(1);}
+}
+.${NS}-af .${NS}-ai-head{cursor:default;}
+.${NS}-af-body{flex:1;min-height:0;display:flex;flex-direction:column;}
+.${NS}-af-desc{padding:10px 12px 0;font-size:12.5px;line-height:1.7;color:var(--pcr-subtle);}
+.${NS}-af-row{display:flex;align-items:flex-start;gap:8px;padding:8px 12px 0;}
+.${NS}-af-label{flex:none;font-size:11.5px;line-height:26px;color:var(--pcr-subtle);white-space:nowrap;}
+.${NS}-af-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.${NS}-af-chip.is-on{background:var(--pcr-accent-soft);color:var(--pcr-accent);
+  border-color:var(--pcr-accent);font-weight:500;}
+.${NS}-af .${NS}-ai-result{flex:1;min-height:120px;}
 `;
     const style = document.createElement('style');
     style.id = NS + '-style';
@@ -1507,7 +1547,7 @@
 
   function closePopups() {
     // AI 写作助手是独立窗口：用 :not 排除，空白点击 / 打开其他浮层都不会把它一并收起
-    document.querySelectorAll('.' + NS + '-pop:not(.' + NS + '-ai), .' + NS + '-float').forEach((el) => el.remove());
+    document.querySelectorAll('.' + NS + '-pop:not(.' + NS + '-ai):not(.' + NS + '-af), .' + NS + '-float').forEach((el) => el.remove());
     // 浮层被统一清掉时同步重置查找状态，避免残留高亮与悬空的定时器
     if (findTimer) { clearTimeout(findTimer); findTimer = null; }
     findPop = null;
@@ -2197,7 +2237,75 @@
     const next = TB_MODES[(TB_MODES.indexOf(s) + 1) % TB_MODES.length];
     b.classList.toggle('is-on', s !== 'compact');
     b.setAttribute('data-tip', '工具栏：' + TB_TIPS[s] + '（点击切换「' + TB_TIPS[next] + '」）');
+    if (tipOwner === b) showTip(b);   // 提示正显示时文案变了，同步刷新
   }
+
+  // —— 悬浮提示：挂在 body 上的单例浮层 ——
+  // 按钮本身在站点卡片内，卡片带 overflow:hidden，提示若用 ::after 定位会被卡片右缘裁掉；
+  // 因此改为独立浮层 + 视口定位，靠近屏幕边缘时自动水平回弹、下方放不下时翻到按钮上方。
+  let tipEl = null;
+  let tipOwner = null;
+
+  function ensureTip() {
+    if (tipEl && tipEl.isConnected) return tipEl;
+    tipEl = document.createElement('div');
+    tipEl.className = NS + '-tip';
+    tipEl.setAttribute('role', 'tooltip');
+    document.body.appendChild(tipEl);
+    return tipEl;
+  }
+
+  function showTip(btn) {
+    const text = btn.getAttribute('data-tip');
+    if (!text || !btn.isConnected) return;
+    tipOwner = btn;
+    const el = ensureTip();
+    el.textContent = text;   // 文案长度会决定宽度，先写入再量尺寸
+    const r = btn.getBoundingClientRect();
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const gap = 6, pad = 8;
+    const left = Math.max(pad, Math.min(r.left + (r.width - w) / 2, window.innerWidth - w - pad));
+    let top = r.bottom + gap;
+    if (top + h > window.innerHeight - pad) top = Math.max(pad, r.top - gap - h);
+    el.style.left = Math.round(left) + 'px';
+    el.style.top = Math.round(top) + 'px';
+    el.classList.add('is-on');
+  }
+
+  function hideTip() {
+    tipOwner = null;
+    if (tipEl) tipEl.classList.remove('is-on');
+  }
+
+  /** 全局委托：按钮是动态重建的，用事件委托就不必每次挂载后重新绑定 */
+  function initTips() {
+    if (initTips.done) return;
+    initTips.done = true;
+    const sel = '.' + NS + '-btn[data-tip]';
+    document.addEventListener('pointerover', (e) => {
+      const btn = e.target.closest && e.target.closest(sel);
+      if (btn && btn !== tipOwner) showTip(btn);
+    });
+    document.addEventListener('pointerout', (e) => {
+      const btn = e.target.closest && e.target.closest(sel);
+      if (!btn || btn !== tipOwner) return;
+      // 在按钮内部的图标之间移动不算离开
+      if (e.relatedTarget && btn.contains(e.relatedTarget)) return;
+      hideTip();
+    });
+    document.addEventListener('focusin', (e) => {
+      const btn = e.target.closest && e.target.closest(sel);
+      if (btn) showTip(btn);
+    });
+    document.addEventListener('focusout', (e) => {
+      if (e.target.closest && e.target.closest(sel)) hideTip();
+    });
+    document.addEventListener('mousedown', hideTip, true);
+    window.addEventListener('scroll', hideTip, true);
+    window.addEventListener('resize', hideTip);
+  }
+
 
   /** 在「紧凑 → 分组线 → 功能组」三种工具栏布局之间循环切换，并记忆选择 */
   function toggleToolbarStyle() {
@@ -2352,6 +2460,7 @@
 
     // —— AI（彩色图标，一眼区分于工具栏其余单色 stroke 图标）——
     group('AI');
+    add(makeBtn({ key: 'aiformat', html: aiFormatIcon(), tip: 'AI 排版（整理整篇 Markdown）', onClick: () => openAIFormatter() }));
     add(makeBtn({ key: 'ai', html: aiIcon(), tip: 'AI 写作助手', onClick: () => openAIWriter() }));
 
     // 渲染功能组：组名放在按钮下方，和 Word 功能区的分组标注一致
@@ -2915,6 +3024,9 @@
   injectFontStyle();
   loadFontSetting();
 
+  // 悬浮提示用全局事件委托，启动时绑定一次即可（面板会被站点重渲染重建，不需要重复绑定）
+  initTips();
+
   // 初始尝试
   mount();
 
@@ -3038,6 +3150,9 @@
       else if (msg.type === 'error') { aiPending.delete(msg.id); if (cb.onError) cb.onError(msg); }
     });
     aiPort.onDisconnect.addListener(() => {
+      // 页面进入往返缓存（bfcache）时浏览器会强制关闭端口，
+      // 这里主动读取 lastError，避免 Chrome 把它记成「未处理错误」
+      void chrome.runtime.lastError;
       aiPort = null;
       // 请求途中被断开：把未完成的回调统一转成错误，避免面板卡在「正在生成」
       aiPending.forEach((cb) => {
@@ -3049,8 +3164,9 @@
     return aiPort;
   }
 
-  /** 发起一次生成请求：cacheKey 传 null（写作助手每次都是新请求，不写缓存） */
-  function aiRequest({ messages, onChunk, onDone, onError }) {
+  /** 发起一次生成请求：cacheKey 传 null（写作助手每次都是新请求，不写缓存）
+      maxTokens 可选：单次请求覆盖设置里的输出上限（AI 排版按正文长度动态放宽） */
+  function aiRequest({ messages, maxTokens, onChunk, onDone, onError }) {
     const id = 'a' + (++aiSeq);
     const p = aiEnsurePort();
     if (!p) {
@@ -3059,7 +3175,7 @@
     }
     aiPending.set(id, { onChunk, onDone, onError });
     try {
-      p.postMessage({ type: 'start', id, messages, cacheKey: null, bypass: true });
+      p.postMessage({ type: 'start', id, messages, cacheKey: null, bypass: true, maxTokens: maxTokens });
     } catch (e) {
       aiPending.delete(id);
       onError({ code: 'port', message: '后台连接失败，请重新加载页面后再试' });
@@ -3254,14 +3370,16 @@
     return (v / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
   }
 
-  function aiSetUsage(u) {
-    if (!aiRefs || !aiRefs.usage) return;
-    if (!u || !u.total) { aiClearUsage(); return; }
+  /** refs 参数可选：写作助手与 AI 排版两个窗口共用同一套用量展示逻辑 */
+  function aiSetUsage(u, refs) {
+    const box = refs || aiRefs;
+    if (!box || !box.usage) return;
+    if (!u || !u.total) { aiClearUsage(refs); return; }
     const est = !!u.estimated;
-    aiRefs.usage.textContent = (est ? '≈' : '') + '↑' + aiFmtToken(u.prompt) + ' ↓' + aiFmtToken(u.completion) +
+    box.usage.textContent = (est ? '≈' : '') + '↑' + aiFmtToken(u.prompt) + ' ↓' + aiFmtToken(u.completion) +
       ' · ' + aiFmtToken(u.total);
-    aiRefs.usage.classList.toggle('is-est', est);
-    aiRefs.usage.title = [
+    box.usage.classList.toggle('is-est', est);
+    box.usage.title = [
       est ? '服务商未返回 usage，以下为本地估算值' : '本次用量（服务商返回）',
       '输入 ' + u.prompt + ' Tokens',
       '输出 ' + u.completion + ' Tokens',
@@ -3269,11 +3387,12 @@
     ].join('\n');
   }
 
-  function aiClearUsage() {
-    if (!aiRefs || !aiRefs.usage) return;
-    aiRefs.usage.textContent = '';
-    aiRefs.usage.classList.remove('is-est');
-    aiRefs.usage.title = '';
+  function aiClearUsage(refs) {
+    const box = refs || aiRefs;
+    if (!box || !box.usage) return;
+    box.usage.textContent = '';
+    box.usage.classList.remove('is-est');
+    box.usage.title = '';
   }
 
   /** 停止当前生成：保留已输出片段，不再继续追加 */
@@ -3591,6 +3710,7 @@
   /** 打开写作助手窗口；已打开时再点一次即收起（独立窗口不受空白点击影响） */
   function openAIWriter() {
     if (aiPop) { closeAIWriter(); return; }
+    if (afPop) closeAIFormatter();   // 两个 AI 窗口同一时间只保留一个
     closePopups();          // 先收起其它浮层（AI 窗口自身已被 closePopups 排除在外）
     captureAIContext();     // 先捕获选区 / 光标，再把焦点交给窗口输入框
     try { aiDock = localStorage.getItem(AI_DOCK_KEY) === '1'; } catch (e) { aiDock = false; }
@@ -3610,6 +3730,419 @@
     aiRefs = null;
   }
 
+  // ============================ 9.7 AI 排版 ============================
+
+  /* AI 排版：把整篇正文交给模型重新整理成规范的 Markdown（标题层级 / 空行 / 列表 / 表格）。
+     只调整格式、不改内容，结果以「整篇替换」的方式写回编辑器。
+     复用写作助手的后台 Port（协议同为 'pcai'）与结果渲染，窗口独立、互不干扰。 */
+
+  const AF_MAX_BODY = 8000;    // 单次排版正文上限（字符），超过则提示分段，避免截断丢内容
+
+  // 排版风格：不同场景用不同的整理侧重
+  const AF_STYLES = [
+    {
+      id: 'general',
+      name: '通用规范',
+      hint: '统一标题层级、段落空行、列表符号与标点，让文档结构清晰、直接可读。'
+    },
+    {
+      id: 'structure',
+      name: '结构清晰',
+      hint: '按内容逻辑分节，补上合适的小标题，把长段叙述拆成段落或要点列表。'
+    },
+    {
+      id: 'tech',
+      name: '技术文档',
+      hint: '步骤改用有序列表，参数与字段用列表或表格呈现，代码块保留语言标注，术语统一。'
+    },
+    {
+      id: 'outline',
+      name: '精简大纲',
+      hint: '用多级标题与列表提炼文档结构，合并重复表达，但不要改变原意或删减信息。'
+    }
+  ];
+
+  // 系统提示词：只做排版，不改内容；只输出 Markdown 正文
+  const AF_SYSTEM_PROMPT = '你是一个严谨的 Markdown 排版员。用户会给你一篇 Markdown 或纯文本文档，'
+    + '你要在不改变原意、事实与信息量的前提下，把它整理成结构清晰、格式规范的 Markdown。必须遵守：'
+    + '1. 只输出排版后的完整文档，不要任何解释、开场白或总结，也不要把整篇结果包进代码围栏；'
+    + '2. 标题层级要合理且不跳级：文档标题用 #，一级小节用 ##，更细的用 ###，最多到 ####；'
+    + '3. 段落之间留一个空行，列表前后也留空行；同类列表统一符号，不要混用 - 和 *；'
+    + '4. 只使用标准 Markdown 语法，不要输出 HTML，也不要把普通段落改成大段表格；'
+    + '5. 原样保留站点图片 / 视频引用标记（如单独一行的 ![...]，不要改动其中的 ID）、普通链接、'
+    + '行内代码、代码块、公式与表格，不要改写或删除；'
+    + '6. 不新增原文没有的内容，也不删除实质性内容；只调整空格、标点、换行与标题结构。';
+
+  // —— 状态 ——
+  let afPop = null;            // 排版窗口根节点
+  let afRefs = null;           // 窗口内部节点引用
+  let afBusy = false;          // 是否正在排版
+  let afReqId = null;          // 当前进行中的请求 id
+  let afStreamText = '';       // 流式累积的排版结果
+  let afComplete = false;      // 本轮是否完整结束（未完成的结果不允许整篇应用）
+  let afStyleId = AF_STYLES[0].id;   // 当前选中的排版风格
+  let afLast = null;           // 上一轮参数 { styleId, extra }，「再次排版」用
+
+  /** 排版图标：行首对齐 + 分节线，和写作助手的星芒图标区分开 */
+  function aiFormatIcon() {
+    return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">' +
+      '<path d="M4 5h16v2H4z"/>' +
+      '<path d="M4 10.5h10v2H4z" opacity=".72"/>' +
+      '<path d="M4 16h16v2H4z" opacity=".72"/>' +
+      '<path d="M17.2 9.4l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z"/>' +
+      '</svg>';
+  }
+
+  /** 读取编辑器完整正文（不截断，排版结果要整篇写回） */
+  function afReadBody() {
+    if (mode === 'source' && textarea) return String(textarea.value || '').trim();
+    if (editor) return String(htmlToMd(editor) || '').trim();
+    return textarea ? String(textarea.value || '').trim() : '';
+  }
+
+  /** 组装消息：排版风格 + 可选补充要求 + 待排版文档 */
+  function afBuildMessages(body, styleId, extra) {
+    const st = AF_STYLES.find((s) => s.id === styleId) || AF_STYLES[0];
+    const user = '排版风格：' + st.name + '\n具体要求：' + st.hint +
+      (extra ? '\n补充要求：' + extra : '') +
+      '\n\n待排版的文档：\n\n' + body;
+    return [
+      { role: 'system', content: AF_SYSTEM_PROMPT },
+      { role: 'user', content: user }
+    ];
+  }
+
+  /** 模型偶尔会把整篇结果包进 ```markdown 围栏：仅在明确标注 markdown 时移除外层围栏 */
+  function afNormalizeResult(text) {
+    return String(text || '').trim()
+      .replace(/^```(?:markdown|md)\s*\r?\n([\s\S]*?)\r?\n```$/i, (m, inner) => inner.trim());
+  }
+
+  // ---------------------------- 9.7.1 结果写回 ----------------------------
+
+  /** 把排版结果整篇写回编辑器（源码 / 可视化 / 分屏都同步） */
+  function afWriteToEditor(md) {
+    if (!editor && !textarea) return false;
+    if (mode === 'source' && textarea) {
+      // 源码视图：textarea 就是唯一数据源，恢复可视化时由 sourceToRich 自动同步
+      setTextareaValue(md);
+      return true;
+    }
+    if (editor) {
+      lock = true;
+      try {
+        editor.innerHTML = sanitizeHtml(mdToHtml(md));
+      } finally {
+        lock = false;
+      }
+    }
+    if (textarea) richToSource();
+    return true;
+  }
+
+  // ---------------------------- 9.7.2 面板渲染 ----------------------------
+
+  function afRenderPlaceholder() {
+    if (!afRefs) return;
+    afRefs.result.innerHTML = '<div class="' + NS + '-ai-ph">选择排版风格后点「开始排版」，'
+      + 'AI 会把当前正文整理成规范的 Markdown；结果可预览，确认后再整篇应用到正文。</div>';
+  }
+
+  function afRenderLoading() {
+    if (!afRefs) return;
+    afRefs.result.innerHTML = '<div class="' + NS + '-ai-loading"><span class="' + NS + '-ai-spin"></span>'
+      + '<span>正在整理排版…</span></div>';
+    aiClearUsage(afRefs);
+  }
+
+  function afRenderStream() {
+    if (!afRefs) return;
+    afRefs.result.innerHTML = '<div class="' + NS + '-ai-out">' + sanitizeHtml(mdToHtml(afStreamText)) +
+      '<span class="' + NS + '-ai-caret"></span></div>';
+  }
+
+  function afRenderDone() {
+    if (!afRefs) return;
+    afRefs.result.innerHTML = '<div class="' + NS + '-ai-out">' + sanitizeHtml(mdToHtml(afStreamText)) + '</div>';
+  }
+
+  /** 通用提示块：可附带操作按钮（重试 / 打开设置） */
+  function afRenderNote(msg, actions) {
+    if (!afRefs) return;
+    afRefs.result.innerHTML = '<div class="' + NS + '-ai-note">' + escapeHtml(msg).replace(/\n/g, '<br>') +
+      (actions || '') + '</div>';
+  }
+
+  function afRenderError(msg) {
+    afRenderNote(msg + '\n可检查扩展设置里的模型 / 密钥，或稍后重试。',
+      '<div class="' + NS + '-ai-note-act">' +
+        '<button type="button" class="' + NS + '-ai-act" data-af="run">重试</button>' +
+        '<button type="button" class="' + NS + '-ai-act" data-af="settings">打开设置</button>' +
+      '</div>');
+  }
+
+  function afRenderNoKey() {
+    afRenderNote('还没有配置 API Key，AI 排版暂时用不了。\n'
+      + '请先在扩展设置里选择服务商并填写密钥（本地 Ollama 无需 Key）。',
+      '<div class="' + NS + '-ai-note-act">' +
+        '<button type="button" class="' + NS + '-ai-act is-primary" data-af="settings">打开设置</button>' +
+      '</div>');
+  }
+
+  /** 同步窗口内按钮与风格胶囊的可用状态 */
+  function afSyncBtns() {
+    if (!afRefs) return;
+    const hasText = !!afStreamText.trim();
+    afRefs.run.disabled = afBusy;
+    afRefs.el.querySelectorAll('.' + NS + '-af-chip').forEach((b) => { b.disabled = afBusy; });
+    // 只有完整生成的结果才允许整篇替换，避免用半截内容覆盖原文
+    afRefs.btnApply.disabled = afBusy || !afComplete || !hasText;
+    afRefs.btnCopy.disabled = !hasText;
+    afRefs.btnAgain.disabled = afBusy || !afLast;
+    if (afRefs.btnStop) afRefs.btnStop.classList.toggle(NS + '-ai-hide', !afBusy);
+    afRefs.sub.textContent = aiConfig.model || '';
+  }
+
+  /** 切换风格胶囊的选中态 */
+  function afSetStyle(styleId) {
+    afStyleId = styleId;
+    if (!afRefs) return;
+    afRefs.el.querySelectorAll('.' + NS + '-af-chip').forEach((b) => {
+      b.classList.toggle('is-on', b.getAttribute('data-af-style') === styleId);
+    });
+  }
+
+  // ---------------------------- 9.7.3 生成与结果操作 ----------------------------
+
+  const afScheduleStream = debounce(() => { afRenderStream(); }, 80);
+
+  /** 开始排版：读取整篇正文 → 流式生成 → 预览 */
+  function afRun() {
+    if (!afPop || !afRefs) return;
+    if (afBusy) { toast('正在排版中，请稍候…'); return; }
+    if (!aiConfig.apiKey && aiConfig.provider !== 'ollama') { afRenderNoKey(); afSyncBtns(); return; }
+
+    const body = afReadBody();
+    if (!body) {
+      afRenderNote('编辑器里还没有正文，先写一点内容再来排版。');
+      afSyncBtns();
+      return;
+    }
+    if (body.length > AF_MAX_BODY) {
+      afRenderNote('正文约 ' + body.length + ' 字，超过单次排版上限（' + AF_MAX_BODY + ' 字）。'
+        + '\n请分段排版，或先精简内容后再试。');
+      afSyncBtns();
+      return;
+    }
+
+    const extra = (afRefs.input.value || '').trim();
+    afLast = { styleId: afStyleId, extra: extra };
+    const messages = afBuildMessages(body, afStyleId, extra);
+
+    afAbortFormatter();
+    afStreamText = '';
+    afComplete = false;
+    afBusy = true;
+    afRenderLoading();
+    afSyncBtns();
+
+    afReqId = aiRequest({
+      messages,
+      // 排版结果的长度与原文接近：按正文长度估算输出上限，避免被设置里的较小值截断
+      maxTokens: Math.min(8192, Math.max(aiConfig.maxTokens || 1200, Math.ceil(body.length * 0.9) + 400)),
+      onChunk(delta) {
+        afStreamText += delta;
+        afScheduleStream();
+      },
+      onDone(msg) {
+        afReqId = null;
+        afBusy = false;
+        afStreamText = afNormalizeResult(msg.text || afStreamText);
+        if (!afStreamText.trim()) {
+          afComplete = false;
+          afRenderError('模型没有返回内容，请换个风格或模型后重试。');
+          aiClearUsage(afRefs);
+        } else {
+          afComplete = true;
+          afRenderDone();
+          aiSetUsage(msg.usage, afRefs);
+        }
+        afSyncBtns();
+      },
+      onError(err) {
+        afReqId = null;
+        afBusy = false;
+        afComplete = false;
+        afRenderError((err && err.message) || '排版失败，请稍后重试');
+        aiClearUsage(afRefs);
+        afSyncBtns();
+      }
+    });
+  }
+
+  function afAbortFormatter() {
+    if (afReqId && aiPort) {
+      try { aiPort.postMessage({ type: 'abort', id: afReqId }); } catch (e) { /* 忽略 */ }
+    }
+    if (afReqId) aiPending.delete(afReqId);
+    afReqId = null;
+  }
+
+  /** 停止生成：保留已经输出的片段供参考，但标记为未完成（不可应用） */
+  function afStop() {
+    if (!afBusy) return;
+    afAbortFormatter();
+    afBusy = false;
+    afComplete = false;
+    if (afStreamText.trim()) afRenderDone();
+    else if (afRefs) afRefs.result.innerHTML = '<div class="' + NS + '-ai-ph">已停止排版。</div>';
+    if (afStreamText.trim()) toast('已停止生成：结果不完整，仅可复制，不能应用');
+    else toast('已停止生成');
+    afSyncBtns();
+  }
+
+  /** 整篇应用到正文：写回前二次确认，避免误覆盖原文 */
+  function afApplyResult() {
+    if (!afComplete || !afStreamText.trim() || afBusy) return;
+    if (!editor && !textarea) { toast('没有可写入的编辑区'); return; }
+    if (!window.confirm('将用排版结果替换整篇正文，确定继续吗？\n如需保留原文，请先点「复制 Markdown」备份。')) return;
+    if (!afWriteToEditor(afStreamText)) { toast('写入失败，请重试'); return; }
+    toast('已应用到正文');
+    closeAIFormatter();
+  }
+
+  function afDoCopy() {
+    if (!afStreamText.trim()) return;
+    navigator.clipboard.writeText(afStreamText)
+      .then(() => toast('已复制到剪贴板'))
+      .catch(() => toast('复制失败，请手动选择文本'));
+  }
+
+  function openAIFormatter() {
+    if (afPop) { closeAIFormatter(); return; }
+    if (aiPop) closeAIWriter();     // 两个窗口同一时间只保留一个
+    closePopups();
+    afPop = buildAIFormatter();
+    document.body.appendChild(afPop);
+    afSyncBtns();
+    afRenderPlaceholder();
+    if (afRefs && afRefs.input) afRefs.input.focus();
+  }
+
+  function closeAIFormatter() {
+    afAbortFormatter();
+    afBusy = false;
+    afStreamText = '';
+    afComplete = false;
+    afLast = null;
+    if (afPop && afPop.parentElement) afPop.parentElement.removeChild(afPop);
+    afPop = null;
+    afRefs = null;
+  }
+
+  // ---------------------------- 9.7.4 窗口 DOM ----------------------------
+
+  function buildAIFormatter() {
+    const el = document.createElement('div');
+    el.className = NS + '-pop ' + NS + '-ai ' + NS + '-af';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'AI 排版');
+
+    const chips = AF_STYLES.map((s) =>
+      '<button type="button" class="' + NS + '-ai-chip ' + NS + '-af-chip' +
+        (s.id === afStyleId ? ' is-on' : '') + '" data-af-style="' + s.id + '">' +
+        escapeHtml(s.name) + '</button>'
+    ).join('');
+
+    el.innerHTML =
+      '<div class="' + NS + '-ai-head">' +
+        '<span class="' + NS + '-ai-title">' + aiFormatIcon() + '<span>AI 排版</span></span>' +
+        '<span class="' + NS + '-ai-sub"></span>' +
+        '<button type="button" class="' + NS + '-ai-x ' + NS + '-ai-stop ' + NS + '-ai-hide" data-af="stop" title="停止生成">' +
+          '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+            '<rect x="7" y="7" width="10" height="10" rx="2"/></svg>' +
+        '</button>' +
+        '<button type="button" class="' + NS + '-ai-x" data-af="close" title="关闭（Esc）">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+            '<path d="M6 6l12 12M18 6L6 18"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="' + NS + '-af-body">' +
+        '<div class="' + NS + '-af-desc">把当前正文重新整理成规范的 Markdown：补齐标题层级、统一空行与列表，'
+          + '保留图片、链接、公式与代码块。只调整格式，不改内容。</div>' +
+        '<div class="' + NS + '-af-row">' +
+          '<span class="' + NS + '-af-label">排版风格</span>' +
+          '<div class="' + NS + '-af-chips">' + chips + '</div>' +
+        '</div>' +
+        '<div class="' + NS + '-ai-custom">' +
+          '<textarea class="' + NS + '-ai-input" rows="1" spellcheck="false" ' +
+            'placeholder="补充要求（可选），如：标题只保留两级、把步骤改成有序列表，Ctrl+回车开始"></textarea>' +
+          '<button type="button" class="' + NS + '-ai-gen" data-af="run">开始排版</button>' +
+        '</div>' +
+        '<div class="' + NS + '-ai-result"></div>' +
+      '</div>' +
+      '<div class="' + NS + '-ai-actions">' +
+        '<span class="' + NS + '-ai-usage"></span>' +
+        '<button type="button" class="' + NS + '-ai-act is-primary" data-af="apply">应用到正文</button>' +
+        '<button type="button" class="' + NS + '-ai-act" data-af="copy">复制 Markdown</button>' +
+        '<button type="button" class="' + NS + '-ai-act" data-af="again">再次排版</button>' +
+        '<button type="button" class="' + NS + '-ai-act" data-af="close">关闭</button>' +
+      '</div>';
+
+    afRefs = {
+      el: el,
+      sub: el.querySelector('.' + NS + '-ai-sub'),
+      input: el.querySelector('.' + NS + '-ai-input'),
+      run: el.querySelector('[data-af="run"]'),
+      result: el.querySelector('.' + NS + '-ai-result'),
+      btnApply: el.querySelector('[data-af="apply"]'),
+      btnCopy: el.querySelector('[data-af="copy"]'),
+      btnAgain: el.querySelector('[data-af="again"]'),
+      btnStop: el.querySelector('[data-af="stop"]'),
+      usage: el.querySelector('.' + NS + '-ai-usage')
+    };
+
+    // 按钮按下时保住编辑区焦点 / 选区；输入框保留原生焦点行为
+    el.addEventListener('mousedown', (e) => {
+      if (e.target.closest('input, textarea')) return;
+      if (e.target.closest('button')) e.preventDefault();
+    });
+
+    el.addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-af-style]');
+      if (chip) { afSetStyle(chip.getAttribute('data-af-style')); return; }
+
+      const node = e.target.closest('[data-af]');
+      if (!node) return;
+      const act = node.getAttribute('data-af');
+      if (act === 'run') afRun();
+      else if (act === 'apply') afApplyResult();
+      else if (act === 'copy') afDoCopy();
+      else if (act === 'again') {
+        if (afLast) {
+          // 复现上一轮的风格与补充要求，避免用户改过输入框后结果不一致
+          afSetStyle(afLast.styleId);
+          if (afRefs.input) afRefs.input.value = afLast.extra || '';
+          afRun();
+        }
+      }
+      else if (act === 'stop') afStop();
+      else if (act === 'settings') aiOpenOptions();
+      else if (act === 'close') closeAIFormatter();
+    });
+
+    const ta = afRefs.input;
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); afRun(); }
+    });
+    ta.addEventListener('input', () => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(96, ta.scrollHeight) + 'px';
+    });
+
+    return el;
+  }
+
   // 初始化：读取配置，并在设置页改动后即时生效
   aiLoadConfig();
   try {
@@ -3617,12 +4150,15 @@
       if (area !== 'local' || !changes[AI_CONFIG_KEY]) return;
       aiConfig = { ...AI_DEFAULTS, ...(changes[AI_CONFIG_KEY].newValue || {}) };
       if (aiRefs) syncAIBtns();
+      if (afRefs) afSyncBtns();
     });
   } catch (e) { /* 非扩展环境忽略 */ }
 
   // 独立窗口：空白点击不会关闭它，只有 Esc / 右上角 × / 面板内「关闭」/ 工具栏再次点击才收起
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && aiPop) closeAIWriter();
+    if (e.key !== 'Escape') return;
+    if (aiPop) closeAIWriter();
+    if (afPop) closeAIFormatter();
   });
 
   // 视口尺寸变化时重新夹取位置，避免窗口被挤出可视区域

@@ -206,6 +206,9 @@
       else if (msg.type === 'error') { pending.delete(msg.id); if (cb.onError) cb.onError(msg); }
     });
     port.onDisconnect.addListener(() => {
+      // 页面进入往返缓存（bfcache）时浏览器会强制关闭端口，
+      // 这里主动读取 lastError，避免 Chrome 把它记成「未处理错误」
+      void chrome.runtime.lastError;
       port = null;
       pending.forEach((cb) => { if (cb.onError) cb.onError({ message: '后台连接已断开，请重试' }); });
       pending.clear();
@@ -461,14 +464,6 @@
     return el;
   }
 
-  /** 两个节点的最近公共祖先 */
-  function lca(a, b) {
-    const set = new Set();
-    for (let n = a; n; n = n.parentElement) set.add(n);
-    for (let n = b; n; n = n.parentElement) if (set.has(n)) return n;
-    return null;
-  }
-
   /**
    * 找站点回复框自带的工具行（表情 / 图片按钮）。
    * 返回 { parent, after }：把我们的按钮插到 after 之后；找不到返回 null。
@@ -489,10 +484,12 @@
           return r.width > 0 && r.width <= 48 && r.height > 0 && r.height <= 48;
         });
       if (icons.length >= 2) {
-        // 插到最右侧图标之后：工具行左端常与输入框占位文案重叠，靠右放才不会被文字压住
+        // 插到最右侧图标之后：工具行左端常与输入框占位文案重叠，靠右放才不会被文字压住。
+        // 以 last 自己的父节点为插入点，保证 after.nextSibling 一定是它的子节点
+        // （图标分散在不同包裹层时，用公共祖先当 parent 会让 insertBefore 抛 NotFoundError）。
         const last = icons[icons.length - 1];
-        const group = lca(icons[0], last) || last.parentElement;
-        return { parent: group, after: last };
+        if (!last.parentElement) return null;
+        return { parent: last.parentElement, after: last };
       }
     }
     return null;
@@ -515,8 +512,13 @@
     }
 
     if (slot) {
-      slot.parent.insertBefore(tools, slot.after.nextSibling);
-    } else if (ta.parentElement) {
+      // 站点重渲染后 after 可能已经脱离父节点，直接插入会抛 NotFoundError，退化到输入框下方
+      if (slot.after && slot.after.parentElement) {
+        slot.after.parentElement.insertBefore(tools, slot.after.nextSibling);
+        return;
+      }
+    }
+    if (ta.parentElement) {
       ta.parentElement.insertBefore(tools, ta.nextSibling);
     }
   }

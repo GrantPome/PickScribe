@@ -649,6 +649,9 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
       else if (msg.type === 'error') { pending.delete(msg.id); if (cb.onError) cb.onError(msg); }
     });
     port.onDisconnect.addListener(() => {
+      // 页面进入往返缓存（bfcache）时浏览器会强制关闭端口，
+      // 这里主动读取 lastError，避免 Chrome 把它记成「未处理错误」
+      void chrome.runtime.lastError;
       port = null;
       // 请求途中被断开：把未完成的回调统一转成错误，避免面板卡在「正在总结」
       pending.forEach((cb) => {

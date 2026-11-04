@@ -33,6 +33,8 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 
   port.onDisconnect.addListener(() => {
+    // 内容页进入 bfcache 时端口会被强制关闭，读取 lastError 避免未处理错误
+    void chrome.runtime.lastError;
     controllers.forEach((c) => c.abort());
     controllers.clear();
   });
@@ -40,7 +42,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
 /** 处理一次总结请求 */
 async function handleStart(port, controllers, msg) {
-  const { id, cacheKey, messages, bypass } = msg;
+  const { id, cacheKey, messages, bypass, maxTokens } = msg;
   if (!id || !Array.isArray(messages) || !messages.length) {
     return safePost(port, { type: 'error', id, code: 'bad_request', message: '请求内容为空' });
   }
@@ -70,7 +72,8 @@ async function handleStart(port, controllers, msg) {
       model: config.model,
       messages,
       temperature: config.temperature,
-      maxTokens: config.maxTokens,
+      // 单次请求可覆盖输出上限（AI 排版需要按正文长度动态放宽），默认仍走设置里的值
+      maxTokens: Number.isFinite(maxTokens) ? Math.max(128, Math.min(8192, maxTokens)) : config.maxTokens,
       signal: controller.signal,
       onUsage: (u) => { reportedUsage = u; }
     })) {

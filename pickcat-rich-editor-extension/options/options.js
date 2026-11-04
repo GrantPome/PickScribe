@@ -588,6 +588,76 @@ $('homeReset').addEventListener('click', async () => {
 
 loadHomeSetting().catch((e) => setStatus('读取起始页设置失败：' + e.message, 'err'));
 
+// ============================ 帖子浮窗设置（即时生效） ============================
+
+/**
+ * 帖子浮窗开关（键 pco_config）：与 overlay/content.js 的定义保持同步。
+ * 默认开启，只有用户显式关闭后才不再拦截信息流里的帖子点击；
+ * 模糊与背景缩放默认开启，保存时保留配置里的其他字段。
+ */
+const OVERLAY_KEY = 'pco_config';
+const OVERLAY_DEFAULTS = { enabled: true, composerTools: false, blur: true, pageScale: true };
+
+let overlayCfg = { ...OVERLAY_DEFAULTS };
+
+function normalizeOverlay(raw) {
+  const c = (raw && typeof raw === 'object') ? raw : {};
+  return {
+    enabled: c.enabled !== false,
+    composerTools: !!c.composerTools,
+    blur: c.blur !== false,
+    pageScale: c.pageScale !== false
+  };
+}
+
+function paintOverlay() {
+  $('overlayEnabled').checked = overlayCfg.enabled;
+  $('overlayComposerTools').checked = overlayCfg.composerTools;
+  $('overlayBlur').checked = overlayCfg.blur;
+  $('overlayPageScale').checked = overlayCfg.pageScale;
+  // 其余开关依附于浮窗本身，未启用时置灰，避免误以为已经生效
+  $('overlayComposerTools').disabled = !overlayCfg.enabled;
+  $('overlayBlur').disabled = !overlayCfg.enabled;
+  $('overlayPageScale').disabled = !overlayCfg.enabled;
+}
+
+async function saveOverlay(patch, message) {
+  overlayCfg = { ...overlayCfg, ...patch };
+  paintOverlay();
+  await chrome.storage.local.set({ [OVERLAY_KEY]: overlayCfg });
+  if (message) setStatus(message, 'ok');
+}
+
+async function loadOverlaySetting() {
+  const raw = await chrome.storage.local.get(OVERLAY_KEY);
+  overlayCfg = { ...OVERLAY_DEFAULTS, ...normalizeOverlay(raw[OVERLAY_KEY]) };
+  paintOverlay();
+}
+
+$('overlayEnabled').addEventListener('change', (e) => {
+  saveOverlay(
+    { enabled: e.target.checked },
+    e.target.checked ? '已开启帖子浮窗' : '已关闭帖子浮窗，点击帖子恢复站点跳转'
+  );
+});
+
+$('overlayComposerTools').addEventListener('change', (e) => {
+  saveOverlay(
+    { composerTools: e.target.checked },
+    e.target.checked ? '已开启回复框工具条，聚焦输入框时展开' : '已隐藏回复框工具条'
+  );
+});
+
+$('overlayBlur').addEventListener('change', (e) => {
+  saveOverlay({ blur: e.target.checked }, e.target.checked ? '已开启遮罩模糊效果' : '已关闭遮罩模糊效果');
+});
+
+$('overlayPageScale').addEventListener('change', (e) => {
+  saveOverlay({ pageScale: e.target.checked }, e.target.checked ? '已开启背景缩放效果' : '已关闭背景缩放效果');
+});
+
+loadOverlaySetting().catch((e) => setStatus('读取帖子浮窗设置失败：' + e.message, 'err'));
+
 // ============================ 搜索页设置（改动即时生效） ============================
 
 /**
@@ -738,15 +808,23 @@ loadNotify().catch((e) => setStatus('读取站内通知设置失败：' + e.mess
 
 /** 键 pcr_harmony_font：与 content.js 的 FONT_KEY 保持一致，控制整站字体替换 */
 const HARMONY_FONT_KEY = 'pcr_harmony_font';
+/** 键 pcr_image_zoom：与 overlay/content.js 的 IMAGE_ZOOM_KEY 保持一致，控制点击图片查看大图 */
+const IMAGE_ZOOM_KEY = 'pcr_image_zoom';
 
 async function loadAppearance() {
-  const raw = await chrome.storage.local.get(HARMONY_FONT_KEY);
+  const raw = await chrome.storage.local.get([HARMONY_FONT_KEY, IMAGE_ZOOM_KEY]);
   $('appearanceHarmonyFont').checked = raw[HARMONY_FONT_KEY] !== false && raw[HARMONY_FONT_KEY] !== '0';
+  $('appearanceImageZoom').checked = raw[IMAGE_ZOOM_KEY] !== false && raw[IMAGE_ZOOM_KEY] !== '0';
 }
 
 $('appearanceHarmonyFont').addEventListener('change', async (e) => {
   await chrome.storage.local.set({ [HARMONY_FONT_KEY]: e.target.checked });
   setStatus(e.target.checked ? '已启用鸿蒙字体' : '已恢复站点原字体', 'ok');
+});
+
+$('appearanceImageZoom').addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ [IMAGE_ZOOM_KEY]: e.target.checked });
+  setStatus(e.target.checked ? '已开启点击图片查看大图' : '已关闭点击图片查看大图', 'ok');
 });
 
 loadAppearance().catch((e) => setStatus('读取站点外观设置失败：' + e.message, 'err'));
