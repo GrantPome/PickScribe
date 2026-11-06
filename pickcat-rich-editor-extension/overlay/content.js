@@ -35,12 +35,16 @@
   /** 视为「信息流」的路径：只有这些页面才把帖子点击转成浮层 */
   const FEED_PATH = /^\/$|^\/forum(?:\/category\/[^/?#]+)?$|^\/search$/;
   const POST_HREF = /\/forum\/post\/([^/?#]+)/;
-  /** 浮层里最多展示的回复条数（完整讨论交给原帖） */
+  /** 浮层首屏展示的回复条数；点「查看所有评论」后在原地加载全部 */
   const COMMENT_LIMIT = 24;
+  /** 一次加载全部评论时的上限，避免超大帖把浮层拖垮 */
+  const COMMENT_ALL_MAX = 500;
+  /** 接口是游标分页，逐页拉取时每页条数 */
+  const COMMENT_PAGE = 60;
   /** 详情数据内存缓存：重复打开同一帖秒开 */
   const CACHE_TTL = 5 * 60 * 1000;
-  /** 关闭动画时长（与 overlay.css 的 0.54s 位移 / 0.44s 尺寸对齐） */
-  const CLOSE_MS = 580;
+  /** 关闭动画时长（对齐 overlay.css：0.54s 位移结束 + 0.14s 交接淡出） */
+  const CLOSE_MS = 720;
   /** 拖动关闭阈值：拖动超过该距离，或松手速度超过该值（px / ms）即关闭 */
   const DRAG_CLOSE_DISTANCE = 90;
   const DRAG_CLOSE_VELOCITY = 0.18;
@@ -48,6 +52,8 @@
   const SETTINGS_KEY = 'pco_config';
   /** 站点外观里的「点击图片查看大图」开关，与设置页保持同一个键 */
   const IMAGE_ZOOM_KEY = 'pcr_image_zoom';
+  /** 文章目录的展开状态，跨帖子 / 跨会话记忆 */
+  const TOC_KEY = 'pco_toc_open';
   /** 浮层打开时页面后退的缩放比例，营造前后景空间层次 */
   const PAGE_SCALE = 0.955;
 
@@ -72,6 +78,10 @@
     sparkles: '<path fill="currentColor" d="m2.084 17.326l1.464-1.189c1.017-.888 1.686-1.981 2.452-3.093c.766 1.111 1.435 2.205 2.451 3.093l1.464 1.189l-1.464 1.189c-1.016.888-1.685 1.981-2.451 3.092c-.767-1.112-1.435-2.204-2.452-3.091ZM6 16.485l-.797.841l.797.841l.796-.841Zm1.667-6.191c1.012-.714 1.811-1.216 2.696-1.973a15.2 15.2 0 0 0 3.056-3.569l1.355-2.356l1.355 2.356a15.3 15.3 0 0 0 3.057 3.569c.886.757 1.685 1.259 2.697 1.973c-1.012.714-1.811 1.216-2.697 1.973a15.3 15.3 0 0 0-3.057 3.569l-1.355 2.356l-1.355-2.356a15.2 15.2 0 0 0-3.056-3.569c-.885-.757-1.684-1.259-2.696-1.973m7.107-3.966c-1.006 1.523-2.254 2.826-3.674 3.966c1.420 1.140 2.668 2.443 3.674 3.966c1.007-1.523 2.255-2.826 3.676-3.966c-1.421-1.140-2.669-2.443-3.676-3.966"/>',
     chevronLeft: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.657 17.657L9 12l5.657-5.657"/>',
     chevronRight: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.343 17.657L15 12l-5.657-5.657"/>',
+    arrowUp: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19.5V5m0 0l-6.2 6.2M12 5l6.2 6.2"/>',
+    list: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 6h11M9 12h11M9 18h7"/><circle cx="4.6" cy="6" r="1.3" fill="currentColor"/><circle cx="4.6" cy="12" r="1.3" fill="currentColor"/><circle cx="4.6" cy="18" r="1.3" fill="currentColor"/>',
+    width: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12h16m0 0-4.2-4.2M20 12l-4.2 4.2M4 12l4.2-4.2M4 12l4.2 4.2"/>',
+    full: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5"/>',
     warning: '<path fill="currentColor" d="M11.741 16.966a1 1 0 0 1-.607-.466c-.439-.759.290-1.690 1.127-1.465c.254.068.475.237.607.466c.439.759-.290 1.690-1.127 1.465m-.707-8.224c.226-.843 1.396-.997 1.832-.242c.101.175.121.302.134.500v4.001c-.030.450-.288.844-.741.965c-.656.176-1.217-.326-1.259-.965V9ZM3.213 20.341c-1.104-.129-1.653-1.272-1.146-2.238l8.634-14.955c.414-.648 1.240-.953 1.951-.596c.274.138.482.338.647.596l8.634 14.955c.263.501.265 1.076-.040 1.560c-.276.437-.751.670-1.259.690H3.366Zm1.019-1.988h15.536L12 4.898Z"/>'
   };
 
@@ -86,6 +96,7 @@
   let closing = false;
   let routeTimer = null;
   let closeTimer = null;
+  let shellFadeTimer = null;      // 关闭动画末段：面板淡出、原卡片接手
   let toastTimer = null;
   let prefetchController = null;  // 相邻帖子预取专用，关闭浮层时统一中止
   let overlayEnabled = true;      // 浮窗模式开关（默认开启，可在设置里关闭）
@@ -98,6 +109,11 @@
   let pendingBack = false;        // 关闭动画结束后需要补发的一次 history.back
   let originCard = null;          // 当前帖子在信息流里的原始卡片，全程与浮层同步移动缩放
   let stage = null;               // 只做位移的舞台层，尺寸缩放交给浮层自身
+  let wideOn = false;             // 加宽窗口（同一次会话内记忆）
+  let fullOn = false;             // 全屏显示（同一次会话内记忆）
+  let tocHeads = [];              // 当前正文里的标题节点，用于文章导航
+  let tocFrame = 0;               // 滚动同步目录高亮的 rAF 句柄
+  let tocOn = false;              // 文章目录的展开状态（chrome.storage.local 记忆）
 
   /** 当前浮层的数据与交互状态；关闭时整体丢弃 */
   let view = null;
@@ -107,6 +123,8 @@
   let aiPending = null;
   let aiSeq = 0;
   let aiBusy = false;
+  let aiPanelText = '';           // AI 助手面板里的流式文本
+  let aiPanelBusy = false;        // 面板里的请求是否进行中
   let aiConfig = { provider: 'deepseek', model: 'deepseek-chat', apiKey: '' };
 
   /** 详情缓存（按帖子 id）与回复缓存（按「帖子 id + 排序」） */
@@ -245,8 +263,10 @@
     return res.json();
   }
 
-  const postsUrl = (topicId, sort) =>
-    '/api/v1/topics/' + encodeURIComponent(topicId) + '/posts?limit=' + COMMENT_LIMIT + '&sort=' + sort;
+  const postsUrl = (topicId, sort, limit, cursor) =>
+    '/api/v1/topics/' + encodeURIComponent(topicId) + '/posts?limit=' +
+      (limit || COMMENT_LIMIT) + '&sort=' + sort +
+      (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
 
   /** 写接口统一入口：带 Cookie；POST 附带幂等键；204 / 空响应都安全返回 */
   async function apiSend(path, method, body) {
@@ -310,21 +330,48 @@
     }
   }
 
+  /** 游标分页把所有回复拉全：单页 60 条，直到没有下一页或触顶 */
+  async function fetchAllPosts(topicId, sort, signal) {
+    const seen = new Set();
+    const items = [];
+    let cursor = '';
+    while (true) {
+      const page = await fetchJson(postsUrl(topicId, sort, COMMENT_PAGE, cursor), signal);
+      const list = (page && page.items) || [];
+      list.forEach((post) => {
+        const no = String(post.postNumber);
+        if (seen.has(no)) return;
+        seen.add(no);
+        items.push(post);
+      });
+      const info = page && page.pageInfo;
+      if (!info || !info.hasNextPage || !info.nextCursor) break;
+      if (items.length >= COMMENT_ALL_MAX) break;
+      cursor = info.nextCursor;
+    }
+    return { items: items };
+  }
+
   /** 切换排序或刷新回复；force 为 true 时跳过缓存 */
   async function loadComments(topicId, sort, force) {
     if (!view || !view.topic || !root) return;
     const key = topicId + '|' + sort;
+    const all = !!view.showAll;
     const cached = commentCache.get(key);
-    if (!force && cached && Date.now() - cached.at < CACHE_TTL) {
+    // 缓存里只有首屏 24 条时，即使已展开全部也不能直接用它凑数
+    const cachedEnough = cached && (!all || !!cached.all);
+    if (!force && cached && cachedEnough && Date.now() - cached.at < CACHE_TTL) {
       applyPosts(view.topic, cached.posts);
       return;
     }
 
     const signal = current && current.controller && current.controller.signal;
     try {
-      const posts = await fetchJson(postsUrl(topicId, sort), signal);
+      const posts = all
+        ? await fetchAllPosts(topicId, sort, signal)
+        : await fetchJson(postsUrl(topicId, sort, COMMENT_LIMIT), signal);
       if (!current || current.id !== topicId) return;
-      commentCache.set(key, { posts: posts, at: Date.now() });
+      commentCache.set(key, { posts: posts, at: Date.now(), all: all });
       applyPosts(view.topic, posts);
     } catch (err) {
       if (err && err.name === 'AbortError') return;
@@ -494,6 +541,10 @@
     return '<div class="pco-backdrop" data-act="close" aria-hidden="true"></div>' +
       '<div class="pco-stage">' +
       '<div class="pco-shell" role="dialog" aria-modal="true" aria-label="帖子预览" tabindex="-1">' +
+        '<div class="pco-toc" id="pco-toc" data-role="toc">' +
+          '<div class="pco-toc-head">文章目录</div>' +
+          '<div class="pco-toc-list" data-role="toc-list"></div>' +
+        '</div>' +
         '<div class="pco-frame">' +
           '<section class="pco-main">' +
             '<div class="pco-scroll" data-role="scroll">' +
@@ -586,6 +637,10 @@
               'aria-haspopup="true" aria-expanded="false">' +
               icon('more', 18) +
             '</button>' +
+            '<button type="button" class="pco-rail-btn" data-act="top" title="返回顶部" ' +
+              'aria-label="返回顶部" disabled>' +
+              icon('arrowUp', 18) +
+            '</button>' +
             '<div class="pco-rail-menu" data-role="rail-menu" role="menu" hidden>' +
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-detail">在详情页打开</button>' +
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-newtab">在新标签页打开</button>' +
@@ -594,6 +649,13 @@
           '</div>' +
         '</div>' +
         '<div class="pco-actions">' +
+          '<button type="button" class="pco-icon-btn" data-act="wide" title="加宽窗口" ' +
+            'aria-label="加宽窗口" aria-pressed="false">' + icon('width', 17) + '</button>' +
+          '<button type="button" class="pco-icon-btn" data-act="toc" title="文章目录" ' +
+            'aria-label="文章目录" aria-expanded="false" aria-controls="pco-toc" hidden>' +
+            icon('list', 17) + '</button>' +
+          '<button type="button" class="pco-icon-btn" data-act="full" title="全屏显示" ' +
+            'aria-label="全屏显示" aria-pressed="false">' + icon('full', 17) + '</button>' +
           '<a class="pco-icon-btn" data-role="open" href="#" target="_blank" rel="noopener" ' +
             'title="在详情页打开" aria-label="在详情页打开">' + icon('external', 17) + '</a>' +
           '<button type="button" class="pco-icon-btn pco-icon-btn--close" data-act="close" ' +
@@ -702,6 +764,15 @@
     root.innerHTML = shellTemplate();
     if (!blurOn) root.classList.add('pco-no-blur');
     if (!imageZoomOn) root.classList.add('pco-no-zoom');
+    // 全屏与加宽都是会话级偏好，重开浮层时恢复
+    if (fullOn) root.classList.add('is-full');
+    // 目录展开状态同样沿用上次：在首次绘制前就落位，
+    // 避免正文加载完成后目录再从 0 展开一次，看起来像重复播放开启动画
+    if (tocOn) {
+      root.classList.add('is-toc');
+      const tocBtn = root.querySelector('[data-act="toc"]');
+      if (tocBtn) tocBtn.setAttribute('aria-expanded', 'true');
+    }
     document.body.appendChild(root);
     lockScroll();
 
@@ -710,9 +781,14 @@
 
     shell = root.querySelector('.pco-shell');
     stage = root.querySelector('.pco-stage');
+    if (wideOn) root.classList.add('is-wide');
+    paintNavOffset();
     contentEl = root.querySelector('[data-role="content"]');
     countEl = root.querySelector('[data-role="count"]');
     syncComposerTools();
+    paintViewControls();
+    const scrollBox = root.querySelector('[data-role="scroll"]');
+    if (scrollBox) scrollBox.addEventListener('scroll', onContentScroll, { passive: true });
 
     // 先把最终尺寸量出来，再倒推初始状态，保证卡片原位「长」成浮层
     const last = shell.getBoundingClientRect();
@@ -753,7 +829,8 @@
     shell.style.transition = '';
 
     requestAnimationFrame(() => {
-      if (!root || !stage || !shell) return;
+      // 极端情况下开启动画还没起跑就被关闭打断：交给关闭动画，别再清内联值
+      if (!root || !stage || !shell || closing) return;
       root.classList.add('is-open');
       pageBackIn();
       stage.style.transform = '';
@@ -782,7 +859,14 @@
   }
 
   function openPost(topicId, link) {
-    if (!topicId || closing) return;
+    if (!topicId) return;
+    // 上一条浮层还在退场时又点了卡片：直接接管，沿用它占用的那条历史记录，
+    // 这样这一下点击不会被丢掉，历史里也不会多堆一条
+    let reuseEntry = false;
+    if (closing) {
+      reuseEntry = !!(history.state && history.state.pco);
+      cleanup(true);
+    }
     if (root) cleanup();
 
     const card = link.closest('article') || link;
@@ -794,6 +878,7 @@
       posts: null,
       sort: 'hot',
       keyword: '',
+      showAll: false,
       liked: false,
       likeCount: 0,
       bookmarkId: null,
@@ -806,7 +891,6 @@
       link: link,
       scope: null,
       list: [],
-      openedAt: Date.now(),
       controller: null,
       pushed: false
     };
@@ -826,7 +910,8 @@
 
     // 记一条与当前 URL 相同的历史：后退键能无缝关闭，而不是离开页面
     try {
-      history.pushState({ pco: true, id: topicId }, '', location.href);
+      if (reuseEntry) history.replaceState({ pco: true, id: topicId }, '', location.href);
+      else history.pushState({ pco: true, id: topicId }, '', location.href);
       current.pushed = true;
     } catch (e) { current.pushed = false; }
 
@@ -884,6 +969,24 @@
           '</div>' +
         '</div>' +
       '</div>' +
+      // AI 助手整块放在正文开头，与原站点一致（不再收进右侧抽屉）
+      '<div class="pco-ai-panel" data-role="ai-panel">' +
+        '<div class="pco-ai-panel-head">' +
+          '<span class="pco-ai-panel-title">' + icon('sparkles', 15) + 'AI 助手</span>' +
+          '<span class="pco-ai-panel-hint">AI 总结</span>' +
+        '</div>' +
+        '<div class="pco-ai-panel-actions">' +
+          '<button type="button" class="pco-ai-run" data-act="ai-run">' +
+            icon('sparkles', 14) + '总结本帖</button>' +
+        '</div>' +
+        '<div class="pco-ai-panel-status" data-role="ai-panel-status">' +
+          '使用设置里的模型与密钥生成</div>' +
+        '<div class="pco-ai-panel-out" data-role="ai-panel-out"></div>' +
+        '<div class="pco-ai-panel-foot">' +
+          '<button type="button" class="pco-ai-foot-btn" data-act="ai-stop" hidden>停止</button>' +
+          '<button type="button" class="pco-ai-foot-btn" data-act="ai-copy" hidden>复制</button>' +
+        '</div>' +
+      '</div>' +
       (tags ? '<div class="pco-tags">' + tags + '</div>' : '') +
       '<div class="pco-post-foot">' +
         '<span>' + icon('heart', 15) + esc(fmtCount(topic.likeCount != null ? topic.likeCount : first.likeCount)) + '</span>' +
@@ -895,6 +998,12 @@
       '</div>';
 
     localizeMentions(contentEl, map);
+    contentEl.querySelectorAll('iframe').forEach((frame) => {
+      // allow 与 allowfullscreen 同时存在时 Chrome 会告警，且以 allow 为准；
+      // 去掉冗余的 allowfullscreen，行为不变
+      if (frame.hasAttribute('allow')) frame.removeAttribute('allowfullscreen');
+      frame.loading = 'lazy';
+    });
     contentEl.querySelectorAll('img').forEach((img) => {
       if (img.classList.contains('markdown-emoji')) return;
       img.loading = 'lazy';
@@ -903,9 +1012,294 @@
 
     // 内容与骨架交叉淡出，避免出现闪白或跳版
     root.classList.add('is-loaded');
+
+    // 正文就位后重建文章目录（标题数量不足时自动隐藏入口）
+    buildToc();
+    paintTopBtn();
   }
 
-  // ============================ 6.0 切换相邻帖子 ============================
+  // ============================ 6.0 文章导航与窗口视图 ============================
+
+  /** 把全屏 / 加宽开关的状态同步到按钮上 */
+  function paintViewControls() {
+    if (!root) return;
+    const full = root.querySelector('[data-act="full"]');
+    if (full) {
+      full.classList.toggle('is-on', fullOn);
+      full.setAttribute('aria-pressed', fullOn ? 'true' : 'false');
+      full.title = fullOn ? '退出全屏（Esc）' : '全屏显示';
+    }
+    const wide = root.querySelector('[data-act="wide"]');
+    if (wide) {
+      wide.classList.toggle('is-on', wideOn);
+      wide.setAttribute('aria-pressed', wideOn ? 'true' : 'false');
+      wide.title = wideOn ? '还原窗口宽度' : '加宽窗口';
+      wide.disabled = fullOn;
+    }
+  }
+
+  /** 在默认宽度与贴边宽度之间切换，宽度过渡由 CSS 完成 */
+  function toggleWide() {
+    if (!root || fullOn) return;
+    wideOn = !wideOn;
+    root.classList.toggle('is-wide', wideOn);
+    paintViewControls();
+    // 宽度有 0.3s 过渡，过渡结束后再校准两侧切换按钮
+    scheduleNavOffset();
+  }
+
+  function toggleFull(force) {
+    if (!root) return;
+    fullOn = typeof force === 'boolean' ? force : !fullOn;
+    root.classList.toggle('is-full', fullOn);
+    paintViewControls();
+    scheduleNavOffset();
+  }
+
+  /** 两侧切换按钮贴住浮层边缘；窗口太宽或全屏时退到视口内侧 */
+  function paintNavOffset() {
+    if (!root || !stage) return;
+    // 38px 按钮 + 14px 间距
+    const outside = Math.round((window.innerWidth - stage.offsetWidth) / 2) - 52;
+    const left = Math.max(10, outside);
+    root.style.setProperty('--pco-nav-left', left + 'px');
+    root.style.setProperty('--pco-nav-right', left + 'px');
+  }
+
+  /** 尺寸变化有 0.3s 过渡，过渡结束后再校一次按钮位置 */
+  function scheduleNavOffset() {
+    paintNavOffset();
+    setTimeout(paintNavOffset, 360);
+  }
+
+  /**
+   * 恢复目录状态时直接落位：抑制宽度过渡，避免浮层开启动画期间
+   * 目录再从 0 → 288px 展开一次，视觉上像重复播放了展开动画。
+   */
+  function setTocInstant(open) {
+    if (!root) return;
+    root.classList.add('pco-toc-instant');
+    root.classList.toggle('is-toc', open);
+    const btn = root.querySelector('[data-act="toc"]');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    void root.offsetWidth;   // 先按终值完成布局，移除抑制类后不会再补播过渡
+    requestAnimationFrame(() => {
+      if (root) root.classList.remove('pco-toc-instant');
+    });
+  }
+
+  /** 从正文里抽取标题生成目录；标题不足两个时隐藏入口 */
+  function buildToc() {
+    if (!root || !contentEl) return;
+    const body = contentEl.querySelector('.pco-post-body');
+    const btn = root.querySelector('[data-act="toc"]');
+    const list = root.querySelector('[data-role="toc-list"]');
+    if (!body || !btn || !list) return;
+    tocHeads = [];
+
+    // 与站点一致：帖子标题本身作为目录的第一项
+    const title = contentEl.querySelector('.pco-title');
+    const heads = (title ? [title] : []).concat(
+      Array.prototype.slice
+        .call(body.querySelectorAll('h1, h2, h3, h4, h5, h6'))
+        .filter((h) => (h.textContent || '').trim() && !h.classList.contains('pco-empty'))
+    );
+    if (heads.length < 2) {
+      // 新帖没有可用大纲时收起侧栏（直接落位，不播放收起动画）
+      setTocInstant(false);
+      btn.hidden = true;
+      list.innerHTML = '';
+      return;
+    }
+
+    // 以最浅的标题层级作为缩进基准，避免正文从 h2 开始时整体右移
+    const base = Math.min.apply(null, heads.map((h) => Number(h.tagName.charAt(1))));
+    list.innerHTML = heads.map((h, i) => {
+      if (!h.id) h.id = 'pco-head-' + i;
+      const lvl = Math.max(0, Number(h.tagName.charAt(1)) - base);
+      return '<button type="button" class="pco-toc-item" data-act="toc-jump" ' +
+        'data-idx="' + i + '" style="--lvl:' + lvl + '">' +
+        esc((h.textContent || '').trim()) + '</button>';
+    }).join('');
+
+    tocHeads = heads;
+    btn.hidden = false;
+    // 沿用上次的展开状态（直接落位，避免开浮层时重复播放展开动画）
+    if (tocOn) setTocInstant(true);
+    paintTocFlow();
+    paintTocActive();
+  }
+
+  function toggleToc() {
+    if (!root) return;
+    const btn = root.querySelector('[data-act="toc"]');
+    if (!btn) return;
+    const open = !root.classList.contains('is-toc');
+    root.classList.toggle('is-toc', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    tocOn = open;
+    saveTocPref();
+    if (open) paintTocActive();
+  }
+
+  /** 记住目录展开状态：换帖、刷新页面、下次打开浮层都沿用 */
+  function saveTocPref() {
+    try { chrome.storage.local.set({ [TOC_KEY]: tocOn }); } catch (e) { /* 扩展上下文失效时忽略 */ }
+  }
+
+  function loadTocPref() {
+    try {
+      chrome.storage.local.get(TOC_KEY, (raw) => {
+        if (chrome.runtime.lastError) return;
+        tocOn = !!(raw && raw[TOC_KEY]);
+        // 目录已经建好（例如命中缓存秒开）时立即补上展开状态
+        if (!tocOn || !root || !tocHeads.length) return;
+        const btn = root.querySelector('[data-act="toc"]');
+        if (!btn || btn.hidden) return;
+        setTocInstant(true);
+        paintTocActive();
+      });
+    } catch (e) { /* 扩展上下文失效时保持收起 */ }
+  }
+
+  /** 目录项跳转：按标题相对滚动容器的位置换算，不受外层定位影响 */
+  function jumpToHeading(idx) {
+    const head = tocHeads[idx];
+    const scroll = root && root.querySelector('[data-role="scroll"]');
+    if (!head || !scroll) return;
+    const top = scroll.scrollTop +
+      (head.getBoundingClientRect().top - scroll.getBoundingClientRect().top) - 14;
+    scroll.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
+
+  /**
+   * 目录折线：整列画成一条 SVG 路径。
+   * 竖线 x 随层级内缩（12 / 28 / 44…），层级切换处用一段平滑曲线滑过去，
+   * 与站点「文章目录」的画法一致；彩色副本再用 clip 裁到当前条目。
+   */
+  function paintTocFlow() {
+    if (!root) return;
+    const list = root.querySelector('[data-role="toc-list"]');
+    if (!list) return;
+    const stale = list.querySelector('.pco-toc-flow');
+    if (stale) stale.remove();
+    const items = Array.prototype.slice.call(list.querySelectorAll('.pco-toc-item'));
+    if (!items.length) return;
+
+    const SVG = 'http://www.w3.org/2000/svg';
+    const lvls = items.map((el) => Number(el.style.getPropertyValue('--lvl')) || 0);
+    const tops = items.map((el) => el.offsetTop);
+    const hts = items.map((el) => el.offsetHeight);
+    const xOf = (lvl) => 12 + 16 * lvl;
+
+    let d = 'M ' + xOf(lvls[0]) + ' 0';
+    for (let i = 0; i < items.length; i += 1) {
+      const x = xOf(lvls[i]);
+      const bot = tops[i] + hts[i];
+      const nextLvl = i + 1 < items.length ? lvls[i + 1] : null;
+      const changed = nextLvl !== null && nextLvl !== lvls[i];
+      // 层级变化时竖线提前 11px 收住，剩下 22px 交给过渡曲线
+      d += ' L ' + x + ' ' + (changed ? bot - 11 : bot);
+      if (changed) {
+        const nx = xOf(nextLvl);
+        d += ' C ' + x + ' ' + bot + ', ' + nx + ' ' + bot + ', ' + nx + ' ' + (bot + 11);
+      }
+    }
+
+    const w = list.clientWidth || 288;
+    const h = Math.max(list.scrollHeight, tops[tops.length - 1] + hts[hts.length - 1]);
+
+    const svg = document.createElementNS(SVG, 'svg');
+    svg.setAttribute('class', 'pco-toc-flow');
+    svg.setAttribute('width', String(w));
+    svg.setAttribute('height', String(h));
+    svg.setAttribute('aria-hidden', 'true');
+
+    const clip = document.createElementNS(SVG, 'clipPath');
+    clip.setAttribute('id', 'pco-toc-clip');
+    const rect = document.createElementNS(SVG, 'rect');
+    rect.setAttribute('x', '0');
+    rect.setAttribute('width', String(w));
+    rect.setAttribute('height', '0');
+    clip.appendChild(rect);
+
+    const base = document.createElementNS(SVG, 'path');
+    base.setAttribute('class', 'pco-toc-flow-base');
+    base.setAttribute('d', d);
+
+    const active = document.createElementNS(SVG, 'path');
+    active.setAttribute('class', 'pco-toc-flow-active');
+    active.setAttribute('d', d);
+    active.setAttribute('clip-path', 'url(#pco-toc-clip)');
+
+    svg.appendChild(clip);
+    svg.appendChild(base);
+    svg.appendChild(active);
+    list.appendChild(svg);
+  }
+
+  /** 依据滚动位置高亮当前阅读到的标题，并把它保持在目录可视区域内 */
+  function paintTocActive() {
+    if (!root || !tocHeads.length) return;
+    const scroll = root.querySelector('[data-role="scroll"]');
+    const list = root.querySelector('[data-role="toc-list"]');
+    if (!scroll || !list) return;
+
+    const line = scroll.getBoundingClientRect().top + 20;
+    let active = 0;
+    for (let i = 0; i < tocHeads.length; i += 1) {
+      const node = tocHeads[i];
+      if (node.isConnected && node.getBoundingClientRect().top <= line) active = i;
+    }
+    let activeEl = null;
+    list.querySelectorAll('.pco-toc-item').forEach((el) => {
+      const on = Number(el.getAttribute('data-idx')) === active;
+      el.classList.toggle('is-active', on);
+      if (on) activeEl = el;
+    });
+
+    // 折线高亮：把彩色副本裁到当前条目那一段
+    const clipRect = list.querySelector('.pco-toc-flow clipPath rect');
+    if (clipRect) {
+      clipRect.setAttribute('y', activeEl ? String(activeEl.offsetTop) : '0');
+      clipRect.setAttribute('height', activeEl ? String(activeEl.offsetHeight) : '0');
+    }
+
+    // 侧栏收起时不做滚动补偿，避免把隐藏列表滚乱
+    if (!activeEl || !root.classList.contains('is-toc')) return;
+    const box = list.getBoundingClientRect();
+    if (!box.height) return;
+    const item = activeEl.getBoundingClientRect();
+    if (item.top < box.top || item.bottom > box.bottom) {
+      list.scrollTop += item.top - box.top - (box.height - item.height) / 2;
+    }
+  }
+
+  function onContentScroll() {
+    if (tocFrame) return;
+    tocFrame = requestAnimationFrame(() => {
+      tocFrame = 0;
+      paintTocActive();
+      paintTopBtn();
+    });
+  }
+
+  /** 返回顶部：正文滚过一段距离后才可点，避免按钮时有时无导致操作栏跳动 */
+  function paintTopBtn() {
+    if (!root) return;
+    const btn = root.querySelector('[data-act="top"]');
+    const box = root.querySelector('[data-role="scroll"]');
+    if (!btn || !box) return;
+    btn.disabled = box.scrollTop < 240;
+  }
+
+  function scrollContentTop() {
+    const box = root && root.querySelector('[data-role="scroll"]');
+    if (!box) return;
+    box.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+  }
+
+  // ============================ 6.1 切换相邻帖子 ============================
 
   function paintNav() {
     if (!root || !current) return;
@@ -978,6 +1372,15 @@
     }
     const aiPop = root.querySelector('[data-role="ai-pop"]');
     if (aiPop) aiPop.classList.remove('is-summary');
+    // 换帖时目录清空，等新正文渲染完再重建（侧栏展开状态保留）
+    tocHeads = [];
+    const tocBtn = root.querySelector('[data-act="toc"]');
+    if (tocBtn) tocBtn.hidden = true;
+    // AI 结果属于上一篇帖子，换帖时清空，避免误用
+    aiPanelText = '';
+    aiPanelBusy = false;
+    paintAiPanel(false);
+    setAiPanelStatus('使用设置里的模型与密钥生成');
   }
 
   /** 命中缓存时给正文与回复加一段同向轻滑，外层浮层本身不重播动画 */
@@ -1051,7 +1454,7 @@
     prefetchNeighbors();
   }
 
-  // ============================ 6.1 操作栏与提示 ============================
+  // ============================ 6.2 操作栏与提示 ============================
 
   function paintRail() {
     if (!root || !view || !view.topic) return;
@@ -1196,7 +1599,7 @@
     window.open('/forum/post/' + encodeURIComponent(view.topic.id), '_blank', 'noopener');
   }
 
-  // ============================ 6.2 发表回复 ============================
+  // ============================ 6.3 发表回复 ============================
 
   function growComposer(ta) {
     if (!ta) return;
@@ -1290,13 +1693,14 @@
     root.classList.remove('is-side-error');
     root.classList.add('is-side-loaded');
 
-    const all = (posts.items || []).slice(0, COMMENT_LIMIT);
+    const all = posts.items || [];
+    const shown = view && view.showAll ? all : all.slice(0, COMMENT_LIMIT);
     const keyword = view && view.keyword ? view.keyword.toLowerCase() : '';
-    const items = keyword ? all.filter((post) => {
+    const items = keyword ? shown.filter((post) => {
       const name = (post.author && post.author.username) || '';
       return name.toLowerCase().indexOf(keyword) !== -1 ||
         plainText(post.cookedHtml).toLowerCase().indexOf(keyword) !== -1;
-    }) : all;
+    }) : shown;
 
     if (!items.length) {
       inner.innerHTML = '<div class="pco-comments-empty">' +
@@ -1305,12 +1709,40 @@
       return;
     }
 
-    inner.innerHTML = items.map((post, index) => {
+    // 按 replyToPostNumber 把回复挂回父楼，正常呈现「评论 - 回复」的层级
+    const byNumber = new Map();
+    const childrenOf = new Map();
+    const roots = [];
+    if (!keyword) {
+      items.forEach((post) => byNumber.set(Number(post.postNumber), post));
+      items.forEach((post) => {
+        const parentNo = Number(post.replyToPostNumber) || 1;
+        const parent = parentNo > 1 ? byNumber.get(parentNo) : null;
+        if (parent && parent !== post) {
+          if (!childrenOf.has(parent)) childrenOf.set(parent, []);
+          childrenOf.get(parent).push(post);
+        } else {
+          roots.push(post);
+        }
+      });
+    }
+
+    let seq = 0;
+    const rendered = new Set();
+    const renderComment = (post, depth) => {
       const a = post.author || {};
       const body = post.deleted
         ? '<p class="pco-empty">这条回复已被删除</p>'
         : (post.cookedHtml || '');
-      return '<article class="pco-comment" style="--i:' + index + '">' +
+      const parentNo = Number(post.replyToPostNumber) || 1;
+      // 父楼被折叠、不在当前列表里时不显示「回复」，避免指错人
+      const parent = parentNo > 1 ? byNumber.get(parentNo) : null;
+      const replyTo = parent && parent !== post
+        ? '<div class="pco-comment-replyto">回复 <span>@' +
+            esc((parent.author && parent.author.username) || '') + '</span></div>'
+        : '';
+      return '<article class="pco-comment' + (depth ? ' pco-comment--child' : '') +
+          '" style="--i:' + (seq++) + '">' +
         avatarHtml(a, 'pco-avatar pco-avatar--sm') +
         '<div class="pco-comment-main">' +
           '<div class="pco-comment-head">' +
@@ -1318,6 +1750,7 @@
             badgeHtml(a, true) +
             '<span class="pco-comment-time">' + esc(timeAgo(post.createdAt)) + '</span>' +
           '</div>' +
+          replyTo +
           '<div class="pco-md pco-md--sm">' + body + '</div>' +
           '<div class="pco-comment-foot">' +
             '<span>' + icon('heart', 12) + esc(fmtCount(post.likeCount)) + '</span>' +
@@ -1326,9 +1759,69 @@
           '</div>' +
         '</div>' +
       '</article>';
-    }).join('');
+    };
+
+    // 最深缩进 3 层：再深的回复并到同一层，免得侧栏被挤窄；rendered 防环
+    const renderBranch = (post, depth) => {
+      const no = Number(post.postNumber);
+      if (rendered.has(no)) return '';
+      rendered.add(no);
+      const kids = childrenOf.get(post) || [];
+      const html = renderComment(post, depth);
+      if (!kids.length) return html;
+      const nextDepth = Math.min(depth + 1, 3);
+      const inner2 = kids.map((kid) => renderBranch(kid, nextDepth)).join('');
+      return html + (depth < 3 ? '<div class="pco-comment-children">' + inner2 + '</div>' : inner2);
+    };
+
+    inner.innerHTML = (keyword ? items : roots).map((post) => renderBranch(post, 0)).join('');
+
+    // 首屏有折叠时，底部提供「查看所有评论」，点开后原地加载全部
+    const more = moreCommentsHtml(topic, shown);
+    if (more) inner.insertAdjacentHTML('beforeend', more);
 
     localizeMentions(inner, mentionMap);
+  }
+
+  /** 「查看所有评论」入口：只有首屏被折叠时才出现 */
+  function moreCommentsHtml(topic, shown) {
+    if (!view || view.showAll) return '';
+    const total = Number(topic.replyCount) || 0;
+    if (total <= shown.length && shown.length < COMMENT_LIMIT) return '';
+    return '<button type="button" class="pco-comments-more" data-act="all-comments">' +
+      '<span>查看所有评论</span>' + icon('chevronRight', 14) + '</button>';
+  }
+
+  /** 原地加载全部回复：首屏只取 24 条，这里按游标逐页补齐 */
+  async function loadAllComments() {
+    if (!root || !view || !view.topic || view.loadingAll) return;
+    const topic = view.topic;
+    const btn = root.querySelector('[data-act="all-comments"]');
+    view.loadingAll = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>正在加载…</span>';
+    }
+
+    const signal = current && current.controller ? current.controller.signal : undefined;
+    try {
+      const posts = await fetchAllPosts(topic.id, view.sort, signal);
+      if (!current || current.id !== topic.id) return;
+      view.showAll = true;
+      view.posts = posts;
+      commentCache.set(topic.id + '|' + view.sort, { posts: posts, at: Date.now(), all: true });
+      renderComments(topic, posts, buildMentionMap(topic, posts));
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      if (!root) return;
+      // 失败时把按钮恢复原样，用户可以直接重试
+      if (btn && btn.isConnected) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>查看所有评论</span>' + icon('chevronRight', 14);
+      }
+      toast('评论加载失败，请稍后重试', 'err');
+    }
+    view.loadingAll = false;
   }
 
   function showError() {
@@ -1341,9 +1834,10 @@
   function clearTimers() {
     if (routeTimer) { clearInterval(routeTimer); routeTimer = null; }
     if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+    if (shellFadeTimer) { clearTimeout(shellFadeTimer); shellFadeTimer = null; }
   }
 
-  function cleanup() {
+  function cleanup(keepPage) {
     clearTimers();
     if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
 
@@ -1375,27 +1869,31 @@
     current = null;
     closing = false;
     unlockScroll();
-    resetPage();
+    // 关闭→立刻打开下一张：保留页面当前的缩放，避免背景闪回 1:1 再缩一次
+    if (keepPage) pageEl = null;
+    else resetPage();
   }
 
-  function animateClose() {
+  function animateClose(fromDrag) {
     if (!root || closing) return;
     closing = true;
     clearTimers();
     closeLightbox();
     // 回弹计时器可能还在跑：立刻摘掉，避免中途换掉位移层的过渡曲线
     root.classList.remove('is-springing');
+    // 只有“上滑松手”关闭才保留尺寸过冲；点按钮 / 点空白处属于主动关闭，直接收回到卡片
+    root.classList.toggle('is-drag-close', !!fromDrag);
 
     const reduce = reducedMotion();
     const link = current && current.link;
 
-    // —— 遮罩接管：遮罩要撑满整个退出动画，先保持压暗，等卡片快落回时再淡出。
-    //    直接把不透明度钉成 0 会让遮罩在 0.2s 内消失，后面 0.3s 的回收过程
-    //    就露出未压暗的页面，看起来像「动画中途少了遮罩」。 ——
+    // —— 遮罩尽早退场：模糊/压暗随浮层开始收缩就淡出，
+    //    并立刻放开点击拦截，让下一张卡片可以马上点 ——
     const bd = root.querySelector('.pco-backdrop');
     if (bd) {
-      bd.style.transition = 'opacity 0.26s ease 0.26s';
+      bd.style.transition = 'opacity 0.18s ease 0.1s';
       bd.style.opacity = '0';
+      bd.style.pointerEvents = 'none';
     }
     const navEl = root.querySelector('.pco-nav');
     if (navEl) {
@@ -1408,15 +1906,16 @@
       grabEl.style.opacity = '0';
     }
 
-    // —— 页面瞬间回到 1:1：残留的 0.4s 回弹曲线会让落点一路漂移，
-    //    先摘掉过渡并强制生效，随后量到的才是卡片最终矩形（尺寸精确匹配）。
-    //    压暗滤镜先留着，等遮罩一起淡出，避免背景在动画中途突然变亮 ——
+    // —— 量落点前先临时摘掉页面缩放：不受 0.4s 回弹曲线干扰，量到的才是
+    //    卡片最终矩形（尺寸精确匹配）。同帧内还原，不会产生可见跳变 ——
+    let pageTf = '';
     if (pageEl) {
+      // 取当前计算值（可能是开合途中的插值），还原时画面才不会跳
+      pageTf = window.getComputedStyle(pageEl).transform;
+      if (!pageTf || pageTf === 'none') pageTf = '';
       pageEl.style.transition = 'none';
       pageEl.style.transform = '';
       void pageEl.offsetWidth;
-      pageEl.style.transition = 'filter 0.26s ease 0.26s';
-      pageEl.style.filter = '';
     }
 
     let target = null;
@@ -1437,6 +1936,16 @@
         cardEl.style.transform = keepTf;
         void cardEl.offsetWidth;
       }
+    }
+
+    // 同帧还原页面缩放（不产生可见变化），随后与浮层同步平滑回到 1:1
+    if (pageEl) {
+      pageEl.style.transform = pageTf;
+      void pageEl.offsetWidth;
+      pageEl.style.transition =
+        'transform 0.44s cubic-bezier(0.32, 0.72, 0.2, 1), filter 0.18s ease 0.1s';
+      pageEl.style.transform = '';
+      pageEl.style.filter = '';
     }
 
     // 历史回退改到动画结束之后发，站点重渲染不会再和退出动画抢主线程
@@ -1462,9 +1971,11 @@
       const s1x = stageRect.width > 0 ? Math.min(1, target.width / stageRect.width) : 0.06;
       const s1y = stageRect.height > 0 ? Math.min(1, target.height / stageRect.height) : 0.06;
 
-      // 起点钉成当前这一帧的缩放（无过渡），与拖动画面零跳变
+      // 起点钉成当前这一帧的位置与缩放（无过渡）：哪怕开启动画还在跑，
+      // 也能从半途的画面原地接管，不会跳一下再反向
       stage.style.transition = 'none';
       shell.style.transition = 'none';
+      stage.style.transform = 'translate(' + cur.x + 'px, ' + cur.y + 'px)';
       shell.style.transform = 'scale(' + s0x + ', ' + s0y + ')';
       void shell.offsetWidth;
 
@@ -1474,10 +1985,11 @@
       stage.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
       shell.style.transform = 'scale(' + s1x + ', ' + s1y + ')';
 
-      // 原始卡片同步回家：从拖动位置随浮层一起移动缩放，在容器淡出前先显形接手
+      // 原始卡片同步回家：从拖动位置随浮层一起移动缩放；
+      // 显形压到浮层落位之后（0.54s），两者在同一位置做一次几乎无感的交接
       if (originCard && originCard.isConnected) {
         originCard.style.transition =
-          'transform 0.54s cubic-bezier(0.3, 0.88, 0.26, 1), opacity 0.18s ease 0.2s';
+          'transform 0.54s cubic-bezier(0.3, 0.88, 0.26, 1), opacity 0.14s ease 0.54s';
         originCard.style.transform = '';
         originCard.style.opacity = '1';
       }
@@ -1491,6 +2003,18 @@
 
     const focusTarget = restoreFocus;
     restoreFocus = null;
+
+    // —— 交接：位移收尾（0.54s）后，面板淡出，由同一位置的原卡片接手 ——
+    //    面板不透明地落回卡片，再和卡片做一次位置完全重合的交叉淡化，
+    //    这样既不会中途透出原卡片，也不会在容器移除的瞬间“换层”。
+    if (stage && shell && target && !reduce) {
+      shellFadeTimer = setTimeout(() => {
+        shellFadeTimer = null;
+        if (!shell) return;
+        shell.style.transition = 'opacity 0.14s ease';
+        shell.style.opacity = '0';
+      }, 540);
+    }
 
     closeTimer = setTimeout(() => {
       cleanup();
@@ -1509,9 +2033,9 @@
     }
   }
 
-  function requestClose() {
+  function requestClose(fromDrag) {
     if (!root || closing) return;
-    animateClose();
+    animateClose(fromDrag);
   }
 
   // ---------- 拖动横条关闭：跟手 + 二维位移 + 惯性 + iOS 回弹 ----------
@@ -1543,17 +2067,7 @@
     const nav = root.querySelector('.pco-nav');
     if (nav) nav.style.opacity = String(Math.max(0, 1 - Math.abs(offsetY) / 260));
     // 投影随容器一起缩放，无需单独处理
-    // 原始卡片同步跟随移动缩放：拖得越远越清晰，松手关闭时与浮层无缝交接
-    if (originCard && originCard.isConnected) {
-      // 卡片在缩放后的页面里，页面 1px 对应视口 PAGE_SCALE px，位移要折回去
-      const ps = pageScaleOn ? PAGE_SCALE : 1;
-      originCard.style.transition = 'none';
-      originCard.style.transformOrigin = '50% 50%';
-      originCard.style.transform = 'translate(' +
-        Math.round(offsetX * scale / ps) + 'px,' +
-        Math.round(offsetY * scale / ps) + 'px) scale(' + scale + ')';
-      originCard.style.opacity = String(Math.min(0.92, Math.abs(offsetY) / 150));
-    }
+    // 原位卡片全程保持隐藏：拖动时不再让它跟着浮层跑，避免背景里出现一张反向移动的卡片
   }
 
   function onPointerDown(e) {
@@ -1607,7 +2121,7 @@
     if (Math.abs(offsetY) > DRAG_CLOSE_DISTANCE || Math.abs(velocity) > DRAG_CLOSE_VELOCITY) {
       // 遮罩 / 导航的过渡与不透明度交给 animateClose 接管，
       // 这里绝不能清空内联值——那会让 is-open 的 opacity:1 立刻生效，闪一帧整屏遮罩
-      requestClose();
+      requestClose(true);
       return;
     }
 
@@ -1626,13 +2140,8 @@
     if (bd) bd.style.opacity = '';
     const nav = root.querySelector('.pco-nav');
     if (nav) nav.style.opacity = '';
-    // 原始卡片随窗口一起弹回，随后隐回信息流
-    if (originCard && originCard.isConnected) {
-      originCard.style.transition =
-        'transform 0.32s cubic-bezier(0.16, 1.06, 0.32, 1), opacity 0.28s ease';
-      originCard.style.transform = '';
-      originCard.style.opacity = '0';
-    }
+    // 原位卡片在拖动时始终隐藏，回弹只需保持隐藏即可
+    if (originCard && originCard.isConnected) originCard.style.opacity = '0';
     setTimeout(() => {
       if (!stage || !shell) return;
       stage.style.transition = '';
@@ -1748,10 +2257,9 @@
 
       if (act === 'close') {
         e.preventDefault();
-        // 双击卡片时，第二次点击常落在刚出现的遮罩上；短时间内的遮罩点击忽略，
-        // 否则会「一打开就关掉」。
-        if (actEl.classList.contains('pco-backdrop') &&
-            current && Date.now() - current.openedAt < 300) return;
+        // 双击卡片时，第二次点击常落在刚出现的遮罩上（detail >= 2），只忽略这一次，
+        // 否则会「一打开就关掉」；单次点击则允许打断开启动画，直接反向收回。
+        if (actEl.classList.contains('pco-backdrop') && e.detail > 1) return;
         requestClose();
       } else if (act === 'retry') {
         e.preventDefault();
@@ -1767,6 +2275,21 @@
       } else if (act === 'share') {
         e.preventDefault();
         sharePost();
+      } else if (act === 'top') {
+        e.preventDefault();
+        scrollContentTop();
+      } else if (act === 'toc') {
+        e.preventDefault();
+        toggleToc();
+      } else if (act === 'toc-jump') {
+        e.preventDefault();
+        jumpToHeading(Number(actEl.getAttribute('data-idx')));
+      } else if (act === 'wide') {
+        e.preventDefault();
+        toggleWide();
+      } else if (act === 'full') {
+        e.preventDefault();
+        toggleFull();
       } else if (act === 'more') {
         e.preventDefault();
         toggleRailMenu();
@@ -1782,6 +2305,9 @@
         e.preventDefault();
         closeRailMenu();
         sharePost();
+      } else if (act === 'all-comments') {
+        e.preventDefault();
+        loadAllComments();
       } else if (act === 'tool-more') {
         e.preventDefault();
         toggleExtraTools(actEl);
@@ -1812,6 +2338,18 @@
       } else if (act === 'fmt-link') {
         e.preventDefault();
         insertAtCursor('[文字](链接)');
+      } else if (act === 'ai-run') {
+        e.preventDefault();
+        runAiPanel();
+      } else if (act === 'ai-stop') {
+        e.preventDefault();
+        abortAi();
+        aiPanelBusy = false;
+        paintAiPanel(false);
+        setAiPanelStatus('已停止生成');
+      } else if (act === 'ai-copy') {
+        e.preventDefault();
+        copyAiPanel();
       } else if (act === 'ai-write' || act === 'ai-polish') {
         e.preventDefault();
         runAi(act === 'ai-polish' ? 'polish' : 'write');
@@ -1849,6 +2387,11 @@
     // 大图展开时 Esc 只收起大图，浮层保持打开
     if (root.querySelector('.pco-lightbox')) {
       closeLightbox();
+      return;
+    }
+    // 全屏时 Esc 先退回窗口态，再按一次才关闭
+    if (root.classList.contains('is-full')) {
+      toggleFull(false);
       return;
     }
     requestClose();
@@ -2195,6 +2738,108 @@
     return out.join('');
   }
 
+  // ---------------------------- AI 助手 ----------------------------
+
+  function aiPanelParts() {
+    if (!root) return null;
+    return {
+      out: root.querySelector('[data-role="ai-panel-out"]'),
+      status: root.querySelector('[data-role="ai-panel-status"]'),
+      stop: root.querySelector('[data-act="ai-stop"]'),
+      copy: root.querySelector('[data-act="ai-copy"]')
+    };
+  }
+
+  function setAiPanelStatus(text) {
+    const parts = aiPanelParts();
+    if (parts && parts.status) parts.status.textContent = text;
+  }
+
+  /** streaming = true 时按纯文本跟流，结束后再用轻量 Markdown 渲染 */
+  function paintAiPanel(streaming) {
+    const parts = aiPanelParts();
+    if (!parts || !parts.out) return;
+    if (streaming) parts.out.textContent = aiPanelText;
+    else parts.out.innerHTML = aiPanelText ? mdRender(aiPanelText) : '';
+    parts.out.classList.toggle('is-empty', !aiPanelText);
+    if (parts.stop) parts.stop.hidden = !aiPanelBusy;
+    if (parts.copy) parts.copy.hidden = aiPanelBusy || !aiPanelText;
+    parts.out.scrollTop = parts.out.scrollHeight;
+  }
+
+  function runAiPanel() {
+    if (!root || !view || !view.topic || aiBusy) return;
+
+    if (!aiConfig.apiKey && aiConfig.provider !== 'ollama' && aiConfig.provider !== 'custom') {
+      setAiPanelStatus('还没有配置 API Key，请到扩展设置里填写模型与密钥');
+      toast('请先在扩展设置里配置 AI 模型与密钥', 'err');
+      return;
+    }
+    const port = ensureAiPort();
+    if (!port) {
+      setAiPanelStatus('扩展后台不可用，请刷新页面后重试');
+      return;
+    }
+
+    aiPanelText = '';
+    aiPanelBusy = true;
+    aiBusy = true;
+    setAiPanelStatus('正在阅读正文并总结…');
+    paintAiPanel(true);
+
+    const id = 'p' + (++aiSeq);
+    let acc = '';
+    aiPending = {
+      id: id,
+      onChunk: (delta) => {
+        acc += delta;
+        aiPanelText = acc;
+        paintAiPanel(true);
+      },
+      onDone: (msg) => {
+        aiBusy = false;
+        aiPanelBusy = false;
+        acc = (msg && msg.text) || acc;
+        aiPanelText = acc.trim();
+        paintAiPanel(false);
+        setAiPanelStatus(aiPanelText ? '生成完成' : '模型没有返回内容，请重试');
+      },
+      onError: (msg) => {
+        aiBusy = false;
+        aiPanelBusy = false;
+        paintAiPanel(false);
+        setAiPanelStatus((msg && msg.message) || '生成失败，请重试');
+      }
+    };
+
+    try {
+      port.postMessage({
+        type: 'start',
+        id: id,
+        messages: summaryMessages(view.topic),
+        bypass: true
+      });
+    } catch (e) {
+      aiPending = null;
+      aiBusy = false;
+      aiPanelBusy = false;
+      paintAiPanel(false);
+      setAiPanelStatus('后台连接失败，请重新加载页面后再试');
+    }
+  }
+
+  function copyAiPanel() {
+    if (!aiPanelText) return;
+    try {
+      navigator.clipboard.writeText(aiPanelText).then(
+        () => toast('已复制到剪贴板', 'ok'),
+        () => toast('复制失败，请手动选择', 'err')
+      );
+    } catch (e) {
+      toast('复制失败，请手动选择', 'err');
+    }
+  }
+
   function aiOut() {
     return root && root.querySelector('[data-role="ai-out"]');
   }
@@ -2416,7 +3061,13 @@
   // 只注册一次：捕获阶段先于站点路由与扩展其他模块
   loadOverlaySetting();
   loadImageZoom();
+  loadTocPref();
   document.addEventListener('click', onDocClick, true);
   document.addEventListener('keydown', onDocKeydown, true);
   window.addEventListener('popstate', onPopState);
+  // 视口变化时重新计算两侧切换按钮的位置（加宽宽度由 CSS 的 vw 决定）
+  window.addEventListener('resize', () => {
+    if (!root) return;
+    scheduleNavOffset();
+  });
 })();

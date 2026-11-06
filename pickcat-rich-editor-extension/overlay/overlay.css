@@ -24,6 +24,8 @@
   --pco-size: cubic-bezier(0.3, 1.02, 0.4, 1);
   --pco-move-close: cubic-bezier(0.3, 0.88, 0.26, 1);
   --pco-size-close: cubic-bezier(0.32, 0.72, 0.2, 1);
+  /* 上滑松手关闭：尺寸带过冲，先收到比卡片略小一点再弹回 */
+  --pco-size-close-spring: cubic-bezier(0.3, 1.42, 0.42, 1);
   --pco-shadow: 0 32px 90px -24px rgba(8, 10, 16, 0.5),
     0 10px 28px -12px rgba(8, 10, 16, 0.28),
     0 0 0 1px var(--pco-border);
@@ -155,12 +157,33 @@ html.pco-lock body {
 #pco-root .pco-stage {
   position: relative;
   display: flex;
-  width: min(1160px, calc(100vw - 96px));
+  width: min(1320px, calc(100vw - 72px));
   height: min(82vh, 820px);
   min-height: 460px;
   transform-origin: 50% 50%;
-  transition: transform 0.52s var(--pco-move);
+  transition: transform 0.52s var(--pco-move),
+    width 0.3s var(--pco-ease), height 0.3s var(--pco-ease);
   will-change: transform;
+}
+
+/* 加宽：贴到视口两侧，由标题栏的左右箭头按钮切换；全屏规则在其后，优先级更高 */
+#pco-root.is-wide .pco-stage {
+  width: min(1680px, calc(100vw - 24px));
+}
+
+/* 全屏：舞台直接铺满视口，圆角收掉 */
+#pco-root.is-full {
+  padding: 0;
+}
+
+#pco-root.is-full .pco-stage {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+#pco-root.is-full .pco-shell {
+  border-radius: 0;
 }
 
 #pco-root.is-closing .pco-stage {
@@ -198,10 +221,18 @@ html.pco-lock body {
   will-change: transform;
 }
 
-/* 关闭时换用不带过冲的曲线，避免落回卡片后继续“后摇”；
-   尺寸 0.44s 快于位移 0.54s：缩放先到位、位移后跟上。 */
+/* 关闭时用平滑收尾的曲线，直接收回卡片大小；
+   尺寸 0.44s 快于位移 0.54s：缩放先到位、位移后跟上。
+   面板的淡出由脚本在位移结束后触发（不走 CSS 延迟）：
+   这里若直接写 opacity:0，脚本为了钉住起始帧临时把 transition 设成 none 时，
+   会立刻把面板变成全透明，整个退出动画就“看不见”了。 */
 #pco-root.is-closing .pco-shell {
   transition: transform 0.44s var(--pco-size-close);
+}
+
+/* 只有上滑松手关闭保留“缩过头再弹回”的手感，按钮 / 空白处关闭不做过冲 */
+#pco-root.is-closing.is-drag-close .pco-shell {
+  transition: transform 0.44s var(--pco-size-close-spring);
 }
 
 /* -------------------------- 底部导航横条 -------------------------- */
@@ -310,7 +341,7 @@ html.pco-lock body {
 }
 
 #pco-root .pco-title {
-  margin: 6px 72px 12px 0;
+  margin: 6px 208px 12px 0;
   font-size: 26px;
   font-weight: 800;
   line-height: 1.28;
@@ -621,7 +652,7 @@ html.pco-lock body {
   flex: none;
   align-items: baseline;
   gap: 8px;
-  padding: 19px 104px 12px 20px;
+  padding: 19px 216px 12px 20px;
   border-bottom: 1px solid var(--pco-border);
 }
 
@@ -656,6 +687,41 @@ html.pco-lock body {
   opacity: 1;
 }
 
+/* 回复列表底部的「查看所有评论」：原地加载全部回复 */
+#pco-root .pco-comments-more {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin: 12px 4px 4px;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--pco-muted);
+  background: color-mix(in oklab, var(--pco-soft) 72%, transparent);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+#pco-root .pco-comments-more:hover {
+  color: var(--pco-primary);
+  background: var(--pco-soft);
+}
+
+#pco-root .pco-comments-more:disabled {
+  color: var(--pco-dim);
+  cursor: default;
+}
+
+#pco-root .pco-comments-more:focus-visible {
+  outline: 2px solid var(--pco-primary);
+  outline-offset: 2px;
+}
+
 #pco-root .pco-comment {
   display: flex;
   gap: 10px;
@@ -665,6 +731,29 @@ html.pco-lock body {
 
 #pco-root .pco-comment:last-child {
   border-bottom: 0;
+}
+
+/* 评论 - 回复的层级：子回复缩进 + 左侧引导线，最多 3 层 */
+#pco-root .pco-comment-children {
+  margin-left: 16px;
+  padding-left: 12px;
+  border-left: 1px solid color-mix(in oklab, var(--pco-border) 70%, transparent);
+}
+
+#pco-root .pco-comment--child {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+#pco-root .pco-comment-replyto {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--pco-dim);
+}
+
+#pco-root .pco-comment-replyto span {
+  color: var(--pco-muted);
+  font-weight: 600;
 }
 
 #pco-root.is-side-loaded .pco-comment {
@@ -1250,6 +1339,13 @@ html.pco-lock body {
   transform: translateY(-1px);
 }
 
+/* 返回顶部在正文还没滚动时不可点 */
+#pco-root .pco-rail-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
 #pco-root .pco-rail-btn:active {
   transform: scale(0.95);
 }
@@ -1384,6 +1480,11 @@ html.pco-lock body {
   transform: translateY(-1px);
 }
 
+/* display: grid 会盖掉浏览器默认的 [hidden]，这里显式补回 */
+#pco-root .pco-icon-btn[hidden] {
+  display: none;
+}
+
 #pco-root .pco-icon-btn:active {
   transform: translateY(0) scale(0.96);
 }
@@ -1392,9 +1493,327 @@ html.pco-lock body {
   color: var(--pco-primary);
 }
 
+/* 开关态：加宽 / 全屏处于开启时高亮 */
+#pco-root .pco-icon-btn.is-on {
+  border-color: color-mix(in oklab, var(--pco-primary) 42%, var(--pco-border));
+  background: var(--pco-soft);
+  color: var(--pco-primary);
+}
+
+/* -------------------------- 文章目录（对齐站点侧栏） -------------------------- */
+
+#pco-root .pco-toc {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--pco-bg);
+  transition: width 0.26s var(--pco-ease);
+}
+
+/* 站点目录的折线：贯穿整个列表的 1px 竖线 + 每个条目一小段圆角横枝；
+   竖线由每个条目自绘（随列表一起滚动），激活条目整段变主题色 */
+#pco-root.is-toc .pco-toc {
+  width: 288px;
+}
+
+/* 恢复目录展开状态时跳过宽度过渡，避免与浮层开启动画叠加成“二次展开” */
+#pco-root.pco-toc-instant .pco-toc {
+  transition: none;
+}
+
+/* 头部与列表保持固定宽度，收起时被整体裁掉而不是跟着换行抖动 */
+#pco-root .pco-toc-head {
+  flex: none;
+  width: 288px;
+  padding: 24px 24px 8px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.015em;
+  color: var(--pco-text);
+  white-space: nowrap;
+}
+
+#pco-root .pco-toc-list {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 288px;
+  min-height: 0;
+  padding: 0 12px 22px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* 与站点一致：无圆角无底色，只靠缩进与颜色区分层级；
+   长标题允许换行，单行时保持 38px 的节奏 */
+#pco-root .pco-toc-item {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px 8px calc(36px + var(--lvl, 0) * 16px);
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--pco-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+
+/* 折线：整列一条 SVG 路径，竖线随层级逐级内缩，
+   层级切换处用一段平滑曲线过渡（与站点目录同一种画法） */
+#pco-root .pco-toc-flow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+#pco-root .pco-toc-flow path {
+  fill: none;
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#pco-root .pco-toc-flow-base {
+  stroke: var(--pco-border);
+}
+
+#pco-root .pco-toc-flow-active {
+  stroke: var(--pco-primary);
+  transition: stroke 0.16s ease;
+}
+
+#pco-root .pco-toc-item:hover {
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-toc-item.is-active {
+  color: var(--pco-primary);
+}
+
+/* -------------------------- AI 助手 -------------------------- */
+
+/* 整块内嵌在正文开头，和原站点的位置一致 */
+#pco-root .pco-ai-panel {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 16px;
+  padding-bottom: 12px; /* 底栏隐藏时也能给结果区留出下边距 */
+  border: 1px solid color-mix(in oklab, var(--pco-primary) 20%, var(--pco-border));
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--pco-primary) 7%, var(--pco-bg)),
+      var(--pco-bg) 68%);
+  overflow: hidden;
+}
+
+#pco-root .pco-ai-panel-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 8px;
+}
+
+#pco-root .pco-ai-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--pco-text);
+}
+
+#pco-root .pco-ai-panel-title svg {
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-ai-panel-hint {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--pco-primary) 11%, transparent);
+  color: color-mix(in oklab, var(--pco-primary) 72%, var(--pco-text));
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+#pco-root .pco-ai-panel-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  padding: 2px 14px 10px;
+}
+
+#pco-root .pco-ai-run {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--pco-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 12px 26px -16px color-mix(in oklab, var(--pco-primary) 85%, transparent);
+  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+#pco-root .pco-ai-run:hover {
+  background: color-mix(in oklab, var(--pco-primary) 88%, #000);
+  color: #fff;
+  box-shadow: 0 14px 30px -15px color-mix(in oklab, var(--pco-primary) 90%, transparent);
+}
+
+#pco-root .pco-ai-run:active {
+  transform: translateY(1px);
+}
+
+#pco-root .pco-ai-run:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--pco-primary) 60%, #fff);
+  outline-offset: 2px;
+}
+
+#pco-root .pco-ai-panel-status {
+  flex: none;
+  padding: 0 14px 10px;
+  font-size: 11.5px;
+  color: var(--pco-dim);
+}
+
+#pco-root .pco-ai-panel-out {
+  flex: none;
+  max-height: 320px;
+  min-height: 46px;
+  margin: 0 12px;
+  padding: 12px 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--pco-border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--pco-soft) 40%, var(--pco-bg));
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--pco-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 还没有结果时用虚线空态，弱化存在感 */
+#pco-root .pco-ai-panel-out.is-empty {
+  border-style: dashed;
+  background: transparent;
+}
+
+#pco-root .pco-ai-panel-out.is-empty::before {
+  content: '生成结果会显示在这里';
+  color: var(--pco-dim);
+}
+
+/* 停止 / 复制都隐藏时不占位 */
+#pco-root .pco-ai-panel-foot:not(:has(> button:not([hidden]))) {
+  display: none;
+}
+
+#pco-root .pco-ai-panel-out p {
+  margin: 0 0 8px;
+}
+
+#pco-root .pco-ai-panel-out p:last-child {
+  margin-bottom: 0;
+}
+
+#pco-root .pco-ai-panel-out ul,
+#pco-root .pco-ai-panel-out ol {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+
+#pco-root .pco-ai-panel-out li {
+  margin: 2px 0;
+}
+
+#pco-root .pco-ai-panel-out h3,
+#pco-root .pco-ai-panel-out h4,
+#pco-root .pco-ai-panel-out h5 {
+  margin: 10px 0 6px;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+#pco-root .pco-ai-panel-out code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--pco-soft);
+  font-size: 12.5px;
+}
+
+#pco-root .pco-ai-panel-foot {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px 0;
+}
+
+#pco-root .pco-ai-foot-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid var(--pco-border);
+  border-radius: 9px;
+  background: var(--pco-bg);
+  color: var(--pco-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+#pco-root .pco-ai-foot-btn:hover {
+  border-color: color-mix(in oklab, var(--pco-primary) 40%, var(--pco-border));
+  background: var(--pco-soft);
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-ai-foot-btn[hidden] {
+  display: none;
+}
+
 /* -------------------------- 左右切换帖子 -------------------------- */
 
-/* 放在浮层容器之外：按钮贴着视口两侧，与浮层边缘保持 20px 间距，不压住正文与回复 */
+/* 放在浮层容器之外：按钮贴着浮层左右边缘，由脚本按实际窗口宽度算偏移；
+   窗口铺满时没有外侧空间，自动退到视口内侧浮在正文边缘之上 */
 #pco-root .pco-nav {
   position: absolute;
   inset: 0;
@@ -1408,10 +1827,16 @@ html.pco-lock body {
   opacity: 1;
 }
 
+/* 全屏时按钮浮在浮层内侧，左侧会被导航栏压住，导航栏展开期间先收起 */
+#pco-root.is-full.is-toc .pco-nav {
+  opacity: 0;
+  pointer-events: none;
+}
+
 #pco-root .pco-nav-btn {
   position: absolute;
   top: 50%;
-  left: max(4px, calc(50vw - 640px));
+  left: var(--pco-nav-left, 12px);
   display: grid;
   place-items: center;
   width: 38px;
@@ -1433,7 +1858,7 @@ html.pco-lock body {
 
 #pco-root .pco-nav-btn[data-act="next"] {
   left: auto;
-  right: max(4px, calc(50vw - 640px));
+  right: var(--pco-nav-right, 12px);
 }
 
 #pco-root .pco-nav-btn:hover {
@@ -1784,12 +2209,35 @@ html.pco-lock body {
   }
 
   #pco-root .pco-title {
-    margin-right: 70px;
+    margin-right: 170px;
     font-size: 21px;
   }
 
   #pco-root .pco-side-head {
-    padding: 13px 96px 10px 18px;
+    padding: 13px 170px 10px 18px;
+  }
+
+  /* 窄屏放不下“挤窄正文”的侧栏，改成覆盖在正文上的抽屉 */
+  #pco-root .pco-toc {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 8;
+    height: auto;
+    box-shadow: 24px 0 60px -34px rgba(8, 10, 16, 0.55);
+  }
+
+  #pco-root.is-toc .pco-toc,
+  #pco-root .pco-toc-head,
+  #pco-root .pco-toc-list {
+    width: min(288px, 84vw);
+  }
+
+  /* 窄屏没有拓宽空间，隐藏全屏与加宽入口 */
+  #pco-root [data-act="full"],
+  #pco-root [data-act="wide"] {
+    display: none;
   }
 
   #pco-root .pco-comments {
@@ -1818,6 +2266,8 @@ html.pco-lock body {
   #pco-root .pco-lightbox,
   #pco-root .pco-lightbox-img {
     transition-duration: 0.01ms !important;
+    /* 交接淡出带着 0.54s 延迟，减弱动效时也要一并去掉，避免干等 */
+    transition-delay: 0.01ms !important;
   }
 
   #pco-root.is-side-loaded .pco-comment,

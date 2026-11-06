@@ -390,33 +390,42 @@ html.dark, html[data-theme="dark"]{
   flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden;
 }
 .${NS}-root.${NS}-is-full .${NS}-pane{flex:1; min-height:0; overflow-y:auto;}
+.${NS}-root.${NS}-is-full .${NS}-pane[data-pane="sum"]{display:flex;flex-direction:column;overflow:hidden;}
 .${NS}-root.${NS}-is-full .${NS}-pane[data-pane="chat"]{display:flex;flex-direction:column;overflow:hidden;}
+.${NS}-root.${NS}-is-full .${NS}-out{flex:1;max-height:none;min-height:0;}
 .${NS}-root.${NS}-is-full .${NS}-msgs{max-height:none; flex:1; overflow-y:auto;}
 html.${NS}-lock,html.${NS}-lock body{overflow:hidden !important;}
 @keyframes ${NS}-in{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
 .${NS}-card{
-  border:1px solid var(--pcai-border); border-radius:var(--pcai-r);
-  background:var(--pcai-surface); overflow:hidden;
+  /* 与浮层内的 AI 助手保持同一套视觉：主题色描边 + 顶部主题色渐变 */
+  border:1px solid color-mix(in oklab, var(--pcai-primary) 20%, var(--pcai-border));
+  border-radius:14px;
+  background:linear-gradient(180deg,
+    color-mix(in oklab, var(--pcai-primary) 7%, var(--pcai-surface)),
+    var(--pcai-surface) 68%);
+  overflow:hidden;
 }
 html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px rgba(0,0,0,.24);}
 @media (prefers-color-scheme: dark){ html[data-theme="system"] .${NS}-card{box-shadow:0 1px 2px rgba(0,0,0,.24);} }
 .${NS}-head{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:9px 12px;border-bottom:1px solid var(--pcai-border);
+  padding:12px 14px 8px;
 }
 .${NS}-head.is-plain{border-bottom:0;}
-.${NS}-title{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:13px;}
-.${NS}-title svg{width:16px;height:16px;color:var(--pcai-primary);}
+.${NS}-title{display:inline-flex;align-items:center;gap:6px;font-weight:750;font-size:14px;min-width:0;}
+.${NS}-title svg{flex:none;width:16px;height:16px;color:var(--pcai-primary);}
 .${NS}-model{
-  font-weight:400;font-size:11px;color:var(--pcai-subtle);
-  background:var(--pcai-canvas);border:1px solid var(--pcai-border);
-  border-radius:999px;padding:1px 8px;
+  min-width:0;max-width:120px;overflow:hidden;text-overflow:ellipsis;
+  font-weight:650;font-size:11px;color:color-mix(in oklab, var(--pcai-primary) 72%, var(--pcai-text));
+  background:color-mix(in oklab, var(--pcai-primary) 11%, transparent);
+  border:0;border-radius:999px;padding:2px 8px;white-space:nowrap;
 }
+.${NS}-model:empty{display:none;}
 .${NS}-actions{display:flex;align-items:center;gap:2px;}
 .${NS}-act{
   display:inline-flex;align-items:center;justify-content:center;
-  width:28px;height:28px;border:0;background:transparent;color:var(--pcai-subtle);
-  border-radius:var(--pcai-rc);cursor:pointer;
+  width:26px;height:26px;border:0;background:transparent;color:var(--pcai-subtle);
+  border-radius:8px;cursor:pointer;
   transition:background .26s cubic-bezier(.22,1,.36,1),color .26s;
 }
 .${NS}-act svg{width:15px;height:15px;}
@@ -466,10 +475,6 @@ html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px 
 @keyframes ${NS}-blink{50%{opacity:0;}}
 
 /* 待触发 / 加载 / 出错 */
-.${NS}-cta{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-}
-.${NS}-cta-text{color:var(--pcai-subtle);font-size:13px;}
 .${NS}-btn{
   display:inline-flex;align-items:center;gap:6px;
   border:1px solid var(--pcai-border);background:var(--pcai-surface);color:var(--pcai-text);
@@ -485,6 +490,33 @@ html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px 
 .${NS}-btn.is-primary:hover{filter:brightness(.94);}
 .${NS}-btn:disabled{opacity:.55;cursor:default;}
 
+/* 主操作按钮：与浮层 AI 助手同款的整行主题色按钮 */
+.${NS}-run-row{display:flex;flex:none;padding:0 14px 10px;}
+.${NS}-run{
+  display:inline-flex;flex:1;align-items:center;justify-content:center;gap:6px;
+  height:38px;padding:0 14px;border:0;border-radius:10px;
+  background:var(--pcai-primary);color:var(--ui-text-inverted, #fff);
+  font:inherit;font-size:13px;font-weight:700;cursor:pointer;
+  box-shadow:0 12px 26px -16px color-mix(in oklab, var(--pcai-primary) 85%, transparent);
+  transition:background .16s ease,box-shadow .16s ease,transform .16s ease;
+}
+.${NS}-run svg{width:14px;height:14px;}
+.${NS}-run:hover{filter:brightness(.94);box-shadow:0 14px 30px -15px color-mix(in oklab, var(--pcai-primary) 90%, transparent);}
+.${NS}-run:active{transform:translateY(1px);}
+.${NS}-run:disabled{opacity:.6;cursor:default;transform:none;}
+.${NS}-status{flex:none;padding:0 14px 10px;font-size:11.5px;line-height:1.5;color:var(--pcai-subtle);}
+/* 结果区：与浮层一致的浅底描边框，空态用虚线弱化 */
+.${NS}-out{
+  flex:none;min-height:46px;max-height:320px;margin:0 12px 12px;padding:12px 14px;
+  overflow-y:auto;overscroll-behavior:contain;
+  border:1px solid var(--pcai-border);border-radius:12px;
+  background:color-mix(in oklab, var(--pcai-canvas) 40%, var(--pcai-surface));
+  font-size:13.5px;line-height:1.75;color:var(--pcai-text);
+  overflow-wrap:anywhere;
+}
+.${NS}-out.is-empty{border-style:dashed;background:transparent;color:var(--pcai-subtle);}
+.${NS}-out.is-empty::before{content:'生成结果会显示在这里';}
+
 .${NS}-loading{display:flex;align-items:center;gap:9px;color:var(--pcai-subtle);font-size:13px;}
 .${NS}-spin{
   width:14px;height:14px;border-radius:50%;
@@ -494,11 +526,24 @@ html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px 
 @keyframes ${NS}-rot{to{transform:rotate(360deg);}}
 .${NS}-err{font-size:13px;color:var(--pcai-text);}
 .${NS}-err-tip{color:var(--pcai-subtle);font-size:12.5px;margin-top:4px;}
+.${NS}-err-act{margin-top:10px;display:flex;gap:8px;}
 .${NS}-foot{
-  padding:6px 12px 8px;font-size:11px;color:var(--pcai-subtle);
+  padding:0 14px 12px;font-size:11px;color:var(--pcai-subtle);
   display:flex;align-items:center;justify-content:space-between;gap:8px;
 }
 .${NS}-foot-right{display:inline-flex;align-items:center;gap:6px;min-width:0;}
+.${NS}-foot-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:5px 11px;border:1px solid var(--pcai-border);border-radius:9px;
+  background:var(--pcai-surface);color:var(--pcai-subtle);
+  font:inherit;font-size:12px;cursor:pointer;
+  transition:background .16s ease,color .16s ease,border-color .16s ease;
+}
+.${NS}-foot-btn:hover{
+  border-color:color-mix(in oklab, var(--pcai-primary) 40%, var(--pcai-border));
+  background:var(--pcai-primary-soft);color:var(--pcai-primary);
+}
+.${NS}-foot-btn:disabled{opacity:.45;cursor:default;background:var(--pcai-surface);color:var(--pcai-subtle);border-color:var(--pcai-border);}
 .${NS}-usage{
   display:inline-flex;align-items:center;gap:4px;
   padding:1px 7px;border:1px solid var(--pcai-border);border-radius:999px;
@@ -511,7 +556,7 @@ html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px 
 
 /* 分段 Tab：与站点 / 回帖助手一致的胶囊滑块 */
 .${NS}-tabs{
-  position:relative;display:flex;gap:4px;margin:8px 12px 0;
+  position:relative;display:flex;gap:4px;margin:0 14px 10px;
   padding:3px;border-radius:999px;background:var(--pcai-canvas);
 }
 .${NS}-ink{
@@ -531,7 +576,8 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
 .${NS}-tab.is-on{color:var(--pcai-text);font-weight:500;}
 
 /* 两个内容面板：总结区与提问区 */
-.${NS}-pane{padding:12px;}
+.${NS}-pane{padding:0;}
+.${NS}-pane[data-pane="sum"]{display:flex;flex-direction:column;}
 .${NS}-pane[data-pane="chat"]{padding:0;display:flex;flex-direction:column;}
 .${NS}-empty{padding:12px;color:var(--pcai-subtle);font-size:12.5px;line-height:1.7;}
 .${NS}-asks{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 12px;}
@@ -704,8 +750,6 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
             '<span>AI 助手</span><span class="' + NS + '-model"></span>' +
           '</div>' +
           '<div class="' + NS + '-actions">' +
-            '<button class="' + NS + '-act ' + NS + '-stop ' + NS + '-hide" data-act="stop" title="停止生成">' + ICONS.stop + '</button>' +
-            '<button class="' + NS + '-act" data-act="copy" title="复制 Markdown">' + ICONS.copy + '</button>' +
             '<button class="' + NS + '-act" data-act="redo" title="重新总结（忽略缓存）">' + ICONS.redo + '</button>' +
             '<button class="' + NS + '-act" data-act="width" title="加宽显示">' + ICONS.widen + '</button>' +
             '<button class="' + NS + '-act" data-act="full" title="全屏查看">' + ICONS.full + '</button>' +
@@ -725,8 +769,10 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
         '<div class="' + NS + '-foot">' +
           '<span class="' + NS + '-foot-left">由 AI 生成，仅供参考</span>' +
           '<span class="' + NS + '-foot-right">' +
-            '<span class="' + NS + '-usage"></span>' +
             '<span class="' + NS + '-provider"></span>' +
+            '<span class="' + NS + '-usage"></span>' +
+            '<button class="' + NS + '-foot-btn ' + NS + '-hide" data-act="stop">停止</button>' +
+            '<button class="' + NS + '-foot-btn" data-act="copy" disabled>复制</button>' +
           '</span>' +
         '</div>' +
       '</div>';
@@ -1048,16 +1094,27 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
   const shortSkipNote = (chars, min) =>
     '这篇帖子约 ' + chars + ' 字，低于自动总结门槛（' + min + ' 字），已跳过；仍可手动总结。';
 
+  /**
+   * 总结区的统一骨架：主按钮 + 状态行 + 结果框。
+   * 结构与浮层里的 AI 助手一致，便于两处保持同一套视觉。
+   */
+  function sumShell({ runLabel, status, out, empty, showRun }) {
+    return (showRun === false ? '' :
+        '<div class="' + NS + '-run-row">' +
+          '<button class="' + NS + '-run" data-run="1">' + ICONS.spark + (runLabel || '总结本帖') + '</button>' +
+        '</div>') +
+      (status ? '<div class="' + NS + '-status">' + escapeHtml(status) + '</div>' : '') +
+      '<div class="' + NS + '-out' + (empty ? ' is-empty' : '') + '">' + (out || '') + '</div>';
+  }
+
   function renderIdle(note) {
     if (!refs) return;
     // 注意：这里不动 -hide 类，保留用户上次的折叠状态
-    refs.paneSum.classList.add(NS + '-is-empty');
     const text = note || '点一下，让 AI 把这篇帖子读成要点；也可以切到「提问」直接追问';
-    refs.paneSum.innerHTML =
-      '<div class="' + NS + '-cta">' +
-        '<span class="' + NS + '-cta-text">' + escapeHtml(text) + '</span>' +
-        '<button class="' + NS + '-btn is-primary" data-run="1">' + ICONS.spark + '开始总结</button>' +
-      '</div>';
+    refs.paneSum.innerHTML = sumShell({
+      status: text,
+      empty: true
+    });
     refs.paneSum.querySelector('[data-run]').addEventListener('click', () => runSummary({}));
     clearUsageChip();
     syncButtons();
@@ -1065,27 +1122,38 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
 
   function renderLoading(cachedHint) {
     if (!refs) return;
-    refs.paneSum.classList.remove(NS + '-is-empty');
-    refs.paneSum.innerHTML =
-      '<div class="' + NS + '-loading"><span class="' + NS + '-spin"></span>' +
-      '<span>' + (cachedHint ? '读取缓存…' : '正在阅读并总结…') + '</span></div>';
+    refs.paneSum.innerHTML = sumShell({
+      showRun: false,
+      out: '<div class="' + NS + '-loading"><span class="' + NS + '-spin"></span>' +
+        '<span>' + (cachedHint ? '读取缓存…' : '正在阅读并总结…') + '</span></div>'
+    });
     clearUsageChip();
     syncButtons();
   }
 
   function renderStream() {
     if (!refs) return;
-    refs.paneSum.classList.remove(NS + '-is-empty');
-    refs.paneSum.innerHTML =
-      '<div class="' + NS + '-content">' + renderMarkdown(streamText) + '<span class="' + NS + '-caret"></span></div>';
+    refs.paneSum.innerHTML = sumShell({
+      showRun: false,
+      status: '正在生成…（可在底部停止）',
+      out: '<div class="' + NS + '-content">' + renderMarkdown(streamText) +
+        '<span class="' + NS + '-caret"></span></div>'
+    });
+    // 结果框限高后可滚动：流式输出时自动跟到底部
+    const out = refs.paneSum.querySelector('.' + NS + '-out');
+    if (out) out.scrollTop = out.scrollHeight;
     syncButtons();
   }
 
   function renderDone(text, cached) {
     if (!refs) return;
     streamText = text;
-    refs.paneSum.classList.remove(NS + '-is-empty');
-    refs.paneSum.innerHTML = '<div class="' + NS + '-content">' + renderMarkdown(text) + '</div>';
+    refs.paneSum.innerHTML = sumShell({
+      runLabel: '重新总结',
+      status: cached ? '来自本地缓存，未消耗 Token' : '生成完成，可复制或重新总结',
+      out: '<div class="' + NS + '-content">' + renderMarkdown(text) + '</div>'
+    });
+    refs.paneSum.querySelector('[data-run]').addEventListener('click', () => runSummary({}));
     refs.foot.querySelector('.' + NS + '-foot-left').textContent =
       cached ? '来自本地缓存 · 仅供参考' : '由 AI 生成 · 仅供参考';
     syncButtons();
@@ -1093,16 +1161,17 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
 
   function renderError(msg) {
     if (!refs) return;
-    refs.paneSum.classList.remove(NS + '-is-empty');
-    refs.paneSum.innerHTML =
-      '<div class="' + NS + '-err">' +
+    refs.paneSum.innerHTML = sumShell({
+      runLabel: '重试',
+      status: '生成失败，请检查模型配置后重试',
+      out: '<div class="' + NS + '-err">' +
         '<div>' + escapeHtml(msg) + '</div>' +
         '<div class="' + NS + '-err-tip">可在扩展设置里检查模型配置，或稍后重试。</div>' +
-        '<div style="margin-top:10px;display:flex;gap:8px;">' +
-          '<button class="' + NS + '-btn" data-run="1">重试</button>' +
+        '<div class="' + NS + '-err-act">' +
           '<button class="' + NS + '-btn" data-open-settings="1">打开设置</button>' +
         '</div>' +
-      '</div>';
+      '</div>'
+    });
     refs.paneSum.querySelector('[data-run]').addEventListener('click', () => runSummary({ bypass: true }));
     refs.paneSum.querySelector('[data-open-settings]').addEventListener('click', () => {
       // 回调形式，避免扩展重载后 sendMessage 返回的 Promise 触发未处理 rejection
