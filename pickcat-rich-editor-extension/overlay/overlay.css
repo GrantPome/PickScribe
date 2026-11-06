@@ -193,16 +193,15 @@ html.pco-lock body {
   pointer-events: auto;
   transform-origin: 50% 50%;
   /* 打开尺寸 0.46s：比位移 0.52s 略快，先长到位、位移随后跟上；
-     透明度随缩放一起淡入 */
-  transition: transform 0.46s var(--pco-size), opacity 0.3s ease 0.1s;
-  will-change: transform, opacity;
+     面板全程不透明，卡片长成浮层时不会透出底下的原卡片 */
+  transition: transform 0.46s var(--pco-size);
+  will-change: transform;
 }
 
 /* 关闭时换用不带过冲的曲线，避免落回卡片后继续“后摇”；
    尺寸 0.44s 快于位移 0.54s：缩放先到位、位移后跟上。 */
 #pco-root.is-closing .pco-shell {
-  opacity: 0;
-  transition: transform 0.44s var(--pco-size-close), opacity 0.12s ease 0.32s;
+  transition: transform 0.44s var(--pco-size-close);
 }
 
 /* -------------------------- 底部导航横条 -------------------------- */

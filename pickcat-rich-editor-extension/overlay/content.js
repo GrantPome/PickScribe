@@ -737,8 +737,6 @@
 
       stage.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
       shell.style.transform = 'scale(' + sx0 + ', ' + sy0 + ')';
-      // 起始透明：内容随尺寸一起淡入
-      shell.style.opacity = '0';
       // 原始卡片同步长向浮层：与浮层同向移动缩放，淡出交给后面的 rAF
       if (originCard && originCard.isConnected) {
         originCard.style.transition = 'none';
@@ -760,7 +758,6 @@
       pageBackIn();
       stage.style.transform = '';
       shell.style.transform = '';
-      shell.style.opacity = '';
 
       if (animate && originCard && originCard.isConnected) {
         // 卡片跟随浮层移动缩放（内联 var() 解析不到，这里写字面量曲线）
@@ -1392,11 +1389,12 @@
     const reduce = reducedMotion();
     const link = current && current.link;
 
-    // —— 遮罩接管：先把内联不透明度钉死成 0，
-    //    否则清空内联值会让 is-open 的 opacity:1 生效，闪一帧整屏遮罩 ——
+    // —— 遮罩接管：遮罩要撑满整个退出动画，先保持压暗，等卡片快落回时再淡出。
+    //    直接把不透明度钉成 0 会让遮罩在 0.2s 内消失，后面 0.3s 的回收过程
+    //    就露出未压暗的页面，看起来像「动画中途少了遮罩」。 ——
     const bd = root.querySelector('.pco-backdrop');
     if (bd) {
-      bd.style.transition = 'opacity 0.2s ease';
+      bd.style.transition = 'opacity 0.26s ease 0.26s';
       bd.style.opacity = '0';
     }
     const navEl = root.querySelector('.pco-nav');
@@ -1411,12 +1409,14 @@
     }
 
     // —— 页面瞬间回到 1:1：残留的 0.4s 回弹曲线会让落点一路漂移，
-    //    先摘掉过渡并强制生效，随后量到的才是卡片最终矩形（尺寸精确匹配）——
+    //    先摘掉过渡并强制生效，随后量到的才是卡片最终矩形（尺寸精确匹配）。
+    //    压暗滤镜先留着，等遮罩一起淡出，避免背景在动画中途突然变亮 ——
     if (pageEl) {
       pageEl.style.transition = 'none';
       pageEl.style.transform = '';
-      pageEl.style.filter = '';
       void pageEl.offsetWidth;
+      pageEl.style.transition = 'filter 0.26s ease 0.26s';
+      pageEl.style.filter = '';
     }
 
     let target = null;
@@ -1622,7 +1622,6 @@
     stage.style.transform = '';
     shell.style.transition = '';
     shell.style.transform = '';
-    shell.style.opacity = '';
     const bd = root.querySelector('.pco-backdrop');
     if (bd) bd.style.opacity = '';
     const nav = root.querySelector('.pco-nav');
