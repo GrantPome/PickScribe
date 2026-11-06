@@ -113,6 +113,8 @@
   let fullOn = false;             // 全屏显示（同一次会话内记忆）
   let tocHeads = [];              // 当前正文里的标题节点，用于文章导航
   let tocFrame = 0;               // 滚动同步目录高亮的 rAF 句柄
+  let tocActiveIdx = -1;          // 上次高亮的标题序号，用于判断是否需要滚动目录
+  let tocScrollLock = 0;          // 目录平滑滚动期间的上锁时间，避免逐帧打断动画
   let tocOn = false;              // 文章目录的展开状态（chrome.storage.local 记忆）
 
   /** 当前浮层的数据与交互状态；关闭时整体丢弃 */
@@ -1096,6 +1098,7 @@
     const list = root.querySelector('[data-role="toc-list"]');
     if (!body || !btn || !list) return;
     tocHeads = [];
+    tocActiveIdx = -1;
 
     // 与站点一致：帖子标题本身作为目录的第一项
     const title = contentEl.querySelector('.pco-title');
@@ -1218,6 +1221,7 @@
     const clip = document.createElementNS(SVG, 'clipPath');
     clip.setAttribute('id', 'pco-toc-clip');
     const rect = document.createElementNS(SVG, 'rect');
+    rect.setAttribute('class', 'pco-toc-clip-rect');
     rect.setAttribute('x', '0');
     rect.setAttribute('width', String(w));
     rect.setAttribute('height', '0');
@@ -1238,41 +1242,87 @@
     list.appendChild(svg);
   }
 
-  /** 依据滚动位置高亮当前阅读到的标题，并把它保持在目录可视区域内 */
+  /**
+   * 依据滚动位置高亮当前阅读到的标题，并把它保持在目录可视区域内。
+   * 与站点一致：可见区内的标题整段高亮，裁剪窗用 CSS 过渡平滑滑动。
+   */
   function paintTocActive() {
     if (!root || !tocHeads.length) return;
     const scroll = root.querySelector('[data-role="scroll"]');
     const list = root.querySelector('[data-role="toc-list"]');
     if (!scroll || !list) return;
 
-    const line = scroll.getBoundingClientRect().top + 20;
+    const items = Array.prototype.slice.call(list.querySelectorAll('.pco-toc-item'));
+    if (!items.length) return;
+
+    const box = scroll.getBoundingClientRect();
+    const line = box.top + 20;
+
+    // 当前阅读位置：最后一个越过参考线的标题
     let active = 0;
     for (let i = 0; i < tocHeads.length; i += 1) {
       const node = tocHeads[i];
       if (node.isConnected && node.getBoundingClientRect().top <= line) active = i;
     }
+
+    // 可见标题区间：首尾都在可视范围内时，整段折线一起高亮
+    const visible = [];
+    for (let i = 0; i < tocHeads.length; i += 1) {
+      const node = tocHeads[i];
+      if (!node.isConnected) continue;
+      const top = node.getBoundingClientRect().top;
+      const next = tocHeads[i + 1];
+      const bottom = next && next.isConnected ? next.getBoundingClientRect().top : box.bottom;
+      if (top < box.bottom && Math.min(bottom, box.bottom) > line) visible.push(i);
+    }
+    const first = visible.length ? visible[0] : -1;
+    const last = visible.length ? visible[visible.length - 1] : -1;
+    const visibleSet = new Set(visible);
+
     let activeEl = null;
-    list.querySelectorAll('.pco-toc-item').forEach((el) => {
-      const on = Number(el.getAttribute('data-idx')) === active;
-      el.classList.toggle('is-active', on);
-      if (on) activeEl = el;
+    items.forEach((el, i) => {
+      el.classList.toggle('is-active', visibleSet.has(i));
+      if (i === active) {
+        el.setAttribute('aria-current', 'location');
+        activeEl = el;
+      } else {
+        el.removeAttribute('aria-current');
+      }
     });
 
-    // 折线高亮：把彩色副本裁到当前条目那一段
+    // 折线高亮：裁剪窗的 y / height 交给 CSS 过渡，切换标题时平滑滑动
     const clipRect = list.querySelector('.pco-toc-flow clipPath rect');
     if (clipRect) {
-      clipRect.setAttribute('y', activeEl ? String(activeEl.offsetTop) : '0');
-      clipRect.setAttribute('height', activeEl ? String(activeEl.offsetHeight) : '0');
+      if (first >= 0) {
+        const start = items[first].offsetTop;
+        const end = items[last].offsetTop + items[last].offsetHeight;
+        clipRect.style.y = start + 'px';
+        clipRect.style.height = Math.max(0, end - start) + 'px';
+      } else {
+        clipRect.style.height = '0px';
+      }
     }
+    const activePath = list.querySelector('.pco-toc-flow-active');
+    if (activePath) activePath.style.opacity = first >= 0 ? '1' : '0';
 
     // 侧栏收起时不做滚动补偿，避免把隐藏列表滚乱
     if (!activeEl || !root.classList.contains('is-toc')) return;
-    const box = list.getBoundingClientRect();
-    if (!box.height) return;
+    const listBox = list.getBoundingClientRect();
+    if (!listBox.height) return;
     const item = activeEl.getBoundingClientRect();
-    if (item.top < box.top || item.bottom > box.bottom) {
-      list.scrollTop += item.top - box.top - (box.height - item.height) / 2;
+    const out = item.top < listBox.top || item.bottom > listBox.bottom;
+    if (!out) {
+      tocActiveIdx = active;
+      return;
     }
+    if (active === tocActiveIdx || Date.now() < tocScrollLock) return;
+
+    // 与站点一致：目录自身平滑滚动到当前标题，而不是瞬间跳位
+    tocActiveIdx = active;
+    tocScrollLock = Date.now() + 360;
+    const target = list.scrollTop + item.top - listBox.top - (listBox.height - item.height) / 2;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    list.scrollTo({ top: target, behavior: reduce ? 'auto' : 'smooth' });
   }
 
   function onContentScroll() {

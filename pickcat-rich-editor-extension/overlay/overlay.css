@@ -1574,7 +1574,7 @@ html.pco-lock body {
   overflow-wrap: anywhere;
   word-break: break-word;
   cursor: pointer;
-  transition: color 0.16s ease;
+  transition: color 0.2s cubic-bezier(0, 0, 0.2, 1);
 }
 
 /* 折线：整列一条 SVG 路径，竖线随层级逐级内缩，
@@ -1594,13 +1594,18 @@ html.pco-lock body {
   stroke-linejoin: round;
 }
 
+/* 与站点一致：高亮裁剪窗在标题之间平滑滑动（0.2s ease-out） */
+#pco-root .pco-toc-clip-rect {
+  transition: y 0.2s cubic-bezier(0, 0, 0.2, 1), height 0.2s cubic-bezier(0, 0, 0.2, 1);
+}
+
 #pco-root .pco-toc-flow-base {
   stroke: var(--pco-border);
 }
 
 #pco-root .pco-toc-flow-active {
   stroke: var(--pco-primary);
-  transition: stroke 0.16s ease;
+  transition: stroke 0.16s ease, opacity 0.2s cubic-bezier(0, 0, 0.2, 1);
 }
 
 #pco-root .pco-toc-item:hover {
@@ -2264,7 +2269,9 @@ html.pco-lock body {
   #pco-root .pco-nav,
   #pco-root .pco-backdrop,
   #pco-root .pco-lightbox,
-  #pco-root .pco-lightbox-img {
+  #pco-root .pco-lightbox-img,
+  #pco-root .pco-toc-clip-rect,
+  #pco-root .pco-toc-flow-active {
     transition-duration: 0.01ms !important;
     /* 交接淡出带着 0.54s 延迟，减弱动效时也要一并去掉，避免干等 */
     transition-delay: 0.01ms !important;
