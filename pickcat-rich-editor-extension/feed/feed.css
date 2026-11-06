@@ -1,0 +1,99 @@
+/* ============================================================
+ * 首页信息流网格布局 —— pcf
+ * 只负责两件事：信息流容器的网格排布 + 列表/网格切换按钮样式
+ * 颜色、圆角、字体全部复用站点自身的 --ui-* 设计令牌
+ * ============================================================ */
+
+/* ---------- 1. 信息流网格容器 ---------- */
+
+/* 覆盖站点 section.space-y-3 的单列排列：自动填满一行多列 */
+section[aria-label$="帖子"].pcf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* 清掉 space-y-3 给子项留下的外边距，避免网格间距被叠成双倍 */
+section[aria-label$="帖子"].pcf-grid > * {
+  margin-block: 0 !important;
+}
+
+/* 帖子卡片撑满整行高度，底部信息才能对齐 */
+section[aria-label$="帖子"].pcf-grid > article[data-slot="root"] {
+  height: 100%;
+  min-width: 0;
+}
+
+/* 容器里的非帖子节点（加载提示、空状态等）独占整行 */
+section[aria-label$="帖子"].pcf-grid > :not(article[data-slot="root"]) {
+  grid-column: 1 / -1;
+}
+
+/* ---------- 2. 列表 / 网格切换按钮 ---------- */
+
+#pcf-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  margin-left: 2px;
+  border-radius: 8px;
+  background: var(--ui-bg-muted, #f2f2f4);
+}
+
+#pcf-toggle .pcf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-muted, #767676);
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+#pcf-toggle .pcf-btn:hover {
+  background: var(--ui-bg-elevated, #ffffff);
+  color: var(--ui-text-highlighted, #111111);
+}
+
+#pcf-toggle .pcf-btn:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+/* 选中态用高亮 + 阴影表达，不做位移 */
+#pcf-toggle .pcf-btn[aria-pressed="true"] {
+  background: var(--ui-bg-elevated, #ffffff);
+  color: var(--ui-primary, #fa322d);
+  box-shadow:
+    0 0 0 1px var(--ui-border, #e5e5e8),
+    0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* 移动端收得再紧一点，保证和排序标签同一行放得下 */
+@media (max-width: 640px) {
+  #pcf-toggle .pcf-btn {
+    width: 28px;
+    height: 26px;
+  }
+
+  section[aria-label$="帖子"].pcf-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pcf-toggle .pcf-btn {
+    transition: none;
+  }
+}

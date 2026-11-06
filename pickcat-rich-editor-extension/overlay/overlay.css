@@ -19,6 +19,11 @@
   --pco-soft: var(--ui-bg-accented, rgba(23, 24, 28, 0.045));
   --pco-primary: var(--ui-primary, #e5484d);
   --pco-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* 位移与尺寸分开推进：位移的牵引力强于尺寸 */
+  --pco-move: cubic-bezier(0.16, 1.06, 0.32, 1);
+  --pco-size: cubic-bezier(0.3, 1.02, 0.4, 1);
+  --pco-move-close: cubic-bezier(0.3, 0.88, 0.26, 1);
+  --pco-size-close: cubic-bezier(0.32, 0.72, 0.2, 1);
   --pco-shadow: 0 32px 90px -24px rgba(8, 10, 16, 0.5),
     0 10px 28px -12px rgba(8, 10, 16, 0.28),
     0 0 0 1px var(--pco-border);
@@ -55,7 +60,7 @@ html.pco-lock body {
   background: rgba(10, 12, 16, 0.44);
   opacity: 0;
   pointer-events: auto;
-  transition: opacity 0.32s ease;
+  transition: opacity 0.24s ease;
   -webkit-backdrop-filter: blur(7px) saturate(1.06);
   backdrop-filter: blur(7px) saturate(1.06);
 }
@@ -146,22 +151,111 @@ html.pco-lock body {
 
 /* -------------------------- 浮层主体 -------------------------- */
 
-#pco-root .pco-shell {
-  --pco-side-w: 390px;
+/* 位移层：只负责平移，尺寸缩放交给下方浮层自己 */
+#pco-root .pco-stage {
   position: relative;
   display: flex;
   width: min(1160px, calc(100vw - 96px));
   height: min(82vh, 820px);
   min-height: 460px;
+  transform-origin: 50% 50%;
+  transition: transform 0.52s var(--pco-move);
+  will-change: transform;
+}
+
+#pco-root.is-closing .pco-stage {
+  /* 关闭位移 0.54s：慢于尺寸 0.44s，先收成卡片大小、再滑回卡片 */
+  transition: transform 0.54s var(--pco-move-close);
+}
+
+/* 松手回弹：低阻尼，比开合更快归位（正在关闭时让位给关闭时序） */
+#pco-root.is-springing:not(.is-closing) .pco-stage {
+  transition: transform 0.32s var(--pco-move);
+}
+
+#pco-root.is-springing:not(.is-closing) .pco-shell {
+  transition: transform 0.32s var(--pco-move);
+}
+
+/* 容器：尺寸由 transform: scale 收放，始终与卡片同形；投影随容器一起缩放 */
+#pco-root .pco-shell {
+  --pco-side-w: 390px;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   border-radius: 22px;
   background: var(--pco-bg);
-  box-shadow: var(--pco-shadow);
   overflow: hidden;
+  box-shadow: var(--pco-shadow);
   pointer-events: auto;
   transform-origin: 50% 50%;
-  transition: transform 0.48s var(--pco-ease), opacity 0.34s ease,
-    border-radius 0.48s var(--pco-ease);
+  /* 打开尺寸 0.46s：比位移 0.52s 略快，先长到位、位移随后跟上；
+     透明度随缩放一起淡入 */
+  transition: transform 0.46s var(--pco-size), opacity 0.3s ease 0.1s;
   will-change: transform, opacity;
+}
+
+/* 关闭时换用不带过冲的曲线，避免落回卡片后继续“后摇”；
+   尺寸 0.44s 快于位移 0.54s：缩放先到位、位移后跟上。 */
+#pco-root.is-closing .pco-shell {
+  opacity: 0;
+  transition: transform 0.44s var(--pco-size-close), opacity 0.12s ease 0.32s;
+}
+
+/* -------------------------- 底部导航横条 -------------------------- */
+
+#pco-root .pco-grabber {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 20px;
+  margin-left: -36px;
+  color: var(--pco-dim);
+  opacity: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  pointer-events: auto;
+  transition: opacity 0.18s ease;
+}
+
+#pco-root.is-open .pco-grabber {
+  opacity: 1;
+  transition: opacity 0.2s ease 0.34s;
+}
+
+#pco-root.is-closing .pco-grabber {
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+#pco-root .pco-grabber > span {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--pco-text) 26%, transparent);
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+#pco-root .pco-grabber:hover > span {
+  background: color-mix(in oklab, var(--pco-text) 42%, transparent);
+  transform: scaleX(1.06);
+}
+
+#pco-root .pco-stage.is-dragging .pco-grabber {
+  cursor: grabbing;
+}
+
+#pco-root .pco-stage.is-dragging {
+  cursor: grabbing;
 }
 
 #pco-root .pco-frame {
@@ -189,7 +283,7 @@ html.pco-lock body {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 22px 32px 28px;
+  padding: 22px 32px 36px;
   scrollbar-width: thin;
   scrollbar-color: var(--pco-border) transparent;
 }
@@ -208,7 +302,7 @@ html.pco-lock body {
 #pco-root .pco-content {
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.36s ease 0.04s, transform 0.5s var(--pco-ease) 0.04s;
+  transition: opacity 0.26s ease 0.02s, transform 0.34s var(--pco-ease) 0.02s;
 }
 
 #pco-root.is-loaded .pco-content {
@@ -549,14 +643,14 @@ html.pco-lock body {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 4px 26px 14px 20px;
+  padding: 4px 26px 34px 20px;
   scrollbar-width: thin;
   scrollbar-color: var(--pco-border) transparent;
 }
 
 #pco-root .pco-comments-inner {
   opacity: 0;
-  transition: opacity 0.3s ease 0.05s;
+  transition: opacity 0.24s ease 0.03s;
 }
 
 #pco-root.is-side-loaded .pco-comments-inner {
@@ -1653,10 +1747,13 @@ html.pco-lock body {
     align-items: flex-end;
   }
 
-  #pco-root .pco-shell {
+  #pco-root .pco-stage {
     width: 100%;
     height: min(93vh, 940px);
     min-height: 0;
+  }
+
+  #pco-root .pco-shell {
     border-radius: 20px;
   }
 
@@ -1712,6 +1809,7 @@ html.pco-lock body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  #pco-root .pco-stage,
   #pco-root .pco-shell,
   #pco-root .pco-content,
   #pco-root .pco-comments-inner,

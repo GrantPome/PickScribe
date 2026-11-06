@@ -39,8 +39,11 @@
   const COMMENT_LIMIT = 24;
   /** 详情数据内存缓存：重复打开同一帖秒开 */
   const CACHE_TTL = 5 * 60 * 1000;
-  /** 关闭动画时长（与 overlay.css 的 0.48s 对齐） */
-  const CLOSE_MS = 460;
+  /** 关闭动画时长（与 overlay.css 的 0.54s 位移 / 0.44s 尺寸对齐） */
+  const CLOSE_MS = 580;
+  /** 拖动关闭阈值：拖动超过该距离，或松手速度超过该值（px / ms）即关闭 */
+  const DRAG_CLOSE_DISTANCE = 90;
+  const DRAG_CLOSE_VELOCITY = 0.18;
   /** 设置键：浮窗模式默认开启，用户在设置里显式关闭后不再拦截帖子点击 */
   const SETTINGS_KEY = 'pco_config';
   /** 站点外观里的「点击图片查看大图」开关，与设置页保持同一个键 */
@@ -78,12 +81,11 @@
   let shell = null;             // 浮层主卡片
   let contentEl = null;         // 左侧正文
   let countEl = null;           // 回复数
-  let current = null;           // { id, link, rect, radius, controller, pushed }
+  let current = null;           // { id, link, rect, controller, pushed }
   let restoreFocus = null;      // 打开前的焦点元素
   let closing = false;
   let routeTimer = null;
   let closeTimer = null;
-  let backFallback = null;
   let toastTimer = null;
   let prefetchController = null;  // 相邻帖子预取专用，关闭浮层时统一中止
   let overlayEnabled = true;      // 浮窗模式开关（默认开启，可在设置里关闭）
@@ -92,6 +94,10 @@
   let pageScaleOn = true;         // 背景页面同步缩放（设置项，默认开启）
   let imageZoomOn = true;         // 点击图片查看大图（站点外观设置项，默认开启）
   let pageEl = null;              // 浮层背后的站点页面容器，打开时整体后退缩放
+  let drag = null;                // 拖动横条的手势状态 { id, x0, y0, x, y, t, v, dx, dy }
+  let pendingBack = false;        // 关闭动画结束后需要补发的一次 history.back
+  let originCard = null;          // 当前帖子在信息流里的原始卡片，全程与浮层同步移动缩放
+  let stage = null;               // 只做位移的舞台层，尺寸缩放交给浮层自身
 
   /** 当前浮层的数据与交互状态；关闭时整体丢弃 */
   let view = null;
@@ -486,6 +492,7 @@
     ).join('');
 
     return '<div class="pco-backdrop" data-act="close" aria-hidden="true"></div>' +
+      '<div class="pco-stage">' +
       '<div class="pco-shell" role="dialog" aria-modal="true" aria-label="帖子预览" tabindex="-1">' +
         '<div class="pco-frame">' +
           '<section class="pco-main">' +
@@ -592,6 +599,10 @@
           '<button type="button" class="pco-icon-btn pco-icon-btn--close" data-act="close" ' +
             'title="关闭（Esc）" aria-label="关闭">' + icon('close', 18) + '</button>' +
         '</div>' +
+        '<div class="pco-grabber" data-role="grabber" title="向上拖动关闭帖子" aria-label="向上拖动关闭帖子">' +
+          '<span></span>' +
+        '</div>' +
+      '</div>' +
       '</div>' +
       '<div class="pco-nav" role="group" aria-label="切换帖子">' +
         '<button type="button" class="pco-nav-btn" data-act="prev" title="上一个帖子" ' +
@@ -622,36 +633,11 @@
     const box = pageEl.getBoundingClientRect();
     const ox = Math.round(window.innerWidth / 2 - box.left);
     const oy = Math.round(window.innerHeight / 2 - box.top);
-    pageEl.style.transition = 'transform 0.44s cubic-bezier(0.22, 1, 0.36, 1), filter 0.44s ease';
+    pageEl.style.transition =
+      'transform 0.4s cubic-bezier(0.32, 1.24, 0.44, 1), filter 0.28s ease';
     pageEl.style.transformOrigin = ox + 'px ' + oy + 'px';
     pageEl.style.transform = 'scale(' + PAGE_SCALE + ')';
     pageEl.style.filter = 'brightness(0.94) saturate(0.97)';
-  }
-
-  /** 读取页面当前的缩放比例，用于把回缩目标还原到缩放结束后的位置 */
-  function pageScaleNow() {
-    if (!pageEl) return 0;
-    const tr = window.getComputedStyle(pageEl).transform;
-    if (!tr || tr === 'none') return 0;
-    const m = tr.match(/matrix(?:3d)?\(([^)]+)\)/);
-    if (!m) return 0;
-    const a = parseFloat(m[1].split(',')[0]);
-    return isNaN(a) ? 0 : a;
-  }
-
-  /** 把缩放状态下的卡片矩形还原成页面恢复后的最终矩形（原点在视口中心） */
-  function unscaleRect(r, scale) {
-    if (!r || !scale || scale === 1) return r;
-    const cx = window.innerWidth / 2;
-    const cy = window.innerHeight / 2;
-    const width = r.width / scale;
-    const height = r.height / scale;
-    return {
-      left: cx + (r.left + r.width / 2 - cx) / scale - width / 2,
-      top: cy + (r.top + r.height / 2 - cy) / scale - height / 2,
-      width: width,
-      height: height
-    };
   }
 
   function pageBackOut() {
@@ -710,7 +696,7 @@
     });
   }
 
-  function build(rect, radius) {
+  function build(rect) {
     root = document.createElement('div');
     root.id = 'pco-root';
     root.innerHTML = shellTemplate();
@@ -723,42 +709,71 @@
     pageEl = document.getElementById('__nuxt');
 
     shell = root.querySelector('.pco-shell');
+    stage = root.querySelector('.pco-stage');
     contentEl = root.querySelector('[data-role="content"]');
     countEl = root.querySelector('[data-role="count"]');
     syncComposerTools();
 
-    // 先把最终尺寸量出来，再倒推初始缩放，保证卡片原位「长」成浮层
+    // 先把最终尺寸量出来，再倒推初始状态，保证卡片原位「长」成浮层
     const last = shell.getBoundingClientRect();
     const first = rect || { left: last.left, top: last.top, width: 0, height: 0 };
     const reduce = reducedMotion();
 
-    shell.style.transition = 'none';
-    shell.style.transformOrigin = '50% 50%';
+    adoptOriginCard(current && current.id, false);
 
-    if (!reduce && last.width > 0 && last.height > 0 && first.width > 0 && first.height > 0) {
-      const sx = Math.max(96, first.width) / last.width;
-      const sy = Math.max(64, first.height) / last.height;
+    const animate = !reduce && last.width > 0 && last.height > 0 &&
+      first.width > 0 && first.height > 0;
+
+    if (animate) {
+      // 位移层把浮层中心从屏幕中心搬到卡片中心
       const dx = (first.left + first.width / 2) - (last.left + last.width / 2);
       const dy = (first.top + first.height / 2) - (last.top + last.height / 2);
-      shell.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + sx + ', ' + sy + ')';
-      shell.style.borderRadius = Math.min(radius || 14, 24) + 'px';
-      shell.style.opacity = '0.72';
+      // 尺寸交给 scale：从卡片大小拉伸到浮层大小
+      const sx0 = Math.max(0.04, first.width / last.width);
+      const sy0 = Math.max(0.04, first.height / last.height);
+
+      stage.style.transition = 'none';
+      shell.style.transition = 'none';
+
+      stage.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+      shell.style.transform = 'scale(' + sx0 + ', ' + sy0 + ')';
+      // 起始透明：内容随尺寸一起淡入
+      shell.style.opacity = '0';
+      // 原始卡片同步长向浮层：与浮层同向移动缩放，淡出交给后面的 rAF
+      if (originCard && originCard.isConnected) {
+        originCard.style.transition = 'none';
+        originCard.style.transformOrigin = '50% 50%';
+        originCard.style.willChange = 'transform, opacity';
+      }
     } else {
-      shell.style.transform = reduce ? 'none' : 'translateY(12px) scale(.985)';
-      shell.style.opacity = reduce ? '0' : '0.3';
+      stage.style.transform = reduce ? 'none' : 'translateY(10px)';
+      if (!reduce) shell.style.transform = 'scale(0.985)';
     }
 
     void shell.offsetWidth;
+    stage.style.transition = '';
     shell.style.transition = '';
-    shell.style.transformOrigin = '';
 
     requestAnimationFrame(() => {
-      if (!root || !shell) return;
+      if (!root || !stage || !shell) return;
       root.classList.add('is-open');
       pageBackIn();
+      stage.style.transform = '';
       shell.style.transform = '';
       shell.style.opacity = '';
-      shell.style.borderRadius = '';
+
+      if (animate && originCard && originCard.isConnected) {
+        // 卡片跟随浮层移动缩放（内联 var() 解析不到，这里写字面量曲线）
+        const gsx = Math.max(0.04, first.width / last.width);
+        const gsy = Math.max(0.04, first.height / last.height);
+        const dx = (last.left + last.width / 2) - (first.left + first.width / 2);
+        const dy = (last.top + last.height / 2) - (first.top + first.height / 2);
+        originCard.style.transition =
+          'transform 0.52s cubic-bezier(0.16, 1.06, 0.32, 1), opacity 0.16s ease';
+        originCard.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) ' +
+          'scale(' + (1 / gsx) + ', ' + (1 / gsy) + ')';
+        originCard.style.opacity = '0';
+      }
     });
 
     // 首帧把焦点交给关闭按钮，Esc 与键盘用户都能立刻操作
@@ -775,11 +790,6 @@
 
     const card = link.closest('article') || link;
     const rect = card.getBoundingClientRect();
-    let radius = 14;
-    try {
-      const raw = parseFloat(getComputedStyle(card).borderTopLeftRadius);
-      if (isFinite(raw) && raw > 0) radius = raw;
-    } catch (e) { /* noop */ }
 
     restoreFocus = document.activeElement;
     view = {
@@ -811,7 +821,7 @@
     current.list = ids.indexOf(topicId) === -1 ? ids.concat([topicId]) : ids;
     try { prefetchController = new AbortController(); } catch (e) { prefetchController = null; }
 
-    build(rect, radius);
+    build(rect);
     bind();
     setOpenLinks(topicId);
     paintNav();
@@ -994,6 +1004,8 @@
     if (cardLink) restoreFocus = cardLink;
 
     setOpenLinks(topicId);
+    // 切换帖子后，跟随的对象换成新帖子的卡片
+    adoptOriginCard(topicId, true);
     try {
       if (current.pushed) history.replaceState({ pco: true, id: topicId }, '', location.href);
     } catch (e) { /* noop */ }
@@ -1332,7 +1344,6 @@
   function clearTimers() {
     if (routeTimer) { clearInterval(routeTimer); routeTimer = null; }
     if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
-    if (backFallback) { clearTimeout(backFallback); backFallback = null; }
   }
 
   function cleanup() {
@@ -1355,9 +1366,13 @@
       prefetchController = null;
     }
     prefetching.clear();
+    drag = null;
+    pendingBack = false;
+    resetOriginCard();
     if (root && root.parentNode) root.parentNode.removeChild(root);
     root = null;
     shell = null;
+    stage = null;
     contentEl = null;
     countEl = null;
     current = null;
@@ -1371,40 +1386,120 @@
     closing = true;
     clearTimers();
     closeLightbox();
+    // 回弹计时器可能还在跑：立刻摘掉，避免中途换掉位移层的过渡曲线
+    root.classList.remove('is-springing');
 
     const reduce = reducedMotion();
     const link = current && current.link;
-    const pageScale = pageScaleNow();
-    const rawTarget = link && link.isConnected
-      ? (link.closest('article') || link).getBoundingClientRect()
-      : null;
-    // 页面正在退回原尺寸：把缩放后的卡片位置反算成最终位置，浮层才能精准落回卡片
-    const target = rawTarget ? unscaleRect(rawTarget, pageScale) : null;
+
+    // —— 遮罩接管：先把内联不透明度钉死成 0，
+    //    否则清空内联值会让 is-open 的 opacity:1 生效，闪一帧整屏遮罩 ——
+    const bd = root.querySelector('.pco-backdrop');
+    if (bd) {
+      bd.style.transition = 'opacity 0.2s ease';
+      bd.style.opacity = '0';
+    }
+    const navEl = root.querySelector('.pco-nav');
+    if (navEl) {
+      navEl.style.transition = 'opacity 0.14s ease';
+      navEl.style.opacity = '0';
+    }
+    const grabEl = root.querySelector('.pco-grabber');
+    if (grabEl) {
+      grabEl.style.transition = 'opacity 0.1s ease';
+      grabEl.style.opacity = '0';
+    }
+
+    // —— 页面瞬间回到 1:1：残留的 0.4s 回弹曲线会让落点一路漂移，
+    //    先摘掉过渡并强制生效，随后量到的才是卡片最终矩形（尺寸精确匹配）——
+    if (pageEl) {
+      pageEl.style.transition = 'none';
+      pageEl.style.transform = '';
+      pageEl.style.filter = '';
+      void pageEl.offsetWidth;
+    }
+
+    let target = null;
+    if (link && link.isConnected) {
+      const cardEl = link.closest('article') || link;
+      // 拖动时卡片本身带着 translate + scale，直接量会把「拖动后的卡片」当成落点，
+      // 于是浮层会继续缩到比原卡片还小。先摘掉变换量到真实外框，再原样放回去做回位动画。
+      let keepTf = '';
+      if (originCard === cardEl) {
+        keepTf = cardEl.style.transform;
+        cardEl.style.transition = 'none';
+        cardEl.style.transform = '';
+        void cardEl.offsetWidth;
+      }
+      const r = cardEl.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) target = r;
+      if (keepTf) {
+        cardEl.style.transform = keepTf;
+        void cardEl.offsetWidth;
+      }
+    }
+
+    // 历史回退改到动画结束之后发，站点重渲染不会再和退出动画抢主线程
+    pendingBack = !!(current && current.pushed && history.state && history.state.pco);
 
     root.classList.remove('is-open');
     root.classList.add('is-closing');
-    pageBackOut();
 
-    if (shell) {
-      if (target && !reduce) {
-        const base = shell.getBoundingClientRect();
-        const sx = Math.max(96, target.width) / base.width;
-        const sy = Math.max(64, target.height) / base.height;
-        const dx = (target.left + target.width / 2) - (base.left + base.width / 2);
-        const dy = (target.top + target.height / 2) - (base.top + base.height / 2);
-        shell.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(' + sx + ', ' + sy + ')';
-        shell.style.borderRadius = '14px';
-        shell.style.opacity = '0.5';
-      } else if (!reduce) {
-        shell.style.transform = 'translateY(10px) scale(.985)';
-        shell.style.opacity = '0';
+    if (stage && shell && target && !reduce) {
+      // 以 shell 的可见矩形为准（包含拖动时的位移与收缩），落点直接对准卡片
+      const vis = shell.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      // 舞台可能已被拖动位移（translate 是绝对值），先还原出未位移的中心，
+      // 否则直接把「中心差」当绝对值写入，会把这段拖动位移丢掉，落点整体偏移。
+      const cur = stageTranslate();
+      const baseCx = stageRect.left + stageRect.width / 2 - cur.x;
+      const baseCy = stageRect.top + stageRect.height / 2 - cur.y;
+      const dx = (target.left + target.width / 2) - baseCx;
+      const dy = (target.top + target.height / 2) - baseCy;
+      // 拖动时的收缩量：从当前 scale 继续收成卡片大小
+      const s0x = stageRect.width > 0 ? Math.min(1, vis.width / stageRect.width) : 1;
+      const s0y = stageRect.height > 0 ? Math.min(1, vis.height / stageRect.height) : 1;
+      const s1x = stageRect.width > 0 ? Math.min(1, target.width / stageRect.width) : 0.06;
+      const s1y = stageRect.height > 0 ? Math.min(1, target.height / stageRect.height) : 0.06;
+
+      // 起点钉成当前这一帧的缩放（无过渡），与拖动画面零跳变
+      stage.style.transition = 'none';
+      shell.style.transition = 'none';
+      shell.style.transform = 'scale(' + s0x + ', ' + s0y + ')';
+      void shell.offsetWidth;
+
+      // —— 收尾动画：缩放快于位移，先收成卡片大小、再滑回卡片 ——
+      stage.style.transition = '';
+      shell.style.transition = '';
+      stage.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+      shell.style.transform = 'scale(' + s1x + ', ' + s1y + ')';
+
+      // 原始卡片同步回家：从拖动位置随浮层一起移动缩放，在容器淡出前先显形接手
+      if (originCard && originCard.isConnected) {
+        originCard.style.transition =
+          'transform 0.54s cubic-bezier(0.3, 0.88, 0.26, 1), opacity 0.18s ease 0.2s';
+        originCard.style.transform = '';
+        originCard.style.opacity = '1';
       }
+    } else if (stage && shell && !reduce) {
+      resetOriginCard();
+      stage.style.transform = 'translateY(10px)';
+      shell.style.transform = 'scale(.06)';
+    } else {
+      resetOriginCard();
     }
 
     const focusTarget = restoreFocus;
     restoreFocus = null;
 
-    closeTimer = setTimeout(cleanup, CLOSE_MS);
+    closeTimer = setTimeout(() => {
+      cleanup();
+      // 动画结束、浮层销毁后再回退历史：popstate 处理看到 root 已空，直接跳过
+      if (pendingBack) {
+        pendingBack = false;
+        try { history.back(); } catch (e) { /* noop */ }
+      }
+    }, CLOSE_MS);
 
     // 关闭后把焦点还给原来那张卡片，键盘用户不会「掉出去」
     if (focusTarget && focusTarget.isConnected) {
@@ -1416,19 +1511,173 @@
 
   function requestClose() {
     if (!root || closing) return;
-    // 有我们压入的历史记录时，让浏览器后退触发 popstate，
-    // 这样历史栈保持干净，后退 / 关闭都走同一条关闭动画。
-    if (current && current.pushed && history.state && history.state.pco) {
-      try {
-        history.back();
-        backFallback = setTimeout(() => {
-          backFallback = null;
-          if (root) animateClose();
-        }, 420);
-        return;
-      } catch (e) { /* noop */ }
-    }
     animateClose();
+  }
+
+  // ---------- 拖动横条关闭：跟手 + 二维位移 + 惯性 + iOS 回弹 ----------
+
+  /**
+   * 收缩量由拖动距离映射：距离代表力度，甩得越快收缩越狠。
+   * 0–140px 是正常力度，最多收 45%；再往上进入高强度，最低收到 38%。
+   */
+  function dragScaleOf(dy) {
+    const d = Math.abs(dy);
+    if (d <= 140) return 1 - d / 140 * 0.45;
+    return 1 - Math.min(0.62, 0.45 + (d - 140) / 110 * 0.17);
+  }
+
+  /** 拖动过程中实时跟手：位移层平移、浮层收缩、遮罩变淡、原始卡片同步跟随 */
+  function paintDrag(offsetX, offsetY, velocity) {
+    if (!stage || !shell || !root) return;
+    // 甩动速度再叠加一段额外收缩，低阻尼、有甩动力度感
+    const boost = Math.min(0.08, Math.abs(velocity || 0) * 0.12);
+    const scale = Math.max(0.3, dragScaleOf(offsetY) - boost);
+    // 位移按缩放比衰减：窗口跟着手指缩，但不会整个被拖跑，收缩始终围绕页面中央
+    stage.style.transition = 'none';
+    stage.style.transform = 'translate3d(' +
+      Math.round(offsetX * scale) + 'px,' + Math.round(offsetY * scale) + 'px,0)';
+    shell.style.transition = 'none';
+    shell.style.transform = 'scale(' + scale + ')';
+    const bd = root.querySelector('.pco-backdrop');
+    if (bd) bd.style.opacity = String(Math.max(0.55, 1 - Math.abs(offsetY) / 900));
+    const nav = root.querySelector('.pco-nav');
+    if (nav) nav.style.opacity = String(Math.max(0, 1 - Math.abs(offsetY) / 260));
+    // 投影随容器一起缩放，无需单独处理
+    // 原始卡片同步跟随移动缩放：拖得越远越清晰，松手关闭时与浮层无缝交接
+    if (originCard && originCard.isConnected) {
+      // 卡片在缩放后的页面里，页面 1px 对应视口 PAGE_SCALE px，位移要折回去
+      const ps = pageScaleOn ? PAGE_SCALE : 1;
+      originCard.style.transition = 'none';
+      originCard.style.transformOrigin = '50% 50%';
+      originCard.style.transform = 'translate(' +
+        Math.round(offsetX * scale / ps) + 'px,' +
+        Math.round(offsetY * scale / ps) + 'px) scale(' + scale + ')';
+      originCard.style.opacity = String(Math.min(0.92, Math.abs(offsetY) / 150));
+    }
+  }
+
+  function onPointerDown(e) {
+    if (!root || !stage || closing) return;
+    if (!e.target.closest || !e.target.closest('[data-role="grabber"]')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    e.preventDefault();
+    drag = {
+      id: e.pointerId,
+      x0: e.clientX,
+      y0: e.clientY,
+      x: e.clientX,
+      y: e.clientY,
+      t: performance.now(),
+      v: 0,
+      dx: 0,
+      dy: 0
+    };
+    try { e.target.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+    stage.classList.add('is-dragging');
+    closeRailMenu();
+    closePops();
+  }
+
+  function onPointerMove(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    const now = performance.now();
+    const offsetX = e.clientX - drag.x0;
+    const offsetY = e.clientY - drag.y0;
+    const dt = Math.max(1, now - drag.t);
+    // 更偏重当前帧的速度，甩动时形变立刻跟上，阻尼感更低
+    drag.v = drag.v * 0.5 + ((e.clientY - drag.y) / dt) * 0.5;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    drag.t = now;
+    drag.dx = offsetX;
+    drag.dy = offsetY;
+    paintDrag(offsetX, offsetY, drag.v);
+  }
+
+  function onPointerUp(e) {
+    if (!drag || (e && e.pointerId !== drag.id)) return;
+    const offsetY = drag.dy;
+    const velocity = drag.v;
+    drag = null;
+    if (stage) stage.classList.remove('is-dragging');
+    if (!root) return;
+
+    // 竖向拖够距离，或竖向甩得足够快，就直接关闭；否则弹回原位
+    if (Math.abs(offsetY) > DRAG_CLOSE_DISTANCE || Math.abs(velocity) > DRAG_CLOSE_VELOCITY) {
+      // 遮罩 / 导航的过渡与不透明度交给 animateClose 接管，
+      // 这里绝不能清空内联值——那会让 is-open 的 opacity:1 立刻生效，闪一帧整屏遮罩
+      requestClose();
+      return;
+    }
+
+    springBack();
+  }
+
+  /** 松手回弹：低阻尼、快速归位，落回原位只留很小的过冲 */
+  function springBack() {
+    if (!stage || !shell || !root) return;
+    root.classList.add('is-springing');
+    stage.style.transition = '';
+    stage.style.transform = '';
+    shell.style.transition = '';
+    shell.style.transform = '';
+    shell.style.opacity = '';
+    const bd = root.querySelector('.pco-backdrop');
+    if (bd) bd.style.opacity = '';
+    const nav = root.querySelector('.pco-nav');
+    if (nav) nav.style.opacity = '';
+    // 原始卡片随窗口一起弹回，随后隐回信息流
+    if (originCard && originCard.isConnected) {
+      originCard.style.transition =
+        'transform 0.32s cubic-bezier(0.16, 1.06, 0.32, 1), opacity 0.28s ease';
+      originCard.style.transform = '';
+      originCard.style.opacity = '0';
+    }
+    setTimeout(() => {
+      if (!stage || !shell) return;
+      stage.style.transition = '';
+      stage.style.transform = '';
+      shell.style.transition = '';
+      if (root) root.classList.remove('is-springing');
+    }, 560);
+  }
+
+  // ---------- 原位卡片：打开时隐藏，关闭落回后再显示 ----------
+
+  function resetOriginCard() {
+    if (originCard) {
+      originCard.style.transition = '';
+      originCard.style.opacity = '';
+      originCard.style.transform = '';
+      originCard.style.transformOrigin = '';
+      originCard.style.willChange = '';
+    }
+    originCard = null;
+  }
+
+  /** 位移层当前的平移量（拖动或回弹过程中是插值后的实时值） */
+  function stageTranslate() {
+    if (!stage) return { x: 0, y: 0 };
+    const tf = window.getComputedStyle(stage).transform;
+    if (!tf || tf === 'none') return { x: 0, y: 0 };
+    const m = tf.match(/matrix(?:3d)?\(([^)]+)\)/);
+    if (!m) return { x: 0, y: 0 };
+    const p = m[1].split(',').map(parseFloat);
+    if (p.length >= 16) return { x: p[12] || 0, y: p[13] || 0 };
+    return { x: p[4] || 0, y: p[5] || 0 };
+  }
+
+  function adoptOriginCard(topicId, atRest) {
+    resetOriginCard();
+    if (reducedMotion() || !shell) return;
+    const link = findFeedLink(topicId) || (current && current.link);
+    const card = link && link.closest ? link.closest('article') : null;
+    if (!card) return;
+    originCard = card;
+    card.style.transition = 'none';
+    card.style.transform = '';
+    card.style.opacity = atRest ? '0' : '';
   }
 
   // ============================ 8. 事件 ============================
@@ -2090,6 +2339,10 @@
     root.addEventListener('input', onRootInput);
     root.addEventListener('keydown', onRootKeydown);
     root.addEventListener('mousedown', onRootMouseDown);
+    root.addEventListener('pointerdown', onPointerDown);
+    root.addEventListener('pointermove', onPointerMove);
+    root.addEventListener('pointerup', onPointerUp);
+    root.addEventListener('pointercancel', onPointerUp);
   }
 
   // ============================ 9. 开关 ============================
