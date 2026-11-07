@@ -397,13 +397,55 @@ html.pco-lock body {
   transform: none;
 }
 
-#pco-root .pco-title {
+/* 标题行：标题文字与「总结本帖」同处一个行内流，按钮紧跟标题文字之后，
+   右侧留白仍然为右上角那排浮动按钮让位 */
+#pco-root .pco-title-row {
   margin: 6px 208px 12px 0;
+}
+
+#pco-root .pco-title {
+  display: inline;
+  margin: 0;
   font-size: 26px;
   font-weight: 800;
   line-height: 1.28;
   letter-spacing: -0.018em;
   color: var(--pco-text);
+}
+
+#pco-root .pco-sum-btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-left: 10px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in oklab, var(--pco-primary) 26%, var(--pco-border));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--pco-primary) 8%, var(--pco-bg));
+  color: var(--pco-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  vertical-align: baseline;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+#pco-root .pco-sum-btn svg {
+  align-self: center;
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-sum-btn:hover {
+  border-color: var(--pco-primary);
+  background: color-mix(in oklab, var(--pco-primary) 14%, var(--pco-bg));
+}
+
+#pco-root .pco-sum-btn:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--pco-primary) 60%, #fff);
+  outline-offset: 2px;
 }
 
 #pco-root .pco-author {
@@ -2604,10 +2646,10 @@ html.pco-lock body {
   overflow: hidden;
 }
 
-/* 宽度收口：正文流里按内容列宽度铺开，但不超过可读上限，避免被容器拉满 */
+/* 宽度收口：不铺满整行，整块靠右，避免与正文左对齐 */
 #pco-root .pco-ai-panel {
-  width: 100%;
-  max-width: 720px;
+  width: min(560px, 100%);
+  margin-left: auto;
   flex: none;
 }
 
@@ -2675,47 +2717,6 @@ html.pco-lock body {
   font-size: 11px;
   font-weight: 650;
   white-space: nowrap;
-}
-
-#pco-root .pco-ai-panel-actions {
-  display: flex;
-  flex: none;
-  gap: 8px;
-  padding: 2px 14px 10px;
-}
-
-#pco-root .pco-ai-run {
-  display: inline-flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 9px 14px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--pco-primary);
-  color: #fff;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 12px 26px -16px color-mix(in oklab, var(--pco-primary) 85%, transparent);
-  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
-}
-
-#pco-root .pco-ai-run:hover {
-  background: color-mix(in oklab, var(--pco-primary) 88%, #000);
-  color: #fff;
-  box-shadow: 0 14px 30px -15px color-mix(in oklab, var(--pco-primary) 90%, transparent);
-}
-
-#pco-root .pco-ai-run:active {
-  transform: translateY(1px);
-}
-
-#pco-root .pco-ai-run:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--pco-primary) 60%, #fff);
-  outline-offset: 2px;
 }
 
 #pco-root .pco-ai-panel-status {
@@ -3224,8 +3225,11 @@ html.pco-lock body {
     padding: 18px 20px 22px;
   }
 
-  #pco-root .pco-title {
+  #pco-root .pco-title-row {
     margin-right: 170px;
+  }
+
+  #pco-root .pco-title {
     font-size: 21px;
   }
 

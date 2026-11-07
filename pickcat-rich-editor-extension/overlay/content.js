@@ -1406,7 +1406,14 @@
     ).join('');
 
     contentEl.innerHTML =
-      '<h1 class="pco-title">' + esc(topic.title || '无标题帖子') + '</h1>' +
+      // 标题行：标题文字与「总结本帖」排在同一行，按钮紧跟标题文字之后
+      '<div class="pco-title-row">' +
+        '<h1 class="pco-title">' + esc(topic.title || '无标题帖子') + '</h1>' +
+        '<button type="button" class="pco-sum-btn" data-act="ai-summarize" ' +
+          'title="用 AI 总结本帖" aria-label="用 AI 总结本帖">' +
+          icon('sparkles', 13) + '<span>总结本帖</span>' +
+        '</button>' +
+      '</div>' +
       '<div class="pco-author">' +
         avatarHtml(author, 'pco-avatar') +
         '<div class="pco-author-main">' +
@@ -1425,10 +1432,6 @@
         '<div class="pco-ai-panel-head">' +
           '<span class="pco-ai-panel-title">' + icon('sparkles', 15) + 'AI 助手</span>' +
           '<span class="pco-ai-panel-hint">AI 总结</span>' +
-        '</div>' +
-        '<div class="pco-ai-panel-actions">' +
-          '<button type="button" class="pco-ai-run" data-act="ai-run">' +
-            icon('sparkles', 14) + '总结本帖</button>' +
         '</div>' +
         '<div class="pco-ai-panel-status" data-role="ai-panel-status">' +
           '使用设置里的模型与密钥生成</div>' +
@@ -3050,8 +3053,10 @@
         // 只切换正文里那块面板的显示，不弹浮层
         const panel = root.querySelector('[data-role="ai-panel"]');
         setAiHidden(!!panel && !panel.hidden);
-      } else if (act === 'ai-run') {
+      } else if (act === 'ai-summarize') {
         e.preventDefault();
+        // 面板可能被开关收起：先确保可见，再开始生成
+        if (aiHidden()) setAiHidden(false);
         runAiPanel();
       } else if (act === 'ai-stop') {
         e.preventDefault();
