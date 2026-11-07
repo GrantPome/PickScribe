@@ -3261,8 +3261,12 @@
     btn.title = 'AI 助手';
     btn.setAttribute('aria-label', 'AI 助手');
     btn.innerHTML = icon('sparkles', 18);
+    // 紧跟在「文章目录」下方：目录按钮没有目录时会隐藏，AI 按钮随之自然上移，不会留空
+    const tocBtn = rail.querySelector('[data-act="toc"]');
     const more = rail.querySelector('[data-act="more"]');
-    if (more) rail.insertBefore(btn, more); else rail.appendChild(btn);
+    if (tocBtn) rail.insertBefore(btn, tocBtn.nextSibling);
+    else if (more) rail.insertBefore(btn, more);
+    else rail.appendChild(btn);
     setAiHidden(aiHidden());
   }
 
