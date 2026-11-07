@@ -2649,12 +2649,10 @@ html.pco-lock body {
   overflow: hidden;
 }
 
-/* 宽度收口：随内容列自适应——宽屏不超过 760px，窄列不低于 340px，
-   整块靠右，右边缘与标题行、正文列对齐 */
+/* 宽度：铺满整个正文内容列，与正文左右边界对齐 */
 #pco-root .pco-ai-panel {
-  width: clamp(340px, 62%, 760px);
-  max-width: 100%;
-  margin-left: auto;
+  width: 100%;
+  max-width: none;
   flex: none;
 }
 
