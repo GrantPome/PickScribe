@@ -397,14 +397,18 @@ html.pco-lock body {
   transform: none;
 }
 
-/* 标题行：标题文字与「总结本帖」同处一个行内流，按钮紧跟标题文字之后，
+/* 标题行：标题在左，按钮贴到行尾，与标题首行基线对齐；
    右侧留白仍然为右上角那排浮动按钮让位 */
 #pco-root .pco-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   margin: 6px 208px 12px 0;
 }
 
 #pco-root .pco-title {
-  display: inline;
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   font-size: 26px;
   font-weight: 800;
@@ -415,9 +419,9 @@ html.pco-lock body {
 
 #pco-root .pco-sum-btn {
   display: inline-flex;
+  flex: none;
   align-items: baseline;
   gap: 5px;
-  margin-left: 10px;
   padding: 4px 10px;
   border: 1px solid color-mix(in oklab, var(--pco-primary) 26%, var(--pco-border));
   border-radius: 999px;
@@ -428,7 +432,6 @@ html.pco-lock body {
   font-weight: 650;
   line-height: 1;
   white-space: nowrap;
-  vertical-align: baseline;
   cursor: pointer;
   transition: border-color 0.16s ease, background 0.16s ease;
 }
