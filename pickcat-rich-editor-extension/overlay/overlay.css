@@ -2486,7 +2486,8 @@ html.pco-lock body {
 
 /* 站点目录的折线：贯穿整个列表的 1px 竖线 + 每个条目一小段圆角横枝；
    竖线由每个条目自绘（随列表一起滚动），激活条目整段变主题色 */
-#pco-root.is-toc .pco-toc {
+#pco-root.is-toc .pco-toc,
+#pco-root.is-ai-open .pco-toc {
   width: 288px;
 }
 
@@ -2519,6 +2520,125 @@ html.pco-lock body {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+}
+
+/* ---------- 左侧列里的 AI 助手 ----------
+   列高固定 100%：目录列表自己滚动，AI 区在底部不再撑高整列。
+   无目录：AI 区 flex:1 占满整列；
+   有目录：AI 区固定 clamp(240px, 40%, 360px)，目录列表吃掉剩余高度。 */
+#pco-root .pco-toc-ai {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 288px;
+  min-height: 0;
+  padding: 0 12px 14px;
+  overflow: hidden;
+  transition: height calc(0.26s * var(--pco-dur)) var(--pco-ease);
+}
+
+#pco-root .pco-toc-ai[hidden] {
+  display: none;
+}
+
+/* 无目录：目录头与列表都不渲染，整列都给 AI */
+#pco-root .pco-toc:not(.has-heads) .pco-toc-head,
+#pco-root .pco-toc:not(.has-heads) .pco-toc-list {
+  display: none;
+}
+
+#pco-root .pco-toc:not(.has-heads) .pco-toc-ai {
+  flex: 1 1 auto;
+  padding-top: 20px;
+}
+
+/* 目录被手动收起、但 AI 还开着：目录区让位，AI 独占整列 */
+#pco-root:not(.is-toc) .pco-toc-head,
+#pco-root:not(.is-toc) .pco-toc-list {
+  display: none;
+}
+
+#pco-root:not(.is-toc) .pco-toc.has-heads .pco-toc-ai {
+  flex: 1 1 auto;
+  height: auto;
+  padding-top: 20px;
+  border-top: 0;
+}
+
+/* 有目录：列表可滚动并保底 96px，AI 缩成列底部一块 */
+#pco-root .pco-toc.has-heads .pco-toc-list {
+  flex: 1 1 auto;
+  min-height: 96px;
+}
+
+#pco-root .pco-toc.has-heads .pco-toc-ai {
+  flex: 0 0 auto;
+  height: clamp(240px, 40%, 360px);
+  padding-top: 10px;
+  border-top: 1px solid var(--pco-border);
+}
+
+/* 折叠态：只留标题条，把高度让回目录 */
+#pco-root .pco-toc-ai.is-collapsed {
+  height: 54px !important;
+  padding-bottom: 6px;
+}
+
+#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-actions,
+#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-status,
+#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-out,
+#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-foot {
+  display: none;
+}
+
+/* 面板填满 AI 区，结果区自己滚动，不把目录顶走 */
+#pco-root .pco-toc-ai .pco-ai-panel {
+  flex: 1;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding-bottom: 10px;
+  border-radius: 12px;
+}
+
+#pco-root .pco-toc-ai .pco-ai-panel-out {
+  flex: 1;
+  max-height: none;
+  min-height: 46px;
+}
+
+#pco-root .pco-toc-ai .pco-ai-panel-head {
+  padding: 10px 12px 6px;
+}
+
+#pco-root .pco-ai-collapse {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pco-dim);
+  cursor: pointer;
+}
+
+#pco-root .pco-ai-collapse:hover {
+  color: var(--pco-text);
+  background: var(--pco-soft);
+}
+
+#pco-root .pco-ai-collapse svg {
+  transition: transform 0.2s var(--pco-ease);
+  transform: rotate(90deg);
+}
+
+#pco-root .pco-toc-ai.is-collapsed .pco-ai-collapse svg {
+  transform: none;
 }
 
 /* 与站点一致：无圆角无底色，只靠缩进与颜色区分层级；
@@ -3247,6 +3367,11 @@ html.pco-lock body {
   #pco-root.is-toc .pco-toc,
   #pco-root .pco-toc-head,
   #pco-root .pco-toc-list {
+    width: min(288px, 84vw);
+  }
+
+  /* 抽屉里的 AI 区跟随同一个宽度 */
+  #pco-root .pco-toc-ai {
     width: min(288px, 84vw);
   }
 
