@@ -749,17 +749,17 @@
                     '<button type="button" class="pco-tool" data-act="fmt-italic" data-ed-cmd="italic" title="斜体">I</button>' +
                     '<button type="button" class="pco-tool" data-act="fmt-strike" data-ed-cmd="strikeThrough" title="删除线">S</button>' +
                     '<button type="button" class="pco-tool" data-act="fmt-underline" data-ed-cmd="underline" title="下划线">U</button>' +
-                    '<button type="button" class="pco-tool" data-act="fmt-quote" title="引用">❝</button>' +
-                    '<button type="button" class="pco-tool" data-act="fmt-code" title="行内代码">&lt;/&gt;</button>' +
-                    '<button type="button" class="pco-tool" data-act="fmt-link" title="链接">🔗</button>' +
-                    '<button type="button" class="pco-tool" data-act="fmt-list" title="列表">≡</button>' +
-                    '<button type="button" class="pco-tool" data-act="fmt-task" title="待办">☑</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-quote" title="引用">' + edIcon('quote', 14) + '</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-code" title="行内代码">' + edIcon('code', 14) + '</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-link" title="链接">' + edIcon('link', 14) + '</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-list" title="列表">' + edIcon('ul', 14) + '</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-task" title="待办">' + edIcon('task', 14) + '</button>' +
                   '</div>' +
                   // 全屏编辑器的完整排版工具栏：仅在浮层回复框全屏时显示
                   '<div class="pco-ed-toolbar" data-role="full-tools" aria-label="排版工具">' +
                     '<div class="pco-ed-group">' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-undo" title="撤销">↶</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-redo" title="重做">↷</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-undo" title="撤销">' + edIcon('undo') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-redo" title="重做">' + edIcon('redo') + '</button>' +
                     '</div>' +
                     '<div class="pco-ed-group">' +
                       '<button type="button" class="pco-ed-btn pco-ed-btn--icon" data-act="fmt-bold" data-ed-cmd="bold" title="加粗"><b>B</b></button>' +
@@ -775,37 +775,37 @@
                       '<button type="button" class="pco-ed-btn" data-act="ed-p" data-ed-heading="p" title="正文">¶</button>' +
                     '</div>' +
                     '<div class="pco-ed-group">' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-align-left" data-ed-align="left" title="左对齐">⇤</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-align-center" data-ed-align="center" title="居中">≡</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-align-right" data-ed-align="right" title="右对齐">⇥</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-align-left" data-ed-align="left" title="左对齐">' + edIcon('alignLeft') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-align-center" data-ed-align="center" title="居中">' + edIcon('alignCenter') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-align-right" data-ed-align="right" title="右对齐">' + edIcon('alignRight') + '</button>' +
                     '</div>' +
                     '<div class="pco-ed-group">' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-color" title="文字颜色"><span class="pco-ed-color">A</span></button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-highlight" title="背景高亮"><span class="pco-ed-mark">A</span></button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-color" title="文字颜色">' + edIcon('color') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-highlight" title="背景高亮">' + edIcon('highlight') + '</button>' +
                     '</div>' +
                     '<div class="pco-ed-group">' +
-                      '<button type="button" class="pco-ed-btn" data-act="fmt-list" title="无序列表">•</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-ol" title="有序列表">1.</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="fmt-task" title="待办列表">☑</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-list" title="无序列表">' + edIcon('ul') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-ol" title="有序列表">' + edIcon('ol') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-task" title="待办列表">' + edIcon('task') + '</button>' +
                     '</div>' +
                     '<div class="pco-ed-group">' +
-                      '<button type="button" class="pco-ed-btn" data-act="fmt-quote" title="引用">❝</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="fmt-code" title="行内代码">&lt;/&gt;</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-codeblock" title="代码块">{ }</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-quote" title="引用">' + edIcon('quote') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-code" title="行内代码">' + edIcon('code') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-codeblock" title="代码块">' + edIcon('codeblock') + '</button>' +
                     '</div>' +
                     '<div class="pco-ed-group">' +
-                      '<button type="button" class="pco-ed-btn" data-act="fmt-link" title="链接">🔗</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-table" title="表格">▦</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-hr" title="分割线">—</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-link" title="链接">' + edIcon('link') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-table" title="表格">' + edIcon('table') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-hr" title="分割线">' + edIcon('hr') + '</button>' +
                     '</div>' +
                     '<div class="pco-ed-group">' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-math-inline" title="行内公式">∑</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-math-block" title="块级公式">Σ</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-video" title="插入哔哩哔哩视频">▶</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-math-inline" title="行内公式">' + edIcon('mathInline') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-math-block" title="块级公式">' + edIcon('mathBlock') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-video" title="插入哔哩哔哩视频">' + edIcon('video') + '</button>' +
                     '</div>' +
                     '<div class="pco-ed-group">' +
-                      '<button type="button" class="pco-ed-btn pco-ed-btn--text" data-act="ed-clear" title="清除格式">清除格式</button>' +
-                      '<button type="button" class="pco-ed-btn" data-act="ed-find" title="查找替换">⌕</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-clear" title="清除格式">' + edIcon('clear') + '</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-find" title="查找替换">' + edIcon('search') + '</button>' +
                     '</div>' +
                   '</div>' +
                   '<div class="pco-pop pco-emoji-pop" data-role="emoji-pop" hidden>' +
