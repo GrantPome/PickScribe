@@ -398,12 +398,12 @@ html.pco-lock body {
 }
 
 /* 标题行：标题在左，按钮贴到行尾，与标题首行基线对齐；
-   右侧留白仍然为右上角那排浮动按钮让位 */
+   宽屏时右上角浮动按钮压在右侧回复栏上，标题行不需要让位 */
 #pco-root .pco-title-row {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  margin: 6px 208px 12px 0;
+  margin: 6px 0 12px;
 }
 
 #pco-root .pco-title {
@@ -2649,10 +2649,11 @@ html.pco-lock body {
   overflow: hidden;
 }
 
-/* 宽度收口：随内容列同比收窄（最宽 560px），整块靠右，避免与正文左对齐；
-   正文列变窄（开目录、切窄屏）时不会撑出边界，也不会突然占满整行 */
+/* 宽度收口：随内容列自适应——宽屏不超过 760px，窄列不低于 340px，
+   整块靠右，右边缘与标题行、正文列对齐 */
 #pco-root .pco-ai-panel {
-  width: min(560px, 68%);
+  width: clamp(340px, 62%, 760px);
+  max-width: 100%;
   margin-left: auto;
   flex: none;
 }
@@ -3235,11 +3236,6 @@ html.pco-lock body {
 
   #pco-root .pco-title {
     font-size: 21px;
-  }
-
-  /* 窄屏正文列更宽，面板同比放大，避免右侧只剩一条细缝 */
-  #pco-root .pco-ai-panel {
-    width: min(560px, 88%);
   }
 
   #pco-root .pco-side-head {
