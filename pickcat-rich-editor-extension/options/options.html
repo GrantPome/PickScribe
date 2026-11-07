@@ -73,6 +73,10 @@
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/><path d="M18 16.5 18.6 18l1.5.6-1.5.6-.6 1.5-.6-1.5L15.9 18l1.5-.6.6-1.5Z"/></svg>
             AI 功能
           </a>
+          <a class="nav-item" href="#sec-plus">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 14.4 14.4 9.6"/><path d="M11 6.6 12.9 4.7a4 4 0 0 1 5.7 5.7l-1.9 1.9"/><path d="M13 17.4 11.1 19.3a4 4 0 0 1-5.7-5.7l1.9-1.9"/></svg>
+            PICKCAT Plus 联动
+          </a>
           <a class="nav-item" href="#sec-about">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
             关于
@@ -469,6 +473,47 @@
           <button id="importBtn" class="btn">导入配置</button>
           <input id="importFile" type="file" accept="application/json" hidden />
         </div>
+      </section>
+
+      <!-- PICKCAT Plus 联动 -->
+      <section class="card" id="sec-plus">
+        <div class="card-head">
+          <h2>PICKCAT Plus 联动</h2>
+          <p>两个扩展各自独立运行，通过页面内的 postMessage 协议互相发现，不读取对方的配置与数据。</p>
+        </div>
+
+        <h3 class="sub-head">联动开关</h3>
+        <p class="note">关闭后仍会应答对方的心跳，但不再接受「打开写作助手」的指令。</p>
+
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="plusLinkEnabled" />
+            <span>允许 PICKCAT Plus 唤起写作助手</span>
+          </label>
+        </div>
+
+        <div class="callout">
+          <p class="callout-title">协议 v1</p>
+          <p class="note">PICKCAT Plus 广播 <code>pickcat:link-ping</code>，PickScribe 回复 <code>pickscribe:hello</code>；需要写作助手时由对方发送 <code>pickcat:open-ai</code>，仅在编辑页生效。消息带来源字段校验并限定同源。</p>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">特别鸣谢</h3>
+        <ul class="thanks">
+          <li>
+            <strong>PICKCAT Plus</strong>
+            <span>提供完整的联动协议与联调支持</span>
+          </li>
+          <li>
+            <strong>HarmonyOS Sans</strong>
+            <span>华为终端提供的官方可变字体，让整站排版保持一致</span>
+          </li>
+          <li>
+            <strong>每一位使用者</strong>
+            <span>Issue、PR 与使用反馈让这个扩展持续变好</span>
+          </li>
+        </ul>
       </section>
 
       <!-- 关于 -->

@@ -854,6 +854,8 @@ const FONT_MODE_KEY = 'pcr_font_mode';
 const FONT_CUSTOM_KEY = 'pcr_custom_font';
 /** 键 pcr_image_zoom：与 overlay/content.js 的 IMAGE_ZOOM_KEY 保持一致，控制点击图片查看大图 */
 const IMAGE_ZOOM_KEY = 'pcr_image_zoom';
+/** 键 pcr_plus_link：与 content.js 的 PLUS_LINK_KEY 保持一致，控制是否响应 PICKCAT Plus 的唤起指令 */
+const PLUS_LINK_KEY = 'pcr_plus_link';
 
 /** 与 content.js / shared/font-host.js 保持一致的字体库位置 */
 const FONT_DB = 'pcr_fonts';
@@ -1117,6 +1119,19 @@ loadAppearance().catch((e) => setStatus('读取站点外观设置失败：' + e.
 // ============================ 关于：显示实际版本号 ============================
 
 $('aboutVersion').textContent = 'v' + chrome.runtime.getManifest().version;
+
+// ============================ PICKCAT Plus 联动 ============================
+
+/** 默认开启：读不到设置时按允许处理，与 content.js 的判定保持一致 */
+(async () => {
+  const raw = await chrome.storage.local.get([PLUS_LINK_KEY]);
+  $('plusLinkEnabled').checked = raw[PLUS_LINK_KEY] !== false;
+})().catch((e) => setStatus('读取联动设置失败：' + e.message, 'err'));
+
+$('plusLinkEnabled').addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ [PLUS_LINK_KEY]: e.target.checked });
+  setStatus(e.target.checked ? '已允许 PICKCAT Plus 唤起写作助手' : '已禁止 PICKCAT Plus 唤起写作助手', 'ok');
+});
 
 // ============================ 侧栏导航：滚动时高亮当前分区 ============================
 

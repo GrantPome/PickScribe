@@ -602,6 +602,42 @@ a.btn svg { width: 15px; height: 15px; flex: none; }
 #sec-ai .divider + .sub-head { margin-top: 0; }
 #sec-ai .note { margin: 8px 0 10px; }
 
+/* ============================ PICKCAT Plus 联动 ============================ */
+
+#sec-plus .sub-head { margin: 22px 0 10px; }
+#sec-plus .card-head + .sub-head { margin-top: 0; }
+#sec-plus .divider + .sub-head { margin-top: 0; }
+#sec-plus .note { margin: 8px 0 10px; }
+#sec-plus .callout-title { margin-bottom: 3px; }
+
+/* 特别鸣谢：每行一个对象，标题与说明上下排布 */
+.thanks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.thanks li {
+  padding: 10px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg-muted);
+}
+.thanks strong {
+  display: block;
+  font-size: 13.5px;
+  color: var(--ui-text-highlighted);
+}
+.thanks span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ui-text-muted);
+}
+
 /* ============================ 起始页自定义列表 ============================ */
 
 #sec-home .sub-head { margin: 22px 0 10px; }

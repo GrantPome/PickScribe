@@ -18,6 +18,9 @@
   --pco-border: var(--ui-border, rgba(23, 24, 28, 0.1));
   --pco-soft: var(--ui-bg-accented, rgba(23, 24, 28, 0.045));
   --pco-primary: var(--ui-primary, #e5484d);
+  /* 表情尺寸令牌：面板格子与正文/评论里渲染的表情共用一套数值，改这里即可整体缩放 */
+  --pco-emoji-inline: 2em;      /* 评论、正文里行内表情的边长 */
+  --pco-emoji-pop-w: 360px;     /* 表情面板宽度，格子（5 列）随之约 66px */
   /* 动画时长倍率：由设置项写入（= 1 / 速度），>1 更慢；核心时长都乘以它 */
   --pco-dur: 1;
   --pco-ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -70,6 +73,14 @@ html.pco-lock body {
   opacity: 0;
   pointer-events: auto;
   transition: opacity calc(0.24s * var(--pco-dur)) ease;
+  /* 开合动画期间不做毛玻璃：底层页面正在缩放，整屏 backdrop-filter
+     会逐帧重新采样，是“没有媒体也掉帧”的主要来源之一。
+     动画结束后由 .is-settled 一次性挂上。 */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+#pco-root.is-settled .pco-backdrop {
   -webkit-backdrop-filter: blur(7px) saturate(1.06);
   backdrop-filter: blur(7px) saturate(1.06);
 }
@@ -92,6 +103,12 @@ html.pco-lock body {
 
 #pco-root .pco-md img:not(.markdown-emoji) {
   cursor: zoom-in;
+}
+
+/* 开合动画期间暂缓加载的嵌入内容：先占位保持布局，动画结束再补 src */
+#pco-root .pco-md iframe[data-pco-deferred],
+#pco-root .pco-md video[data-pco-deferred] {
+  background: var(--pco-soft);
 }
 
 #pco-root.pco-no-zoom .pco-md img {
@@ -172,7 +189,18 @@ html.pco-lock body {
   transition: transform calc(0.52s * var(--pco-dur)) var(--pco-move),
     width calc(0.3s * var(--pco-dur)) var(--pco-ease),
     height calc(0.3s * var(--pco-dur)) var(--pco-ease);
+}
+
+/* 只在开合动画期间保留合成层提示；常驻 will-change 会让整层长期占显存，
+   内容更新（图片、评论）时反复整层重栅格化 */
+#pco-root.is-animating .pco-stage,
+#pco-root.is-animating .pco-shell {
   will-change: transform;
+}
+
+/* 动画期间用更轻的投影：90px 大模糊的阴影光栅化成本高，落定后恢复完整层次 */
+#pco-root.is-animating .pco-shell {
+  box-shadow: 0 16px 40px -22px rgba(8, 10, 16, 0.42), 0 0 0 1px var(--pco-border);
 }
 
 /* 加宽：贴到视口两侧，由标题栏的左右箭头按钮切换；全屏规则在其后，优先级更高 */
@@ -227,7 +255,32 @@ html.pco-lock body {
   /* 打开尺寸 0.46s：比位移 0.52s 略快，先长到位、位移随后跟上；
      面板全程不透明，卡片长成浮层时不会透出底下的原卡片 */
   transition: transform calc(0.46s * var(--pco-dur)) var(--pco-size);
-  will-change: transform;
+  /* 默认禁止鼠标划选，避免拖动关闭 / 点按钮时误选到正文；
+     打开「文本选中模式」后整层恢复可选，输入框则始终可选可编辑 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#pco-root .pco-shell input,
+#pco-root .pco-shell textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+#pco-root.is-select .pco-shell {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 正文与头像里的图片默认不可拖动（不会拽出半透明残影），
+   与文本选中模式同步：开启后才允许拖出图片 */
+#pco-root .pco-shell img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+#pco-root.is-select .pco-shell img {
+  -webkit-user-drag: auto;
 }
 
 /* 关闭时用平滑收尾的曲线，直接收回卡片大小；
@@ -321,6 +374,8 @@ html.pco-lock body {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  /* 把重绘范围限制在滚动区内部，缩放动画时不必连带整层重绘 */
+  contain: paint;
   overscroll-behavior: contain;
   padding: 22px 32px 36px;
   scrollbar-width: thin;
@@ -498,10 +553,10 @@ html.pco-lock body {
 
 #pco-root .pco-md img.markdown-emoji {
   display: inline-block;
-  width: 1.45em;
-  height: 1.45em;
+  width: var(--pco-emoji-inline);
+  height: var(--pco-emoji-inline);
   margin: 0 0.08em;
-  vertical-align: -0.32em;
+  vertical-align: -0.45em;
   border-radius: 0;
   background: transparent;
 }
@@ -682,6 +737,7 @@ html.pco-lock body {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  contain: paint;
   overscroll-behavior: contain;
   padding: 4px 26px 34px 20px;
   scrollbar-width: thin;
@@ -833,6 +889,22 @@ html.pco-lock body {
   opacity: 0.7;
 }
 
+/* 每楼的「回复」入口：靠右，默认低调，悬停变主题色 */
+#pco-root .pco-comment-reply {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pco-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+#pco-root .pco-comment-reply:hover {
+  color: var(--pco-primary);
+}
+
 #pco-root .pco-comments-empty {
   padding: 46px 10px;
   text-align: center;
@@ -940,21 +1012,57 @@ html.pco-lock body {
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--pco-primary) 12%, transparent);
 }
 
+/* 回复某一楼时，输入框上方的目标提示条 */
+#pco-root .pco-composer-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 0;
+  font-size: 12px;
+  color: var(--pco-muted);
+}
+
+#pco-root .pco-composer-target b {
+  color: var(--pco-primary);
+  font-weight: 600;
+}
+
+#pco-root .pco-composer-target-x {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pco-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#pco-root .pco-composer-target-x:hover {
+  color: var(--pco-primary);
+}
+
 #pco-root [hidden] {
   display: none !important;
 }
 
-/* 工具条默认不占位；输入框聚焦时才展开 */
+/* 工具条默认不占位；输入框聚焦时展开。第一行常用工具，第二行排版工具独立成行 */
 #pco-root .pco-composer-tools {
   position: relative;
   display: none;
-  align-items: center;
+  flex-direction: column;
   gap: 2px;
   padding: 7px 8px 0;
 }
 
-#pco-root .pco-composer-box:focus-within .pco-composer-tools {
+#pco-root .pco-composer-box:focus-within .pco-composer-tools,
+#pco-root .pco-composer-box--full .pco-composer-tools {
   display: flex;
+}
+
+#pco-root .pco-tool-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 #pco-root .pco-tool {
@@ -985,25 +1093,46 @@ html.pco-lock body {
   color: var(--pco-primary);
 }
 
+#pco-root .pco-tool.is-on {
+  background: color-mix(in oklab, var(--pco-primary) 14%, transparent);
+  color: var(--pco-primary);
+}
+
 #pco-root .pco-tool--text {
   font-size: 11.5px;
   font-weight: 700;
 }
 
-#pco-root .pco-tool-extra {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: 3px;
-  padding-left: 5px;
-  border-left: 1px solid var(--pco-border);
+/* 全屏按钮靠右，和常用工具分开 */
+#pco-root .pco-tool--full {
+  margin-left: auto;
 }
 
+#pco-root .pco-tool-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 3px 0 0;
+  padding: 5px 0 0;
+  border-top: 1px solid var(--pco-border);
+  animation: pco-extra-in 0.2s var(--pco-ease);
+}
+
+@keyframes pco-extra-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 弹层挂在 #pco-root 下（不在 .pco-shell 里），fixed 定位由脚本按工具条位置计算，
+   这样不会被浮层容器的 overflow: hidden 裁掉，宽面板也能完整显示 */
 #pco-root .pco-pop {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 8px;
-  z-index: 6;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  max-height: calc(100vh - 16px);
+  pointer-events: auto;
   border: 1px solid var(--pco-border);
   border-radius: 12px;
   background: var(--pco-bg);
@@ -1012,20 +1141,150 @@ html.pco-lock body {
   transform-origin: 0 100%;
 }
 
+/* ---------------------- 原生表情合集选择器 ---------------------- */
+
 #pco-root .pco-emoji-pop {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 2px;
-  width: 248px;
-  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: var(--pco-emoji-pop-w);
+  max-width: calc(100vw - 16px);
+  padding: 9px;
 }
 
+#pco-root .pco-emoji-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--pco-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#pco-root .pco-emoji-colname {
+  min-width: 0;
+  color: var(--pco-muted);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#pco-root .pco-emoji-cols {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#pco-root .pco-emoji-cols-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  min-width: 0;
+}
+
+#pco-root .pco-emoji-col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid var(--pco-border);
+  border-radius: 8px;
+  background: var(--pco-soft);
+  color: var(--pco-muted);
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+#pco-root .pco-emoji-col img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+#pco-root .pco-emoji-col.is-active {
+  border-color: var(--pco-primary);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--pco-primary) 20%, transparent);
+}
+
+#pco-root .pco-emoji-colnav,
+#pco-root .pco-emoji-pagebtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pco-muted);
+  cursor: pointer;
+}
+
+#pco-root .pco-emoji-colnav:hover,
+#pco-root .pco-emoji-pagebtn:hover {
+  background: var(--pco-soft);
+  color: var(--pco-text);
+}
+
+#pco-root .pco-emoji-colnav:disabled,
+#pco-root .pco-emoji-pagebtn:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
+#pco-root .pco-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+  min-height: 148px;
+  /* 视口很矮时面板内滚动，避免底部被视口切掉 */
+  max-height: min(46vh, 320px);
+  overflow: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+#pco-root .pco-emoji-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  padding: 3px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+#pco-root .pco-emoji-item:hover {
+  background: var(--pco-soft);
+}
+
+#pco-root .pco-emoji-item img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* 接口失败时退回的 Unicode 常用表情 */
 #pco-root .pco-emoji {
   padding: 5px;
   border: 0;
   border-radius: 6px;
   background: transparent;
-  font-size: 16px;
+  /* 接口失败时的 Unicode 兜底，尺寸与图片表情保持在同一个量级 */
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
 }
@@ -1034,43 +1293,327 @@ html.pco-lock body {
   background: var(--pco-soft);
 }
 
+#pco-root .pco-emoji-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  color: var(--pco-muted);
+  font-size: 11.5px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+#pco-root .pco-emoji-retry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pco-primary);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+#pco-root .pco-emoji-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-top: 5px;
+  border-top: 1px solid var(--pco-border);
+  color: var(--pco-muted);
+  font-size: 11px;
+}
+
+/* ---------------------- 原生个人图盘选择器 ---------------------- */
+
 #pco-root .pco-image-pop {
   display: flex;
-  gap: 6px;
-  width: 296px;
-  padding: 8px;
+  flex-direction: column;
+  width: 392px;
+  max-width: calc(100vw - 16px);
 }
 
-#pco-root .pco-image-pop input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 9px;
-  border: 1px solid var(--pco-border);
-  border-radius: 7px;
-  background: var(--pco-soft);
+#pco-root .pco-image-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 6px;
   color: var(--pco-text);
-  font-family: inherit;
   font-size: 12px;
-  outline: none;
+  font-weight: 700;
 }
 
-#pco-root .pco-image-pop input:focus {
+#pco-root .pco-image-refresh {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pco-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#pco-root .pco-image-refresh:hover {
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-image-body {
+  max-height: min(46vh, 380px);
+  padding: 2px 12px 8px;
+  overflow: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+#pco-root .pco-image-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+#pco-root .pco-image-cell {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 9px;
+  background: var(--pco-soft);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+#pco-root .pco-image-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+#pco-root .pco-image-cell.is-active {
+  border-color: var(--pco-primary);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--pco-primary) 20%, transparent);
+}
+
+#pco-root .pco-image-more {
+  width: 100%;
+  height: 30px;
+  margin-top: 8px;
+  border: 1px dashed var(--pco-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pco-muted);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+#pco-root .pco-image-more:hover {
+  color: var(--pco-primary);
   border-color: color-mix(in oklab, var(--pco-primary) 45%, var(--pco-border));
 }
 
-#pco-root .pco-pop-btn {
-  flex: none;
-  height: 28px;
-  padding: 0 12px;
+#pco-root .pco-image-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 4px;
+  color: var(--pco-muted);
+  font-size: 11.5px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+#pco-root .pco-image-state .is-err {
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-image-retry {
+  padding: 0;
   border: 0;
-  border-radius: 7px;
+  background: transparent;
+  color: var(--pco-primary);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+#pco-root .pco-image-progress {
+  width: 82%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--pco-soft);
+  overflow: hidden;
+}
+
+#pco-root .pco-image-progress i {
+  display: block;
+  height: 100%;
+  background: var(--pco-primary);
+  transition: width 0.15s linear;
+}
+
+#pco-root .pco-image-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--pco-border);
+  flex-wrap: wrap;
+}
+
+#pco-root .pco-image-quota {
+  flex: 1;
+  min-width: 76px;
+  color: var(--pco-dim);
+  font-size: 10.5px;
+}
+
+#pco-root .pco-image-btn {
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--pco-border);
+  border-radius: 8px;
+  background: var(--pco-soft);
+  color: var(--pco-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#pco-root .pco-image-btn--primary {
+  border-color: transparent;
   background: var(--pco-primary);
   color: #fff;
-  font-family: inherit;
-  font-size: 12px;
   font-weight: 650;
+}
+
+#pco-root .pco-image-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------------------- 全屏回复编辑器 ---------------------- */
+
+#pco-root .pco-composer-full {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(14px, 3vw, 36px);
+  background: var(--pco-bg);
+  pointer-events: auto;
+  animation: pco-cf-in 0.18s ease;
+}
+
+@keyframes pco-cf-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+#pco-root .pco-cf-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--pco-border);
+}
+
+#pco-root .pco-cf-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#pco-root .pco-cf-title b {
+  color: var(--pco-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+#pco-root .pco-cf-topic {
+  color: var(--pco-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#pco-root .pco-cf-exit {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--pco-border);
+  border-radius: 9px;
+  background: var(--pco-soft);
+  color: var(--pco-text);
+  font: inherit;
+  font-size: 12.5px;
   cursor: pointer;
+}
+
+#pco-root .pco-cf-exit:hover {
+  color: var(--pco-primary);
+  border-color: color-mix(in oklab, var(--pco-primary) 45%, var(--pco-border));
+}
+
+#pco-root .pco-cf-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding-top: 14px;
+}
+
+/* 回复框整体搬到全屏层后，继续使用原来的内部结构 */
+#pco-root .pco-cf-body .pco-composer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#pco-root .pco-composer-box--full {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  box-shadow: 0 22px 60px -34px rgba(8, 10, 16, 0.5);
+}
+
+#pco-root .pco-composer-box--full .pco-composer-tools {
+  flex: none;
+}
+
+#pco-root .pco-composer-box--full .pco-tool {
+  width: 32px;
+  height: 30px;
+}
+
+#pco-root .pco-composer-box--full .pco-editor {
+  flex: 1;
+  min-height: 0;
+  height: auto !important;
+  max-height: none !important;
+  padding: 14px 16px;
+  font-size: 15px;
+  line-height: 1.75;
+  overflow-y: auto;
+  resize: none;
+}
+
+#pco-root .pco-composer-box--full .pco-composer-bar {
+  flex: none;
 }
 
 #pco-root .pco-ai-pop {
@@ -1191,24 +1734,360 @@ html.pco-lock body {
   font-style: italic;
 }
 
-#pco-root .pco-composer textarea {
+#pco-root .pco-composer .pco-editor {
   display: block;
   width: 100%;
   min-height: 56px;
   max-height: 140px;
-  padding: 9px 11px 2px;
+  padding: 9px 11px 6px;
   border: 0;
   background: transparent;
   color: var(--pco-text);
   font: inherit;
   font-size: 13px;
   line-height: 1.6;
-  resize: none;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
   outline: none;
+  resize: none;
 }
 
-#pco-root .pco-composer textarea::placeholder {
+#pco-root .pco-composer .pco-editor:empty::before {
   color: var(--pco-dim);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+/* ---------- 回复框里的所见即所得排版 ---------- */
+#pco-root .pco-editor p {
+  margin: 0 0 0.45em;
+  min-height: 1.45em;
+}
+
+#pco-root .pco-editor p:last-child {
+  margin-bottom: 0;
+}
+
+#pco-root .pco-editor h1,
+#pco-root .pco-editor h2,
+#pco-root .pco-editor h3,
+#pco-root .pco-editor h4,
+#pco-root .pco-editor h5,
+#pco-root .pco-editor h6 {
+  margin: 0.2em 0 0.35em;
+  color: var(--pco-text);
+  line-height: 1.35;
+}
+
+#pco-root .pco-editor h1 { font-size: 1.5em; }
+#pco-root .pco-editor h2 { font-size: 1.3em; }
+#pco-root .pco-editor h3 { font-size: 1.14em; }
+#pco-root .pco-editor h4,
+#pco-root .pco-editor h5,
+#pco-root .pco-editor h6 { font-size: 1em; }
+
+#pco-root .pco-editor ul,
+#pco-root .pco-editor ol {
+  margin: 0.15em 0 0.5em;
+  padding-left: 1.45em;
+}
+
+#pco-root .pco-editor li + li {
+  margin-top: 0.18em;
+}
+
+#pco-root .pco-editor blockquote {
+  margin: 0.35em 0 0.55em;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--pco-border);
+  color: var(--pco-muted);
+}
+
+#pco-root .pco-editor code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--pco-soft);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.92em;
+}
+
+#pco-root .pco-editor pre {
+  margin: 0.5em 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--pco-soft);
+  overflow-x: auto;
+}
+
+#pco-root .pco-editor pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+#pco-root .pco-editor a {
+  color: var(--pco-primary);
+  text-decoration: none;
+}
+
+#pco-root .pco-editor a:hover {
+  text-decoration: underline;
+}
+
+#pco-root .pco-editor hr {
+  margin: 0.7em 0;
+  border: 0;
+  border-top: 1px solid var(--pco-border);
+}
+
+#pco-root .pco-editor table {
+  width: 100%;
+  margin: 0.55em 0;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+#pco-root .pco-editor th,
+#pco-root .pco-editor td {
+  padding: 5px 8px;
+  border: 1px solid var(--pco-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+#pco-root .pco-editor th {
+  background: var(--pco-soft);
+  font-weight: 600;
+}
+
+#pco-root .pco-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  vertical-align: middle;
+}
+
+#pco-root .pco-editor img.markdown-emoji {
+  display: inline-block;
+  width: var(--pco-emoji-inline);
+  height: var(--pco-emoji-inline);
+  margin: 0 0.08em;
+  border-radius: 0;
+  background: transparent;
+  vertical-align: -0.42em;
+}
+
+#pco-root .pco-editor img.pco-ed-img-ref {
+  max-height: 180px;
+  margin: 4px 0;
+  object-fit: contain;
+}
+
+#pco-root .pco-editor span.markdown-user-mention {
+  color: var(--pco-primary);
+  font-weight: 600;
+}
+
+#pco-root .pco-editor .pco-ed-math-inline {
+  padding: 0 0.25em;
+  border-radius: 4px;
+  background: var(--pco-soft);
+  color: var(--pco-primary);
+  font-family: "Cambria Math", "Times New Roman", serif;
+}
+
+#pco-root .pco-editor .pco-ed-math-block {
+  margin: 0.5em 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--pco-soft);
+  font-family: "Cambria Math", "Times New Roman", serif;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+#pco-root .pco-editor .pco-ed-video-ref {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--pco-soft);
+  color: var(--pco-primary);
+  font-size: 0.92em;
+}
+
+/* 待办列表 */
+#pco-root .pco-editor ul.pco-ed-task-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+#pco-root .pco-editor li.pco-ed-task-item {
+  position: relative;
+  padding-left: 24px;
+  list-style: none;
+}
+
+#pco-root .pco-editor li.pco-ed-task-item::before {
+  position: absolute;
+  top: 0.28em;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid var(--pco-border);
+  border-radius: 4px;
+  background: var(--pco-bg);
+  content: "";
+}
+
+#pco-root .pco-editor li.pco-ed-task-item[data-checked="1"]::before {
+  border-color: var(--pco-primary);
+  background: var(--pco-primary);
+}
+
+#pco-root .pco-editor li.pco-ed-task-item[data-checked="1"]::after {
+  position: absolute;
+  top: 0.42em;
+  left: 6px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  content: "";
+  transform: rotate(45deg);
+}
+
+#pco-root .pco-editor li.pco-ed-task-item[data-checked="1"] {
+  color: var(--pco-dim);
+  text-decoration: line-through;
+}
+
+/* ---------- 全屏排版工具栏 ---------- */
+#pco-root .pco-ed-toolbar {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 0;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--pco-border);
+}
+
+#pco-root .pco-composer-box--full .pco-ed-toolbar {
+  display: flex;
+}
+
+#pco-root .pco-composer-box--full .pco-tool-extra {
+  display: none;
+}
+
+#pco-root .pco-composer-box--full [data-act="tool-more"] {
+  display: none;
+}
+
+#pco-root .pco-ed-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 5px;
+  border-right: 1px solid var(--pco-border);
+}
+
+#pco-root .pco-ed-group:first-child {
+  padding-left: 0;
+}
+
+#pco-root .pco-ed-group:last-child {
+  border-right: 0;
+}
+
+#pco-root .pco-ed-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 27px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pco-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+#pco-root .pco-ed-btn:hover {
+  background: var(--pco-soft);
+  color: var(--pco-text);
+}
+
+#pco-root .pco-ed-btn.is-on {
+  background: color-mix(in oklab, var(--pco-primary) 14%, transparent);
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-ed-btn--icon b,
+#pco-root .pco-ed-btn--icon i,
+#pco-root .pco-ed-btn--icon u,
+#pco-root .pco-ed-btn--icon s {
+  font-style: normal;
+  text-decoration: none;
+}
+
+#pco-root .pco-ed-btn--text {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11.5px;
+}
+
+#pco-root .pco-ed-color {
+  border-bottom: 3px solid #f03e46;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+#pco-root .pco-ed-mark {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: #fff2a8;
+  color: #171717;
+  font-weight: 700;
+}
+
+/* 颜色/高亮调色板，挂在 #pco-root 下，fixed 定位 */
+#pco-root .pco-ed-palette {
+  position: fixed;
+  z-index: 2147483000;
+  padding: 8px;
+  border: 1px solid var(--pco-border);
+  border-radius: 10px;
+  background: var(--pco-bg);
+  box-shadow: 0 16px 40px -18px rgba(8, 10, 16, 0.45);
+  pointer-events: auto;
+}
+
+#pco-root .pco-ed-swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 20px);
+  gap: 5px;
+}
+
+#pco-root .pco-ed-swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+#pco-root .pco-ed-swatch:hover {
+  transform: scale(1.12);
 }
 
 #pco-root .pco-composer-bar {
@@ -1643,6 +2522,46 @@ html.pco-lock body {
       color-mix(in oklab, var(--pco-primary) 7%, var(--pco-bg)),
       var(--pco-bg) 68%);
   overflow: hidden;
+}
+
+/* 宽度收口：正文流里按内容列宽度铺开，但不超过可读上限，避免被容器拉满 */
+#pco-root .pco-ai-panel {
+  width: 100%;
+  max-width: 720px;
+  flex: none;
+}
+
+#pco-root .pco-ai-panel[hidden] {
+  display: none;
+}
+
+/* 窄屏操作栏收起时，用正文顶部这一行切换同一块面板 */
+#pco-root .pco-ai-row {
+  display: none;
+  margin: 0 0 12px;
+}
+
+#pco-root .pco-ai-row-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid color-mix(in oklab, var(--pco-primary) 28%, var(--pco-border));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--pco-primary) 7%, var(--pco-bg));
+  color: var(--pco-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#pco-root .pco-ai-row-btn:hover {
+  border-color: var(--pco-primary);
+}
+
+@media (max-width: 900px) {
+  #pco-root .pco-ai-row {
+    display: flex;
+  }
 }
 
 #pco-root .pco-ai-panel-head {
@@ -2272,6 +3191,34 @@ html.pco-lock body {
   }
 }
 
+@media (max-width: 720px) {
+  #pco-root .pco-composer-full {
+    padding: 0;
+  }
+
+  #pco-root .pco-cf-head {
+    padding: 10px 14px;
+  }
+
+  #pco-root .pco-cf-body {
+    padding-top: 0;
+  }
+
+  #pco-root .pco-cf-body .pco-composer-box {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  #pco-root .pco-emoji-pop {
+    width: min(var(--pco-emoji-pop-w), calc(100vw - 16px));
+  }
+
+  #pco-root .pco-image-pop {
+    width: min(392px, calc(100vw - 16px));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #pco-root .pco-stage,
   #pco-root .pco-shell,
@@ -2283,7 +3230,9 @@ html.pco-lock body {
   #pco-root .pco-lightbox,
   #pco-root .pco-lightbox-img,
   #pco-root .pco-toc-clip-rect,
-  #pco-root .pco-toc-flow-active {
+  #pco-root .pco-toc-flow-active,
+  #pco-root .pco-composer-full,
+  #pco-root .pco-tool-extra {
     transition-duration: 0.01ms !important;
     /* 交接淡出带着 0.54s 延迟，减弱动效时也要一并去掉，避免干等 */
     transition-delay: 0.01ms !important;

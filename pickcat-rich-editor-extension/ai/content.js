@@ -356,14 +356,25 @@ html.dark, html[data-theme="dark"]{
 .${NS}-root{
   font-family: var(--pcai-font); color: var(--pcai-text);
   margin: 0 0 16px; font-size: 14px; line-height: 1.7;
-  /* 默认限制可读宽度，避免总结在宽屏上横跨整行影响阅读 */
-  max-width: 760px;
+  /* 宽度收口：站点父级是 flex 列，子项不显式约束就会被 stretch 撑满 */
+  flex: none; width: 100%; max-width: 760px;
   animation: ${NS}-in .4s cubic-bezier(.22,1,.36,1) both;
 }
 .${NS}-root *{box-sizing:border-box;}
-/* 加宽：占满正文宽度 */
-.${NS}-root.${NS}-is-wide{max-width:100%;}
+.${NS}-root[hidden]{display:none;}
+/* 加宽：只放宽到 920，不再用 100% 交给父容器 */
+.${NS}-root.${NS}-is-wide{max-width:min(920px,100%);}
 @media (max-width:820px){ .${NS}-root{max-width:100%;} }
+
+/* 操作栏入口按钮：只切换面板显示，不在这里弹结果 */
+.${NS}-entry{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:34px; height:34px; padding:0; flex:none; margin:2px 0;
+  border:1px solid var(--pcai-border); border-radius:10px;
+  background:var(--pcai-surface); color:var(--pcai-text);
+  cursor:pointer; transition:border-color .15s, color .15s;
+}
+.${NS}-entry:hover{border-color:var(--pcai-primary); color:var(--pcai-primary);}
 
 /* 全屏：脱离正文流，居中浮层展示 */
 .${NS}-root.${NS}-is-full{
@@ -881,6 +892,7 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
     inlineNext = panel.nextElementSibling;
     document.body.appendChild(panel);
     isFull = true;
+    // 浮板的内联定位会压过全屏的 inset:0，先清掉
     document.addEventListener('keydown', onFullKey, true);
     applyMode();
   }
@@ -946,6 +958,8 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
 
   function closePanel() {
     closedFor = currentPostId;
+    // 关掉等同于隐藏：记住状态，切帖后不再自动冒出来
+    setPanelHidden(true);
     removePanel();
   }
 
@@ -1502,6 +1516,53 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
     return !!(el && (el.innerText || '').trim().length > 20);
   }
 
+  // ---------------------------- 操作栏显示开关 ----------------------------
+
+  const HIDDEN_KEY = NS + '_panel_hidden';
+
+  function entryBtn() { return document.getElementById(NS + '-entry'); }
+
+  /** 显示状态持久化：站点重渲染、切帖后都按上次开关恢复 */
+  function panelHidden() {
+    try { return localStorage.getItem(HIDDEN_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function setPanelHidden(hidden) {
+    try { localStorage.setItem(HIDDEN_KEY, hidden ? '1' : '0'); } catch (e) { /* 隐私模式忽略 */ }
+    if (panel) panel.hidden = hidden;
+    const btn = entryBtn();
+    if (btn) btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+  }
+
+  /** 把开关按钮挂进站点操作栏（头像 / 点赞那一列），找不到时退回正文前 */
+  function mountEntry() {
+    if (entryBtn()) return;
+    const rail = document.querySelector(SEL.header);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = NS + '-entry';
+    btn.className = NS + '-entry';
+    btn.title = 'AI 助手';
+    btn.setAttribute('aria-label', 'AI 助手');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = ICONS.spark;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // 仅切换显示，不弹浮层
+      setPanelHidden(!!panel && !panel.hidden);
+    });
+    if (rail) {
+      rail.appendChild(btn);
+    } else {
+      const body = document.querySelector(SEL.body);
+      if (!body || !body.parentElement) return;
+      btn.style.marginBottom = '12px';
+      body.parentElement.insertBefore(btn, body);
+    }
+    btn.setAttribute('aria-expanded', panelHidden() ? 'false' : 'true');
+  }
+
   function mount() {
     if (!isPostPage() || !config.enabled) return;
     const pid = getPostId();
@@ -1511,36 +1572,51 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
     injectStyle();
 
     const alive = panel && document.body.contains(panel);
-    if (alive && pid === currentPostId) {
+    const samePid = pid === currentPostId;
+    if (alive && samePid) {
       // 面板健在：仅同步模型名
       syncPanelInfo();
       return;
     }
 
-    // 帖子切换 / 面板被站点重渲染冲掉 → 重建
-    if (pid !== currentPostId) shortSkip = null;
-    removePanel();
+    // 同帖但面板被站点重渲染冲掉：只重建 DOM，保留流式文本与进行中的请求
+    const keepStream = samePid && !!panel;
+    if (keepStream) {
+      if (panel.parentElement) panel.parentElement.removeChild(panel);
+      panel = null;
+      refs = null;
+    } else {
+      removePanel();
+      streamText = '';
+      chatMessages = [];
+      shortSkip = null;
+    }
     currentPostId = pid;
-    streamText = '';
-    chatMessages = [];
+
     const anchor = findAnchor();
     if (!anchor || !anchor.el || !anchor.el.parentElement) return;
 
+    // 回到正文流原位（文章开头、分割线下方），宽度由 CSS 收口
     panel = buildPanel();
+    panel.hidden = panelHidden();
     if (anchor.mode === 'after') {
       anchor.el.parentElement.insertBefore(panel, anchor.el.nextSibling);
     } else {
       anchor.el.parentElement.insertBefore(panel, anchor.el);
     }
+    mountEntry();
     applyMode();   // 回填上次选择的宽度（全屏不跨帖子保留）
 
     // 若本篇曾因字数不足被跳过，重建后仍展示同一条提示
     renderIdle(shortSkip && shortSkip.pid === pid ? shortSkipNote(shortSkip.chars, shortSkip.min) : undefined);
+    // 重建后按原状态回填：流式中 → 继续显示光标；已出结果 → 直接回填
+    if (reqId) renderStream();
+    else if (streamText) renderDone(streamText, false);
     applyTab();
     if (activeTab === 'chat') { ensureChatDom(); renderChatMsgs(); }
 
-    // 自动模式：每篇帖子只自动跑一次
-    if (config.trigger === 'auto' && autoRanFor !== pid) {
+    // 自动模式：面板被关掉时不自动跑（用户明确不想看）
+    if (config.trigger === 'auto' && autoRanFor !== pid && !panel.hidden) {
       autoRanFor = pid;
       // 自动总结前先做本地质检（不调用模型）：正文过短视为低质量内容，直接跳过，省 token
       const chars = countChars(extractPost().content);
@@ -1557,6 +1633,8 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
   function unmountIfNeeded() {
     if (isPostPage()) return;
     removePanel();
+    const entry = entryBtn();
+    if (entry) entry.remove();
     currentPostId = '';
   }
 

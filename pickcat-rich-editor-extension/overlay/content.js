@@ -82,8 +82,47 @@
     list: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 6h11M9 12h11M9 18h7"/><circle cx="4.6" cy="6" r="1.3" fill="currentColor"/><circle cx="4.6" cy="12" r="1.3" fill="currentColor"/><circle cx="4.6" cy="18" r="1.3" fill="currentColor"/>',
     width: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12h16m0 0-4.2-4.2M20 12l-4.2 4.2M4 12l4.2-4.2M4 12l4.2 4.2"/>',
     full: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5"/>',
+    cursor: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 4h6M12 4v16M9 20h6"/>',
     warning: '<path fill="currentColor" d="M11.741 16.966a1 1 0 0 1-.607-.466c-.439-.759.290-1.690 1.127-1.465c.254.068.475.237.607.466c.439.759-.290 1.690-1.127 1.465m-.707-8.224c.226-.843 1.396-.997 1.832-.242c.101.175.121.302.134.500v4.001c-.030.450-.288.844-.741.965c-.656.176-1.217-.326-1.259-.965V9ZM3.213 20.341c-1.104-.129-1.653-1.272-1.146-2.238l8.634-14.955c.414-.648 1.240-.953 1.951-.596c.274.138.482.338.647.596l8.634 14.955c.263.501.265 1.076-.040 1.560c-.276.437-.751.670-1.259.690H3.366Zm1.019-1.988h15.536L12 4.898Z"/>'
   };
+
+  /**
+   * 帖子编辑页（插件 content.js）工具栏的同一套 SVG。
+   * 两个内容脚本不共享执行环境，这里原样复制 path；
+   * 描边参数（fill=none / stroke-width 1.8 / 圆角端点）由 edIcon() 统一注入，
+   * 保证浮层与帖子编辑页的图标笔画、尺寸、间距完全一致。
+   */
+  const ED_ICONS = {
+    undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+    redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>',
+    color: '<path d="M5 19h14"/><path d="M8.6 15.5 12 6l3.4 9.5"/><path d="M9.8 12.4h4.4"/>',
+    highlight: '<path d="M15.5 3.8 20.2 8.5 11 17.7H6.2v-4.8z"/><path d="M4 21h16"/>',
+    ol: '<path d="M10 6h10M10 12h10M10 18h10"/><text x="2.5" y="9" font-size="7.5" fill="currentColor" stroke="none">1</text><text x="2.5" y="15" font-size="7.5" fill="currentColor" stroke="none">2</text>',
+    ul: '<path d="M10 6h10M10 12h10M10 18h10"/><circle cx="4.6" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.6" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="4.6" cy="18" r="1.3" fill="currentColor" stroke="none"/>',
+    task: '<rect x="3" y="4.5" width="6" height="6" rx="1.5"/><path d="m4.6 7.7 1.4 1.4 2-2.6"/><rect x="3" y="13.5" width="6" height="6" rx="1.5"/><path d="M12.5 7.5h8.5M12.5 16.5h8.5"/>',
+    quote: '<path d="M7.5 8H5.5v4h3V8z" fill="currentColor" stroke="none"/><path d="M15.5 8h-2v4h3V8z" fill="currentColor" stroke="none"/><path d="M5.5 12c0 3 1.2 4.4 3 4.8"/><path d="M13.5 12c0 3 1.2 4.4 3 4.8"/>',
+    code: '<path d="m9 8-5 4 5 4"/><path d="m15 8 5 4-5 4"/>',
+    codeblock: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="m9.5 9.5-2.5 2.5 2.5 2.5"/><path d="m14.5 9.5 2.5 2.5-2.5 2.5"/>',
+    link: '<path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.3-2.3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.3 2.3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>',
+    video: '<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10.4 9.2 14.9 12l-4.5 2.8z" fill="currentColor" stroke="none"/>',
+    hr: '<path d="M3 12h18"/><path d="M6.5 8.5v7M12 8.5v7M17.5 8.5v7" stroke-dasharray="1 2.5"/>',
+    alignLeft: '<path d="M3 6h18M3 10h12M3 14h18M3 18h12"/>',
+    alignCenter: '<path d="M3 6h18M6 10h12M3 14h18M6 18h12"/>',
+    alignRight: '<path d="M3 6h18M9 10h12M3 14h18M9 18h12"/>',
+    table: '<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M3 9.5h18M3 14.5h18M9 4.5v15M15 4.5v15"/>',
+    mathInline: '<path d="M4.5 8.5h5.5M7.25 8.5v7M4.5 15.5h5.5"/><path d="M14.5 9.5 18 15M18 9.5 14.5 15"/>',
+    mathBlock: '<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M6.5 9.5h6M6.5 12.5h9M6.5 15.5h6"/>',
+    clear: '<path d="M6 6l12 12M18 6 6 18"/>',
+    search: '<circle cx="10.7" cy="10.7" r="6.1"/><path d="m15.3 15.3 4.3 4.3"/>'
+  };
+
+  /** 帖子编辑页风格的线条图标（与 icon() 的区别：默认描边而非填充） */
+  function edIcon(name, size) {
+    const px = size || 15;
+    return '<svg width="' + px + '" height="' + px + '" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+      'stroke-linejoin="round" aria-hidden="true">' + (ED_ICONS[name] || '') + '</svg>';
+  }
 
   // ============================ 1. 运行状态 ============================
 
@@ -115,6 +154,7 @@
   let stage = null;               // 只做位移的舞台层，尺寸缩放交给浮层自身
   let wideOn = false;             // 加宽窗口（同一次会话内记忆）
   let fullOn = false;             // 全屏显示（同一次会话内记忆）
+  let selectOn = false;           // 文本选中模式：默认关闭，禁止鼠标划选（同一次会话内记忆）
   let tocHeads = [];              // 当前正文里的标题节点，用于文章导航
   let tocFrame = 0;               // 滚动同步目录高亮的 rAF 句柄
   let tocActiveIdx = -1;          // 上次高亮的标题序号，用于判断是否需要滚动目录
@@ -124,11 +164,23 @@
   /** 当前浮层的数据与交互状态；关闭时整体丢弃 */
   let view = null;
 
+  /** 全屏回复编辑器：全屏层内的输入框是从原位置搬过去的，关闭时再放回 */
+  let composerFull = false;
+  let composerHome = null;        // 原回复框的父节点
+  let composerAnchor = null;      // 原位置占位注释，退出全屏时按它插回去
+  let composerAnimTimer = null;
+  let composerPageOverflow = null; // 全屏时锁住页面滚动，退出时还原
+  /** 打开表情/图片弹层前记录的光标位置，避免点按钮后光标被浏览器重置 */
+  let insertPoint = null;
+  /** 当前打开的表情 / 图片 / AI 弹层名，用于 fixed 定位与随窗口重排 */
+  let openPopName = '';
+
   /** AI 助手：复用扩展后台的 pcai 端口（与帖子页 AI 回复同一套配置） */
   let aiPort = null;
   let aiPending = null;
   let aiSeq = 0;
   let aiBusy = false;
+  let aiCommitFrame = 0;
   let aiPanelText = '';           // AI 助手面板里的流式文本
   let aiPanelBusy = false;        // 面板里的请求是否进行中
   let aiConfig = { provider: 'deepseek', model: 'deepseek-chat', apiKey: '' };
@@ -242,20 +294,119 @@
       '<img src="' + esc(url) + '" alt="" loading="lazy" referrerpolicy="no-referrer" /></span>';
   }
 
-  /** 把正文里的 @{uuid} 占位替换成已加载数据里的用户名 */
-  function localizeMentions(container, map) {
-    if (!container || !map) return;
-    container.querySelectorAll('span.markdown-user-mention[data-user-id]').forEach((node) => {
-      const name = map[node.getAttribute('data-user-id')];
-      if (name) node.textContent = '@' + name;
+  /**
+   * 用户 id → 用户名缓存。
+   * 帖子数据里已经带出来的作者先写入缓存；没有的（比如正文里 @ 的第三方用户）
+   * 再按 id 调 GET /users/{id} 补全，失败或查不到时退回 @短id，绝不留空。
+   */
+  const mentionNames = new Map();
+  const mentionTried = new Set();     // 已确认取不到名字的 id，避免反复请求
+  const mentionLoading = new Set();   // 正在请求中的 id
+  const mentionQueue = [];            // 待请求队列
+  let mentionWorkers = 0;             // 并发中的请求数
+  const MENTION_CONCURRENCY = 4;      // 最多 4 个并发，避免一屏几十个 @ 打爆接口
+
+  /** 用户对象取名字：username → nickname → displayName → name */
+  function userName(user) {
+    if (!user) return '';
+    return String(
+      user.username || user.nickname || user.displayName || user.name || user.display_name || ''
+    ).trim();
+  }
+
+  /** 只有 id 时的兜底显示：截前 8 位，避免整段 uuid 撑破一行 */
+  function shortMentionId(id) {
+    const s = String(id || '');
+    return s.length > 10 ? s.slice(0, 8) : s;
+  }
+
+  /** 把单个 @ 节点换成用户名；没有名字就显示 @短id，绝不留空 */
+  function applyMentionName(node) {
+    const id = node.getAttribute('data-user-id');
+    if (!id) return;
+    const hit = mentionNames.get(id);
+    // 站点渲染结果自带 data-username 等属性时优先使用（同样是页面已有数据）
+    const attrName = userName({
+      username: node.getAttribute('data-username'),
+      nickname: node.getAttribute('data-nickname'),
+      displayName: node.getAttribute('data-display-name')
     });
+    const name = (hit && hit.name) || attrName;
+    const text = '@' + (name || shortMentionId(id));
+    if (node.textContent !== text) node.textContent = text;
+    node.setAttribute('title', name ? '@' + name : '用户 ' + id);
+    if (!name) requestMentionName(id);
+  }
+
+  /** 名字补全后，把整层里同一个 id 的 @ 节点全部就地刷新（正文 / 评论 / 回复框） */
+  function paintMentionName(id) {
+    if (!root) return;
+    root.querySelectorAll('span.markdown-user-mention[data-user-id]').forEach((node) => {
+      if (node.getAttribute('data-user-id') === id) applyMentionName(node);
+    });
+  }
+
+  /** 登记一个待补全的 id（去重），由队列按并发度逐个请求 */
+  function requestMentionName(id) {
+    if (!id || mentionNames.has(id) || mentionTried.has(id) || mentionLoading.has(id)) return;
+    mentionLoading.add(id);
+    mentionQueue.push(id);
+    pumpMentionQueue();
+  }
+
+  function pumpMentionQueue() {
+    while (mentionWorkers < MENTION_CONCURRENCY && mentionQueue.length) {
+      const id = mentionQueue.shift();
+      mentionWorkers += 1;
+      apiSend('/users/' + encodeURIComponent(id), 'GET')
+        .then((user) => {
+          const name = userName(user);
+          if (name) {
+            mentionNames.set(id, { name: name });
+            paintMentionName(id);
+          } else {
+            mentionTried.add(id);
+          }
+        })
+        .catch(() => { mentionTried.add(id); })
+        .finally(() => {
+          mentionLoading.delete(id);
+          mentionWorkers -= 1;
+          pumpMentionQueue();
+        });
+    }
+  }
+
+  /** 把容器里的 @{uuid} 占位替换成用户名：正文、评论、回复编辑区共用这一处 */
+  function localizeMentions(container, map) {
+    if (!container) return;
+    if (map) {
+      Object.keys(map).forEach((id) => {
+        const name = map[id];
+        if (name && !mentionNames.has(id)) mentionNames.set(id, { name: name });
+      });
+    }
+    container.querySelectorAll('span.markdown-user-mention[data-user-id]').forEach(applyMentionName);
+  }
+
+  function noteMentionUser(map, user) {
+    const id = user && user.id;
+    const name = userName(user);
+    if (id && name) map[id] = name;
   }
 
   function buildMentionMap(topic, posts) {
     const map = {};
-    if (topic && topic.author && topic.author.id) map[topic.author.id] = topic.author.username;
+    if (topic) {
+      noteMentionUser(map, topic.author);
+      noteMentionUser(map, topic.firstPost && topic.firstPost.author);
+    }
     ((posts && posts.items) || []).forEach((p) => {
-      if (p && p.author && p.author.id) map[p.author.id] = p.author.username;
+      if (!p) return;
+      noteMentionUser(map, p.author);
+      noteMentionUser(map, p.replyToUser);
+      noteMentionUser(map, p.replyTo && p.replyTo.author);
+      noteMentionUser(map, p.parentPost && p.parentPost.author);
     });
     return map;
   }
@@ -543,10 +694,6 @@
       '</button>'
     ).join('');
 
-    const emojis = EMOJIS.map((e) =>
-      '<button type="button" class="pco-emoji" data-act="emoji" data-emoji="' + e + '">' + e + '</button>'
-    ).join('');
-
     return '<div class="pco-backdrop" data-act="close" aria-hidden="true"></div>' +
       '<div class="pco-stage">' +
       '<div class="pco-shell" role="dialog" aria-modal="true" aria-label="帖子预览" tabindex="-1">' +
@@ -579,27 +726,130 @@
             '</div>' +
             '<div class="pco-composer">' +
               '<div class="pco-composer-box">' +
+                '<div class="pco-composer-target" data-role="composer-target" hidden>' +
+                  '<span>回复 <b data-role="composer-target-name"></b></span>' +
+                  '<button type="button" class="pco-composer-target-x" data-act="reply-cancel">取消</button>' +
+                '</div>' +
                 '<div class="pco-composer-tools" data-role="tools">' +
-                  '<button type="button" class="pco-tool pco-tool--text" data-act="tool-more" ' +
-                    'title="展开更多排版功能" aria-expanded="false">Aa</button>' +
-                  '<button type="button" class="pco-tool" data-act="tool-emoji" ' +
-                    'title="插入表情" aria-expanded="false">' + icon('smile', 15) + '</button>' +
-                  '<button type="button" class="pco-tool" data-act="tool-image" ' +
-                    'title="插入图片" aria-expanded="false">' + icon('image', 15) + '</button>' +
-                  '<button type="button" class="pco-tool" data-act="tool-ai" ' +
-                    'title="AI 助手" aria-expanded="false">' + icon('sparkles', 15) + '</button>' +
+                  '<div class="pco-tool-row">' +
+                    '<button type="button" class="pco-tool pco-tool--text" data-act="tool-more" ' +
+                      'title="展开更多排版功能" aria-expanded="false">Aa</button>' +
+                    '<button type="button" class="pco-tool" data-act="tool-emoji" ' +
+                      'title="插入表情" aria-expanded="false">' + icon('smile', 15) + '</button>' +
+                    '<button type="button" class="pco-tool" data-act="tool-image" ' +
+                      'title="插入图片" aria-expanded="false">' + icon('image', 15) + '</button>' +
+                    '<button type="button" class="pco-tool" data-act="tool-ai" ' +
+                      'title="AI 助手" aria-expanded="false">' + icon('sparkles', 15) + '</button>' +
+                    '<button type="button" class="pco-tool pco-tool--full" data-act="composer-full" ' +
+                      'title="全屏编辑" aria-label="全屏编辑" aria-expanded="false">' +
+                      icon('full', 15) + '</button>' +
+                  '</div>' +
                   '<div class="pco-tool-extra" data-role="extra-tools" hidden>' +
-                    '<button type="button" class="pco-tool" data-act="fmt-bold" title="加粗">B</button>' +
-                    '<button type="button" class="pco-tool" data-act="fmt-italic" title="斜体">I</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-bold" data-ed-cmd="bold" title="加粗">B</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-italic" data-ed-cmd="italic" title="斜体">I</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-strike" data-ed-cmd="strikeThrough" title="删除线">S</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-underline" data-ed-cmd="underline" title="下划线">U</button>' +
                     '<button type="button" class="pco-tool" data-act="fmt-quote" title="引用">❝</button>' +
-                    '<button type="button" class="pco-tool" data-act="fmt-code" title="代码">&lt;/&gt;</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-code" title="行内代码">&lt;/&gt;</button>' +
                     '<button type="button" class="pco-tool" data-act="fmt-link" title="链接">🔗</button>' +
                     '<button type="button" class="pco-tool" data-act="fmt-list" title="列表">≡</button>' +
+                    '<button type="button" class="pco-tool" data-act="fmt-task" title="待办">☑</button>' +
                   '</div>' +
-                  '<div class="pco-pop pco-emoji-pop" data-role="emoji-pop" hidden>' + emojis + '</div>' +
+                  // 全屏编辑器的完整排版工具栏：仅在浮层回复框全屏时显示
+                  '<div class="pco-ed-toolbar" data-role="full-tools" aria-label="排版工具">' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-undo" title="撤销">↶</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-redo" title="重做">↷</button>' +
+                    '</div>' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn pco-ed-btn--icon" data-act="fmt-bold" data-ed-cmd="bold" title="加粗"><b>B</b></button>' +
+                      '<button type="button" class="pco-ed-btn pco-ed-btn--icon" data-act="fmt-italic" data-ed-cmd="italic" title="斜体"><i>I</i></button>' +
+                      '<button type="button" class="pco-ed-btn pco-ed-btn--icon" data-act="fmt-strike" data-ed-cmd="strikeThrough" title="删除线"><s>S</s></button>' +
+                      '<button type="button" class="pco-ed-btn pco-ed-btn--icon" data-act="fmt-underline" data-ed-cmd="underline" title="下划线"><u>U</u></button>' +
+                    '</div>' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-h1" data-ed-heading="1" title="一级标题">H1</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-h2" data-ed-heading="2" title="二级标题">H2</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-h3" data-ed-heading="3" title="三级标题">H3</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-h4" data-ed-heading="4" title="四级标题">H4</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-p" data-ed-heading="p" title="正文">¶</button>' +
+                    '</div>' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-align-left" data-ed-align="left" title="左对齐">⇤</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-align-center" data-ed-align="center" title="居中">≡</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-align-right" data-ed-align="right" title="右对齐">⇥</button>' +
+                    '</div>' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-color" title="文字颜色"><span class="pco-ed-color">A</span></button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-highlight" title="背景高亮"><span class="pco-ed-mark">A</span></button>' +
+                    '</div>' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-list" title="无序列表">•</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-ol" title="有序列表">1.</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-task" title="待办列表">☑</button>' +
+                    '</div>' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-quote" title="引用">❝</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-code" title="行内代码">&lt;/&gt;</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-codeblock" title="代码块">{ }</button>' +
+                    '</div>' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn" data-act="fmt-link" title="链接">🔗</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-table" title="表格">▦</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-hr" title="分割线">—</button>' +
+                    '</div>' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-math-inline" title="行内公式">∑</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-math-block" title="块级公式">Σ</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-video" title="插入哔哩哔哩视频">▶</button>' +
+                    '</div>' +
+                    '<div class="pco-ed-group">' +
+                      '<button type="button" class="pco-ed-btn pco-ed-btn--text" data-act="ed-clear" title="清除格式">清除格式</button>' +
+                      '<button type="button" class="pco-ed-btn" data-act="ed-find" title="查找替换">⌕</button>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="pco-pop pco-emoji-pop" data-role="emoji-pop" hidden>' +
+                    '<div class="pco-emoji-head">' +
+                      '<span>表情</span>' +
+                      '<span class="pco-emoji-colname" data-role="emoji-colname"></span>' +
+                    '</div>' +
+                    '<div class="pco-emoji-cols">' +
+                      '<button type="button" class="pco-emoji-colnav" data-act="emoji-col-prev" ' +
+                        'title="上一页表情合集" aria-label="上一页表情合集">' + icon('chevronLeft', 14) + '</button>' +
+                      '<div class="pco-emoji-cols-grid" data-role="emoji-cols"></div>' +
+                      '<button type="button" class="pco-emoji-colnav" data-act="emoji-col-next" ' +
+                        'title="下一页表情合集" aria-label="下一页表情合集">' + icon('chevronRight', 14) + '</button>' +
+                    '</div>' +
+                    '<div class="pco-emoji-grid" data-role="emoji-grid"></div>' +
+                    '<div class="pco-emoji-state" data-role="emoji-state"></div>' +
+                    '<div class="pco-emoji-foot">' +
+                      '<button type="button" class="pco-emoji-pagebtn" data-act="emoji-prev" ' +
+                        'title="上一页" aria-label="上一页">' + icon('chevronLeft', 13) + '</button>' +
+                      '<span data-role="emoji-page">1 / 1</span>' +
+                      '<button type="button" class="pco-emoji-pagebtn" data-act="emoji-next" ' +
+                        'title="下一页" aria-label="下一页">' + icon('chevronRight', 13) + '</button>' +
+                    '</div>' +
+                  '</div>' +
                   '<div class="pco-pop pco-image-pop" data-role="image-pop" hidden>' +
-                    '<input type="url" data-role="image-url" placeholder="图片链接 https://…" />' +
-                    '<button type="button" class="pco-pop-btn" data-act="image-insert">插入</button>' +
+                    '<div class="pco-image-head">' +
+                      '<span>选择图片</span>' +
+                      '<button type="button" class="pco-image-refresh" data-act="image-refresh" ' +
+                        'title="刷新个人图盘">刷新</button>' +
+                    '</div>' +
+                    '<div class="pco-image-body" data-role="image-body">' +
+                      '<div class="pco-image-grid" data-role="image-grid"></div>' +
+                      '<button type="button" class="pco-image-more" data-act="image-more" ' +
+                        'data-role="image-more" hidden>加载更多图片</button>' +
+                      '<div class="pco-image-state" data-role="image-state"></div>' +
+                    '</div>' +
+                    '<div class="pco-image-foot">' +
+                      '<button type="button" class="pco-image-btn" data-act="image-upload">选择本地图片</button>' +
+                      '<input type="file" accept="image/*" data-role="image-file" hidden />' +
+                      '<span class="pco-image-quota" data-role="image-quota"></span>' +
+                      '<button type="button" class="pco-image-btn" data-act="image-cancel">取消</button>' +
+                      '<button type="button" class="pco-image-btn pco-image-btn--primary" ' +
+                        'data-act="image-confirm" disabled>插入图片</button>' +
+                    '</div>' +
                   '</div>' +
                   '<div class="pco-pop pco-ai-pop" data-role="ai-pop" hidden>' +
                     '<div class="pco-ai-head">AI 助手</div>' +
@@ -612,8 +862,9 @@
                     '<div class="pco-ai-out" data-role="ai-out" hidden></div>' +
                   '</div>' +
                 '</div>' +
-                '<textarea data-role="composer" rows="2" maxlength="4000" ' +
-                  'placeholder="写下你的回复…" aria-label="回复内容"></textarea>' +
+                '<div class="pco-editor" data-role="composer" contenteditable="true" ' +
+                  'role="textbox" aria-multiline="true" data-placeholder="说说你的看法…" ' +
+                  'aria-label="回复内容"></div>' +
                 '<div class="pco-composer-bar">' +
                   '<span class="pco-composer-tip">Ctrl + Enter 发送</span>' +
                   '<a class="pco-side-link" data-role="open" href="#" target="_blank" rel="noopener">' +
@@ -650,6 +901,10 @@
               'aria-label="返回顶部" disabled>' +
               icon('arrowUp', 18) +
             '</button>' +
+            '<button type="button" class="pco-rail-btn" data-act="toc" title="文章目录" ' +
+              'aria-label="文章目录" aria-expanded="false" aria-controls="pco-toc" hidden>' +
+              icon('list', 18) +
+            '</button>' +
             '<div class="pco-rail-menu" data-role="rail-menu" role="menu" hidden>' +
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-detail">在详情页打开</button>' +
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-newtab">在新标签页打开</button>' +
@@ -658,15 +913,14 @@
           '</div>' +
         '</div>' +
         '<div class="pco-actions">' +
-          '<button type="button" class="pco-icon-btn" data-act="wide" title="加宽窗口" ' +
-            'aria-label="加宽窗口" aria-pressed="false">' + icon('width', 17) + '</button>' +
-          '<button type="button" class="pco-icon-btn" data-act="toc" title="文章目录" ' +
-            'aria-label="文章目录" aria-expanded="false" aria-controls="pco-toc" hidden>' +
-            icon('list', 17) + '</button>' +
-          '<button type="button" class="pco-icon-btn" data-act="full" title="全屏显示" ' +
-            'aria-label="全屏显示" aria-pressed="false">' + icon('full', 17) + '</button>' +
+          '<button type="button" class="pco-icon-btn" data-act="select" title="文本选中模式" ' +
+            'aria-label="文本选中模式" aria-pressed="false">' + icon('cursor', 17) + '</button>' +
           '<a class="pco-icon-btn" data-role="open" href="#" target="_blank" rel="noopener" ' +
             'title="在详情页打开" aria-label="在详情页打开">' + icon('external', 17) + '</a>' +
+          '<button type="button" class="pco-icon-btn" data-act="wide" title="加宽窗口" ' +
+            'aria-label="加宽窗口" aria-pressed="false">' + icon('width', 17) + '</button>' +
+          '<button type="button" class="pco-icon-btn" data-act="full" title="全屏显示" ' +
+            'aria-label="全屏显示" aria-pressed="false">' + icon('full', 17) + '</button>' +
           '<button type="button" class="pco-icon-btn pco-icon-btn--close" data-act="close" ' +
             'title="关闭（Esc）" aria-label="关闭">' + icon('close', 18) + '</button>' +
         '</div>' +
@@ -680,6 +934,18 @@
           'aria-label="上一个帖子" disabled>' + icon('chevronLeft', 22) + '</button>' +
         '<button type="button" class="pco-nav-btn" data-act="next" title="下一个帖子" ' +
           'aria-label="下一个帖子" disabled>' + icon('chevronRight', 22) + '</button>' +
+      '</div>' +
+      '<div class="pco-composer-full" data-role="composer-full" hidden>' +
+        '<div class="pco-cf-head">' +
+          '<div class="pco-cf-title">' +
+            '<b data-role="cf-target">写回复</b>' +
+            '<span class="pco-cf-topic" data-role="cf-topic"></span>' +
+          '</div>' +
+          '<button type="button" class="pco-cf-exit" data-act="composer-full-exit">' +
+            icon('close', 16) + '<span>退出全屏</span>' +
+          '</button>' +
+        '</div>' +
+        '<div class="pco-cf-body" data-role="cf-body"></div>' +
       '</div>';
   }
 
@@ -696,6 +962,47 @@
     document.documentElement.style.removeProperty('--pco-sbw');
   }
 
+  // ---------- 开合动画的“落定”时序 ----------
+  /**
+   * 开合动画期间只允许动画 transform / opacity：
+   * 毛玻璃、嵌入内容（iframe / video）都等落定后再启用或加载，
+   * 避免在缩放帧里做整屏模糊采样和嵌入文档初始化。
+   */
+  const OPEN_SETTLE_MS = 560;
+  let settleTimer = null;
+  let settleTasks = [];
+
+  /** 落定后执行；已经落定时立即执行 */
+  function whenSettled(fn) {
+    if (!root) return;
+    if (root.classList.contains('is-settled')) { fn(); return; }
+    settleTasks.push(fn);
+  }
+
+  function flushSettleTasks() {
+    const tasks = settleTasks;
+    settleTasks = [];
+    tasks.forEach((fn) => {
+      try { fn(); } catch (e) { /* noop */ }
+    });
+  }
+
+  function settleOverlay() {
+    if (!root) return;
+    if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+    restoreHeavyMedia();
+    if (pageEl) pageEl.style.willChange = '';
+    root.classList.remove('is-animating');
+    root.classList.add('is-settled');
+    flushSettleTasks();
+  }
+
+  function scheduleSettle() {
+    if (!root) return;
+    if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+    settleTimer = setTimeout(settleOverlay, Math.max(0, Math.round(OPEN_SETTLE_MS / animSpeed)));
+  }
+
   // ---------- 背景页面的前后景缩放 ----------
 
   /** 以当前视口中心为原点后退一小步，让浮层与页面之间产生空间层次 */
@@ -704,17 +1011,18 @@
     const box = pageEl.getBoundingClientRect();
     const ox = Math.round(window.innerWidth / 2 - box.left);
     const oy = Math.round(window.innerHeight / 2 - box.top);
-    pageEl.style.transition =
-      'transform ' + sec(0.4) + ' cubic-bezier(0.32, 1.24, 0.44, 1), filter ' + sec(0.28) + ' ease';
+    // 只动 transform：对整页做 filter 动画会逐帧重新合成整页，是开合掉帧的主要来源
+    pageEl.style.transition = 'transform ' + sec(0.4) + ' cubic-bezier(0.32, 1.24, 0.44, 1)';
     pageEl.style.transformOrigin = ox + 'px ' + oy + 'px';
     pageEl.style.transform = 'scale(' + PAGE_SCALE + ')';
-    pageEl.style.filter = 'brightness(0.94) saturate(0.97)';
+    pageEl.style.willChange = 'transform';
   }
 
   function pageBackOut() {
     if (!pageEl) return;
     pageEl.style.transform = '';
     pageEl.style.filter = '';
+    pageEl.style.willChange = '';
   }
 
   function resetPage() {
@@ -723,6 +1031,7 @@
     pageEl.style.transformOrigin = '';
     pageEl.style.transform = '';
     pageEl.style.filter = '';
+    pageEl.style.willChange = '';
     pageEl = null;
   }
 
@@ -771,6 +1080,13 @@
     root = document.createElement('div');
     root.id = 'pco-root';
     root.innerHTML = shellTemplate();
+    // 表情 / 图片 / AI 弹层改用 fixed 定位，必须脱离 .pco-shell 的 overflow 裁剪，
+    // 所以统一挂到 #pco-root 下：root 自身不裁剪，且继续继承 --pco-* 设计令牌
+    ['emoji', 'image', 'ai'].forEach((name) => {
+      const pop = root.querySelector('[data-role="' + name + '-pop"]');
+      if (pop) root.appendChild(pop);
+    });
+    mountRailAi();
     root.style.setProperty('--pco-dur', String(1 / animSpeed));
     if (!blurOn) root.classList.add('pco-no-blur');
     if (!imageZoomOn) root.classList.add('pco-no-zoom');
@@ -781,10 +1097,14 @@
     if (tocOn) {
       root.classList.add('is-toc');
       const tocBtn = root.querySelector('[data-act="toc"]');
-      if (tocBtn) tocBtn.setAttribute('aria-expanded', 'true');
+      if (tocBtn) {
+        tocBtn.setAttribute('aria-expanded', 'true');
+        tocBtn.classList.add('is-on');
+      }
     }
     document.body.appendChild(root);
     lockScroll();
+    initComposerEditor();
 
     // 站点是 Nuxt 应用，整页内容都在 #__nuxt 里；浮层挂在 body 下，不受这层缩放影响
     pageEl = document.getElementById('__nuxt');
@@ -792,6 +1112,7 @@
     shell = root.querySelector('.pco-shell');
     stage = root.querySelector('.pco-stage');
     if (wideOn) root.classList.add('is-wide');
+    if (selectOn) root.classList.add('is-select');
     paintNavOffset();
     contentEl = root.querySelector('[data-role="content"]');
     countEl = root.querySelector('[data-role="count"]');
@@ -809,6 +1130,11 @@
 
     const animate = !reduce && last.width > 0 && last.height > 0 &&
       first.width > 0 && first.height > 0;
+
+    // 只要不是减弱动效，就有 0.46–0.52s 的缩放/位移；
+    // 期间只允许 transform/opacity，毛玻璃与嵌入内容留到落定后
+    const animating = !reduce;
+    if (animating) root.classList.add('is-animating');
 
     if (animate) {
       // 位移层把浮层中心从屏幕中心搬到卡片中心
@@ -834,7 +1160,7 @@
         const ny = Math.max(-0.5, Math.min(0.5, (cy - (ar.top + ch / 2)) / ch));
         const AMP_X = 11;
         const AMP_Y = 13;
-        let rx = -5, ry = 0; // 默认：正中间轻微前倾，保留 3D 体感
+        let rx = 5, ry = 0; // 默认：正中间点击时顶部略近，保留 3D 体感
         const len = Math.hypot(nx, ny);
         if (len > 0.015) {
           const ux = nx / len;
@@ -889,6 +1215,10 @@
           'scale(' + (1 / gsx) + ', ' + (1 / gsy) + ')';
         originCard.style.opacity = '0';
       }
+
+      // 动画落定后再启用毛玻璃、恢复 iframe / video，并执行延后的布局任务
+      if (animating) scheduleSettle();
+      else settleOverlay();
     });
 
     // 首帧把焦点交给关闭按钮，Esc 与键盘用户都能立刻操作
@@ -926,7 +1256,8 @@
       bookmarkId: null,
       likeBusy: false,
       bookmarkBusy: false,
-      commentBusy: false
+      commentBusy: false,
+      replyTo: null
     };
     current = {
       id: topicId,
@@ -958,7 +1289,8 @@
     } catch (e) { current.pushed = false; }
 
     loadTopic(topicId);
-    prefetchNeighbors();
+    // 相邻帖预取放到动画落定后，避免 JSON 解析和首帧动画抢主线程
+    whenSettled(prefetchNeighbors);
 
     routeTimer = setInterval(() => {
       if (root && !isFeedPage()) cleanup();
@@ -975,6 +1307,24 @@
     view.liked = !!(first.viewerState && first.viewerState.liked);
     view.likeCount = Number(first.likeCount != null ? first.likeCount : topic.likeCount) || 0;
     view.bookmarkId = (topic.viewerState && topic.viewerState.bookmarkId) || null;
+
+    // 含图片 / 视频 / 作品嵌入的正文等动画落定后再插入：
+    // 动画期间保留骨架占位，避免整层缩放时解码图片、初始化 iframe
+    const heavy = isHeavyHtml(first.cookedHtml);
+    if (heavy && root.classList.contains('is-animating') && !root.classList.contains('is-settled')) {
+      if (!view.pendingHeavy) {
+        view.pendingHeavy = true;
+        whenSettled(() => {
+          if (!root || !view || view.topic !== topic) return;
+          view.pendingHeavy = false;
+          renderTopic(topic);
+          paintRail();
+        });
+      }
+      paintRail();
+      return;
+    }
+
     renderTopic(topic);
     paintRail();
   }
@@ -982,7 +1332,67 @@
   function applyPosts(topic, posts) {
     if (!root || !view || !topic) return;
     view.posts = posts || null;
+    // 回复里带图片 / 嵌入时同样推迟到动画结束，避免侧栏内容在缩放帧里重排
+    const heavy = !!posts && (posts.items || []).some((p) => isHeavyHtml(p && p.cookedHtml));
+    if (heavy && root.classList.contains('is-animating') && !root.classList.contains('is-settled')) {
+      if (!view.pendingPosts) {
+        view.pendingPosts = true;
+        whenSettled(() => {
+          if (!root || !view || view.posts !== posts) return;
+          view.pendingPosts = false;
+          renderComments(topic, posts, buildMentionMap(topic, posts));
+        });
+      }
+      return;
+    }
     renderComments(topic, posts, buildMentionMap(topic, posts));
+  }
+
+  // ---------- 动画期间暂缓嵌入内容 ----------
+  let deferredMedia = [];
+
+  /** 正文 / 回复里是否有真正吃性能的媒体（行内表情是小图，不算） */
+  function isHeavyHtml(html) {
+    const s = String(html || '');
+    if (/<(?:iframe|video)\b/i.test(s)) return true;
+    return /<img\b(?![^>]*markdown-emoji)/i.test(s);
+  }
+
+  /** 开合动画期间先摘掉 iframe / video 的 src（保留尺寸占位），落定后再恢复 */
+  function deferHeavyMedia(container) {
+    if (!container || !root || root.classList.contains('is-settled')) return;
+    container.querySelectorAll('iframe[src], video[src]').forEach((el) => {
+      const src = el.getAttribute('src');
+      if (!src) return;
+      el.setAttribute('data-pco-src', src);
+      el.setAttribute('data-pco-deferred', '1');
+      el.removeAttribute('src');
+      deferredMedia.push(el);
+    });
+    container.querySelectorAll('video source[src]').forEach((source) => {
+      const src = source.getAttribute('src');
+      if (!src) return;
+      source.setAttribute('data-pco-src', src);
+      source.removeAttribute('src');
+      const video = source.closest('video');
+      if (video) video.setAttribute('data-pco-deferred', '1');
+    });
+  }
+
+  function restoreHeavyMedia() {
+    const list = deferredMedia;
+    deferredMedia = [];
+    list.forEach((el) => {
+      if (!el || !el.isConnected) return;
+      const src = el.getAttribute('data-pco-src');
+      if (src) el.setAttribute('src', src);
+      el.removeAttribute('data-pco-src');
+      el.removeAttribute('data-pco-deferred');
+      el.querySelectorAll('source[data-pco-src]').forEach((source) => {
+        source.setAttribute('src', source.getAttribute('data-pco-src'));
+        source.removeAttribute('data-pco-src');
+      });
+    });
   }
 
   function renderTopic(topic) {
@@ -1011,8 +1421,8 @@
           '</div>' +
         '</div>' +
       '</div>' +
-      // AI 助手整块放在正文开头，与原站点一致（不再收进右侧抽屉）
-      '<div class="pco-ai-panel" data-role="ai-panel">' +
+      // AI 助手：回到正文流原位（分割线下方、正文之前），宽度由 CSS 收口
+      '<div class="pco-ai-panel" data-role="ai-panel"' + (aiHidden() ? ' hidden' : '') + '>' +
         '<div class="pco-ai-panel-head">' +
           '<span class="pco-ai-panel-title">' + icon('sparkles', 15) + 'AI 助手</span>' +
           '<span class="pco-ai-panel-hint">AI 总结</span>' +
@@ -1028,6 +1438,11 @@
           '<button type="button" class="pco-ai-foot-btn" data-act="ai-stop" hidden>停止</button>' +
           '<button type="button" class="pco-ai-foot-btn" data-act="ai-copy" hidden>复制</button>' +
         '</div>' +
+      '</div>' +
+      // 窄屏操作栏收起时，用这一行切换同一块面板
+      '<div class="pco-ai-row">' +
+        '<button type="button" class="pco-ai-row-btn" data-act="rail-ai">' +
+          icon('sparkles', 15) + '<span>AI 助手</span></button>' +
       '</div>' +
       (tags ? '<div class="pco-tags">' + tags + '</div>' : '') +
       '<div class="pco-post-foot">' +
@@ -1051,13 +1466,18 @@
       img.loading = 'lazy';
       img.decoding = 'async';
     });
+    // 视频 / 作品嵌入在动画期间不初始化，落定后再恢复 src
+    deferHeavyMedia(contentEl);
 
     // 内容与骨架交叉淡出，避免出现闪白或跳版
     root.classList.add('is-loaded');
 
-    // 正文就位后重建文章目录（标题数量不足时自动隐藏入口）
-    buildToc();
-    paintTopBtn();
+    // 目录与回到顶部要读布局，推迟到动画落定，避免在缩放帧里强制重排
+    whenSettled(() => {
+      if (!root || !contentEl) return;
+      buildToc();
+      paintTopBtn();
+    });
   }
 
   // ============================ 6.0 文章导航与窗口视图 ============================
@@ -1078,6 +1498,21 @@
       wide.title = wideOn ? '还原窗口宽度' : '加宽窗口';
       wide.disabled = fullOn;
     }
+    const sel = root.querySelector('[data-act="select"]');
+    if (sel) {
+      sel.classList.toggle('is-on', selectOn);
+      sel.setAttribute('aria-pressed', selectOn ? 'true' : 'false');
+      sel.title = selectOn ? '关闭文本选中' : '文本选中模式';
+    }
+  }
+
+  /** 文本选中模式：默认禁止鼠标划选，开启后可自由选择与复制 */
+  function toggleSelect() {
+    if (!root) return;
+    selectOn = !selectOn;
+    root.classList.toggle('is-select', selectOn);
+    paintViewControls();
+    toast(selectOn ? '已开启文本选中，可自由划选复制' : '已关闭文本选中，避免误选');
   }
 
   /** 在默认宽度与贴边宽度之间切换，宽度过渡由 CSS 完成 */
@@ -1123,7 +1558,10 @@
     root.classList.add('pco-toc-instant');
     root.classList.toggle('is-toc', open);
     const btn = root.querySelector('[data-act="toc"]');
-    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (btn) {
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.classList.toggle('is-on', open);
+    }
     void root.offsetWidth;   // 先按终值完成布局，移除抑制类后不会再补播过渡
     requestAnimationFrame(() => {
       if (root) root.classList.remove('pco-toc-instant');
@@ -1180,6 +1618,7 @@
     const open = !root.classList.contains('is-toc');
     root.classList.toggle('is-toc', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.classList.toggle('is-on', open);
     tocOn = open;
     saveTocPref();
     if (open) paintTocActive();
@@ -1487,6 +1926,9 @@
 
   function switchPost(topicId, dir) {
     if (!root || !current || closing || !topicId || topicId === current.id) return;
+    // 切换到别的帖子时先退出全屏回复，避免把草稿带到新帖子里
+    if (composerFull) toggleComposerFull(false, true);
+    insertPoint = null;
 
     current.id = topicId;
     const cardLink = findFeedLink(topicId);
@@ -1518,9 +1960,12 @@
     if (filter) filter.value = '';
     const composer = root.querySelector('[data-role="composer"]');
     if (composer) {
-      composer.value = '';
+      if (composerEditor) composerEditor.clear();
+      else composer.innerHTML = '';
       growComposer(composer);
     }
+    if (view) view.replyTo = null;
+    paintReplyTarget();
     abortAi();
 
     resetRail();
@@ -1693,8 +2138,42 @@
 
   function growComposer(ta) {
     if (!ta) return;
+    if (composerEditor) { composerEditor.autoGrow(); return; }
     ta.style.height = 'auto';
     ta.style.height = Math.min(140, Math.max(56, ta.scrollHeight)) + 'px';
+  }
+
+  /** 点某一楼的「回复」：把发送目标指向它，输入框提示改为回复 @某人 */
+  function startReply(btn) {
+    if (!view || !view.topic || !btn) return;
+    const no = Number(btn.dataset.no) || 0;
+    if (!no) return;
+    view.replyTo = { no: no, name: (btn.dataset.name || '').trim() };
+    paintReplyTarget();
+    const ta = root && root.querySelector('[data-role="composer"]');
+    if (ta) {
+      if (composerEditor) composerEditor.focusEnd();
+      else ta.focus();
+    }
+  }
+
+  function cancelReply() {
+    if (!view) return;
+    view.replyTo = null;
+    paintReplyTarget();
+  }
+
+  /** 同步输入框上方的「回复 @某人」提示条 */
+  function paintReplyTarget() {
+    if (!root) return;
+    const bar = root.querySelector('[data-role="composer-target"]');
+    const nameEl = root.querySelector('[data-role="composer-target-name"]');
+    const target = view && view.replyTo;
+    if (bar) bar.hidden = !target;
+    if (nameEl) {
+      nameEl.textContent = target ? (target.name ? '@' + target.name : '#' + target.no) : '';
+    }
+    if (composerFull) fillComposerFullHeader();
   }
 
   async function submitComment() {
@@ -1703,10 +2182,16 @@
     const ta = root && root.querySelector('[data-role="composer"]');
     if (!ta) return;
 
-    const markdown = ta.value.trim();
+    const markdown = composerEditor
+      ? composerEditor.getMarkdown()
+      : String(ta.textContent || '').trim();
     if (!markdown) {
       ta.focus();
       toast('先写点内容再发送', 'err');
+      return;
+    }
+    if (markdown.length > 4000) {
+      toast('回复最多 4000 字，先精简一下', 'err');
       return;
     }
 
@@ -1720,15 +2205,20 @@
     }
 
     try {
-      // 与站点回复编辑器一致的请求体：topicId + markdown，第 1 楼为主楼
+      // 与站点回复编辑器一致的请求体：topicId + markdown；未指定楼层时回主楼
       const res = await apiSend('/posts', 'POST', {
         topicId: topicId,
         markdown: markdown,
-        replyToPostNumber: 1
+        replyToPostNumber: (view.replyTo && view.replyTo.no) || 1
       });
 
-      ta.value = '';
+      if (composerEditor) composerEditor.clear();
+      else ta.innerHTML = '';
       growComposer(ta);
+      view.replyTo = null;
+      paintReplyTarget();
+      insertPoint = null;
+      if (composerFull) toggleComposerFull(false);
 
       const status = res && (res.status || (res.submission && res.submission.status));
       if (status === 'PENDING' || status === 'PENDING_ADMIN_REVIEW') {
@@ -1829,14 +2319,16 @@
       const parent = parentNo > 1 ? byNumber.get(parentNo) : null;
       const replyTo = parent && parent !== post
         ? '<div class="pco-comment-replyto">回复 <span>@' +
-            esc((parent.author && parent.author.username) || '') + '</span></div>'
+            esc(userName(parent.author) || shortMentionId(parent.author && parent.author.id)) +
+            '</span></div>'
         : '';
       return '<article class="pco-comment' + (depth ? ' pco-comment--child' : '') +
           '" style="--i:' + (seq++) + '">' +
         avatarHtml(a, 'pco-avatar pco-avatar--sm') +
         '<div class="pco-comment-main">' +
           '<div class="pco-comment-head">' +
-            '<span class="pco-comment-name">' + esc(a.username || '已删除用户') + '</span>' +
+            '<span class="pco-comment-name">' +
+              esc(userName(a) || (a.id ? shortMentionId(a.id) : '已删除用户')) + '</span>' +
             badgeHtml(a, true) +
             '<span class="pco-comment-time">' + esc(timeAgo(post.createdAt)) + '</span>' +
           '</div>' +
@@ -1846,6 +2338,11 @@
             '<span>' + icon('heart', 12) + esc(fmtCount(post.likeCount)) + '</span>' +
             (post.pinned ? '<span class="pco-comment-pin">置顶</span>' : '') +
             '<span class="pco-comment-no">#' + esc(post.postNumber || '') + '</span>' +
+            (post.postNumber
+              ? '<button type="button" class="pco-comment-reply" data-act="reply-comment"' +
+                  ' data-no="' + esc(post.postNumber) + '"' +
+                  ' data-name="' + esc(userName(a) || shortMentionId(a.id)) + '">回复</button>'
+              : '') +
           '</div>' +
         '</div>' +
       '</article>';
@@ -1871,6 +2368,7 @@
     if (more) inner.insertAdjacentHTML('beforeend', more);
 
     localizeMentions(inner, mentionMap);
+    deferHeavyMedia(inner);
   }
 
   /** 「查看所有评论」入口：只有首屏被折叠时才出现 */
@@ -1925,10 +2423,14 @@
     if (routeTimer) { clearInterval(routeTimer); routeTimer = null; }
     if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
     if (shellFadeTimer) { clearTimeout(shellFadeTimer); shellFadeTimer = null; }
+    if (composerAnimTimer) { clearTimeout(composerAnimTimer); composerAnimTimer = null; }
   }
 
   function cleanup(keepPage) {
     clearTimers();
+    if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+    settleTasks = [];
+    deferredMedia = [];
     if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
 
     // 关掉浮层时中止未完成的 AI 生成
@@ -1939,6 +2441,15 @@
     }
 
     view = null;
+    composerFull = false;
+    composerHome = null;
+    composerAnchor = null;
+    insertPoint = null;
+    openPopName = '';
+    if (composerPageOverflow !== null) {
+      document.documentElement.style.overflow = composerPageOverflow;
+      composerPageOverflow = null;
+    }
     if (current && current.controller) {
       try { current.controller.abort(); } catch (e) { /* noop */ }
     }
@@ -1966,8 +2477,14 @@
 
   function animateClose(fromDrag) {
     if (!root || closing) return;
+    if (composerFull) toggleComposerFull(false, true);
     closing = true;
     clearTimers();
+    if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+    settleTasks = [];
+    // 关闭动画同样只动 transform/opacity：先摘掉毛玻璃与落定状态
+    root.classList.remove('is-settled');
+    root.classList.add('is-animating');
     closeLightbox();
     // 回弹计时器可能还在跑：立刻摘掉，避免中途换掉位移层的过渡曲线
     root.classList.remove('is-springing');
@@ -2005,7 +2522,6 @@
       if (!pageTf || pageTf === 'none') pageTf = '';
       pageEl.style.transition = 'none';
       pageEl.style.transform = '';
-      void pageEl.offsetWidth;
     }
 
     let target = null;
@@ -2018,13 +2534,11 @@
         keepTf = cardEl.style.transform;
         cardEl.style.transition = 'none';
         cardEl.style.transform = '';
-        void cardEl.offsetWidth;
       }
       const r = cardEl.getBoundingClientRect();
       if (r.width > 0 && r.height > 0) target = r;
       if (keepTf) {
         cardEl.style.transform = keepTf;
-        void cardEl.offsetWidth;
       }
     }
 
@@ -2032,11 +2546,10 @@
     if (pageEl) {
       pageEl.style.transform = pageTf;
       void pageEl.offsetWidth;
-      pageEl.style.transition =
-        'transform ' + sec(0.44) + ' cubic-bezier(0.32, 0.72, 0.2, 1), filter ' +
-        sec(0.18) + ' ease ' + sec(0.1);
+      pageEl.style.transition = 'transform ' + sec(0.44) + ' cubic-bezier(0.32, 0.72, 0.2, 1)';
       pageEl.style.transform = '';
       pageEl.style.filter = '';
+      // will-change 留到 cleanup 再清：关闭的 0.44s 页面缩放同样需要合成层
     }
 
     // 历史回退改到动画结束之后发，站点重渲染不会再和退出动画抢主线程
@@ -2169,6 +2682,8 @@
     if (e.pointerType === 'mouse' && e.button !== 0) return;
 
     e.preventDefault();
+    // 拖动也是逐帧改变 transform：保持合成层，避免每次 pointermove 触发重栅格化
+    root.classList.add('is-animating');
     drag = {
       id: e.pointerId,
       x0: e.clientX,
@@ -2225,6 +2740,7 @@
   function springBack() {
     if (!stage || !shell || !root) return;
     root.classList.add('is-springing');
+    root.classList.add('is-animating');
     stage.style.transition = '';
     stage.style.transform = '';
     shell.style.transition = '';
@@ -2240,7 +2756,10 @@
       stage.style.transition = '';
       stage.style.transform = '';
       shell.style.transition = '';
-      if (root) root.classList.remove('is-springing');
+      if (root) {
+        root.classList.remove('is-springing');
+        root.classList.remove('is-animating');
+      }
     }, 560);
   }
 
@@ -2323,7 +2842,7 @@
     if (!e.target.closest('[data-role="rail-menu"]') && !e.target.closest('[data-act="more"]')) {
       closeRailMenu();
     }
-    if (!e.target.closest('[data-role="tools"]')) closePops();
+    if (!e.target.closest('[data-role="tools"], .pco-pop')) closePops();
 
     // 正文 / 回复里的图片：铺开大图；已展开时点任意位置收起
     const zoomImg = e.target.closest('.pco-md img');
@@ -2343,10 +2862,17 @@
     if (actEl && root.contains(actEl)) {
       const act = actEl.getAttribute('data-act');
 
+      // 全屏排版工具栏
+      if (act.indexOf('ed-') === 0) {
+        e.preventDefault();
+        runEditorAction(act, actEl);
+        return;
+      }
+
       // 点其他按钮时顺手收起「更多」菜单与编辑器弹层
       if (act !== 'more' && act.indexOf('more-') !== 0) closeRailMenu();
-      if (act.indexOf('tool-') !== 0 && act !== 'emoji' && act !== 'image-insert' &&
-          act.indexOf('ai-') !== 0) closePops();
+      if (act.indexOf('tool-') !== 0 && act.indexOf('emoji') !== 0 &&
+          act.indexOf('image-') !== 0 && act.indexOf('ai-') !== 0) closePops();
 
       if (act === 'close') {
         e.preventDefault();
@@ -2383,6 +2909,9 @@
       } else if (act === 'full') {
         e.preventDefault();
         toggleFull();
+      } else if (act === 'select') {
+        e.preventDefault();
+        toggleSelect();
       } else if (act === 'more') {
         e.preventDefault();
         toggleRailMenu();
@@ -2407,18 +2936,75 @@
       } else if (act === 'tool-emoji' || act === 'tool-image' || act === 'tool-ai') {
         e.preventDefault();
         togglePop(act.slice(5));
+      } else if (act === 'composer-full') {
+        e.preventDefault();
+        toggleComposerFull();
+      } else if (act === 'composer-full-exit') {
+        e.preventDefault();
+        toggleComposerFull(false);
       } else if (act === 'emoji') {
         e.preventDefault();
-        insertAtCursor(actEl.getAttribute('data-emoji') || '');
-      } else if (act === 'image-insert') {
+        if (insertAtCursor(actEl.getAttribute('data-emoji') || '')) closePops();
+      } else if (act === 'emoji-col') {
         e.preventDefault();
-        insertImage();
+        selectEmojiCollection(actEl.getAttribute('data-id') || '');
+      } else if (act === 'emoji-col-prev') {
+        e.preventDefault();
+        emojiColPage(-1);
+      } else if (act === 'emoji-col-next') {
+        e.preventDefault();
+        emojiColPage(1);
+      } else if (act === 'emoji-prev') {
+        e.preventDefault();
+        emojiPage(-1);
+      } else if (act === 'emoji-next') {
+        e.preventDefault();
+        emojiPage(1);
+      } else if (act === 'emoji-pick') {
+        e.preventDefault();
+        pickEmoji(actEl.getAttribute('data-id') || '');
+      } else if (act === 'emoji-retry') {
+        e.preventDefault();
+        emojiPicker.error = '';
+        emojiPicker.loaded = false;
+        emojiPicker.itemError = '';
+        loadEmojiPicker();
+      } else if (act === 'image-pick') {
+        e.preventDefault();
+        imagePicker.selected = actEl.getAttribute('data-id') || '';
+        paintImagePicker();
+      } else if (act === 'image-more') {
+        e.preventDefault();
+        loadImageFiles(false);
+      } else if (act === 'image-retry') {
+        e.preventDefault();
+        loadImageFiles(true);
+      } else if (act === 'image-refresh') {
+        e.preventDefault();
+        loadImageFiles(true);
+        loadImageStorage();
+      } else if (act === 'image-upload') {
+        e.preventDefault();
+        const fileInput = root.querySelector('[data-role="image-file"]');
+        if (fileInput) fileInput.click();
+      } else if (act === 'image-cancel') {
+        e.preventDefault();
+        closePops();
+      } else if (act === 'image-confirm') {
+        e.preventDefault();
+        confirmImage();
       } else if (act === 'fmt-bold') {
         e.preventDefault();
         wrapSelection('**', '**');
       } else if (act === 'fmt-italic') {
         e.preventDefault();
         wrapSelection('*', '*');
+      } else if (act === 'fmt-strike') {
+        e.preventDefault();
+        wrapSelection('~~', '~~');
+      } else if (act === 'fmt-underline') {
+        e.preventDefault();
+        if (composerEditor) composerEditor.exec('underline');
       } else if (act === 'fmt-code') {
         e.preventDefault();
         wrapSelection('`', '`');
@@ -2428,9 +3014,22 @@
       } else if (act === 'fmt-list') {
         e.preventDefault();
         prefixLine('- ');
+      } else if (act === 'fmt-task') {
+        e.preventDefault();
+        if (composerEditor) composerEditor.insertTaskList();
       } else if (act === 'fmt-link') {
         e.preventDefault();
-        insertAtCursor('[文字](链接)');
+        const url = window.prompt('链接地址：', 'https://');
+        if (url) {
+          if (!composerEditor || !composerEditor.insertLink(url)) {
+            toast('链接地址无效', 'err');
+          }
+        }
+      } else if (act === 'rail-ai') {
+        e.preventDefault();
+        // 只切换正文里那块面板的显示，不弹浮层
+        const panel = root.querySelector('[data-role="ai-panel"]');
+        setAiHidden(!!panel && !panel.hidden);
       } else if (act === 'ai-run') {
         e.preventDefault();
         runAiPanel();
@@ -2452,6 +3051,12 @@
       } else if (act === 'comment') {
         e.preventDefault();
         focusComposer();
+      } else if (act === 'reply-comment') {
+        e.preventDefault();
+        startReply(actEl);
+      } else if (act === 'reply-cancel') {
+        e.preventDefault();
+        cancelReply();
       } else if (act === 'submit') {
         e.preventDefault();
         submitComment();
@@ -2482,6 +3087,16 @@
       closeLightbox();
       return;
     }
+    // 表情 / 图片 / AI 弹层优先收起
+    if (root.querySelector('.pco-pop:not([hidden])')) {
+      closePops();
+      return;
+    }
+    // 全屏回复时 Esc 先退回普通回复框
+    if (composerFull) {
+      toggleComposerFull(false);
+      return;
+    }
     // 全屏时 Esc 先退回窗口态，再按一次才关闭
     if (root.classList.contains('is-full')) {
       toggleFull(false);
@@ -2498,8 +3113,11 @@
   function focusComposer() {
     const ta = root && root.querySelector('[data-role="composer"]');
     if (!ta) return;
+    if (composerEditor) {
+      composerEditor.focusEnd();
+      return;
+    }
     ta.focus();
-    try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) { /* noop */ }
   }
 
   // ---------------------------- 操作栏「更多」菜单 ----------------------------
@@ -2526,10 +3144,79 @@
     if (btn) btn.setAttribute('aria-expanded', 'false');
   }
 
+  // ---------------------------- 操作栏「AI 助手」开关 ----------------------------
+
+  const AI_HIDDEN_KEY = 'pco_ai_hidden';
+
+  /** 显示状态持久化：面板回到正文流，切帖 / 重渲染后按上次开关恢复 */
+  function aiHidden() {
+    try { return localStorage.getItem(AI_HIDDEN_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function setAiHidden(hidden) {
+    try { localStorage.setItem(AI_HIDDEN_KEY, hidden ? '1' : '0'); } catch (e) { /* 隐私模式忽略 */ }
+    const panel = root && root.querySelector('[data-role="ai-panel"]');
+    if (panel) panel.hidden = hidden;
+    if (root) {
+      root.querySelectorAll('[data-act="rail-ai"]').forEach((btn) => {
+        btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+      });
+    }
+  }
+
+  /** 操作栏插入 AI 按钮，只做显示 / 隐藏，不再弹浮层 */
+  function mountRailAi() {
+    if (!root) return;
+    const shell = root.querySelector('.pco-shell');
+    const rail = shell && shell.querySelector('.pco-rail');
+    if (!rail || rail.querySelector('[data-act="rail-ai"]')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pco-rail-btn';
+    btn.setAttribute('data-act', 'rail-ai');
+    btn.title = 'AI 助手';
+    btn.setAttribute('aria-label', 'AI 助手');
+    btn.innerHTML = icon('sparkles', 18);
+    const more = rail.querySelector('[data-act="more"]');
+    if (more) rail.insertBefore(btn, more); else rail.appendChild(btn);
+    setAiHidden(aiHidden());
+  }
+
   // ---------------------------- 回复编辑器工具 ----------------------------
 
   function composerInput() {
     return root && root.querySelector('[data-role="composer"]');
+  }
+
+  /** 初始化回复框的所见即所得编辑器（全屏与普通状态共用同一实例） */
+  let composerEditor = null;
+  function initComposerEditor() {
+    const host = composerInput();
+    if (!host || !window.PCOEditor) return;
+    // 每次打开浮层都是新的 DOM，旧实例只做销毁，不复用
+    if (composerEditor) composerEditor.destroy();
+    // 清掉模板里可能残留的空白，避免 :empty 占位符失效
+    if (!host.textContent.trim() && !host.querySelector('img,table,hr,pre,blockquote')) {
+      host.innerHTML = '';
+    }
+    composerEditor = new window.PCOEditor(host, {
+      getMentionName: (id) => {
+        const hit = mentionNames.get(id);
+        return (hit && hit.name) || shortMentionId(id);
+      },
+      onChange: () => {
+        if (!composerFull) growComposer(host);
+      },
+      onRendered: (el) => {
+        localizeMentions(el, null);
+        if (composerEditor) composerEditor.refreshState();
+      }
+    });
+  }
+
+  /** 统一取回复框里的 Markdown 内容 */
+  function composerMarkdown() {
+    return composerEditor ? composerEditor.getMarkdown() : '';
   }
 
   function toggleExtraTools(btn) {
@@ -2538,10 +3225,13 @@
     if (!extra) return;
     extra.hidden = !extra.hidden;
     if (btn) btn.setAttribute('aria-expanded', extra.hidden ? 'false' : 'true');
+    // 展开/收起第二行会移动工具条，已打开的弹层跟着重新贴靠
+    placePop();
   }
 
   function closePops() {
     if (!root) return;
+    openPopName = '';
     root.querySelectorAll('.pco-pop').forEach((pop) => { pop.hidden = true; });
     ['tool-emoji', 'tool-image', 'tool-ai'].forEach((act) => {
       const btn = root.querySelector('[data-act="' + act + '"]');
@@ -2558,66 +3248,763 @@
     pop.hidden = !willOpen;
     const btn = root.querySelector('[data-act="tool-' + name + '"]');
     if (btn) btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-    if (willOpen && name === 'image') {
-      const input = pop.querySelector('[data-role="image-url"]');
-      if (input) input.focus();
+    if (!willOpen) return;
+    openPopName = name;
+    // 点击工具按钮会让输入框失焦，先记住此时的光标位置
+    rememberInsertPoint();
+    if (name === 'emoji') loadEmojiPicker();
+    else if (name === 'image') openImagePicker();
+    // 先按当前工具条位置落位，异步内容渲染完后再校正一次
+    placePop();
+  }
+
+  /** 弹层挂在 #pco-root 下、position: fixed，按工具条位置贴合视口计算坐标 */
+  function placePop() {
+    if (!root || !openPopName) return;
+    const pop = root.querySelector('[data-role="' + openPopName + '-pop"]');
+    const tools = root.querySelector('[data-role="tools"]');
+    if (!pop || !tools || pop.hidden) return;
+    const anchor = tools.getBoundingClientRect();
+    if (!anchor.width) return; // 工具条被收起时不做定位
+    const gap = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = pop.offsetWidth;
+    const h = pop.offsetHeight;
+    // 水平：默认与工具条左对齐（留 8px），右侧放不下就贴视口右侧
+    let left = anchor.left + gap;
+    left = Math.max(gap, Math.min(left, vw - w - gap));
+    // 垂直：优先在工具条上方展开；上方空间不足时翻到下方
+    let top = anchor.top - gap - h;
+    const above = top >= gap;
+    if (!above) top = anchor.bottom + gap;
+    top = Math.max(gap, Math.min(top, vh - h - gap));
+    pop.style.left = Math.round(left) + 'px';
+    pop.style.top = Math.round(top) + 'px';
+    pop.style.transformOrigin = above ? '0 100%' : '0 0';
+  }
+
+  /** 记录回复框当前光标，供表情/图片弹层使用 */
+  function rememberInsertPoint() {
+    if (composerEditor) composerEditor.saveSelection();
+    insertPoint = null;
+  }
+
+  /** 在光标处插入内容：表情/图片引用直接渲染为富文本，其余按纯文本插入 */
+  function insertAtCursor(text) {
+    if (!composerEditor || !text) return false;
+    const current = composerMarkdown();
+    if (current.length + text.length > 4000) {
+      toast('回复内容超过 4000 字限制', 'err');
+      return false;
+    }
+    const emoji = /^!\[emoji:([\w-]+)\]$/.exec(text);
+    if (emoji) {
+      composerEditor.insertEmoji(emoji[1]);
+      return true;
+    }
+    const imgRef = /^!\[([0-9A-Za-z_-]{8,})\]$/.exec(text);
+    if (imgRef) {
+      composerEditor.insertImageRef(imgRef[1]);
+      return true;
+    }
+    composerEditor.insertText(text);
+    return true;
+  }
+
+  /** 普通状态的排版工具：直接对富文本选区生效 */
+  function wrapSelection(before, after) {
+    if (!composerEditor) return;
+    if (before === '**') composerEditor.exec('bold');
+    else if (before === '*') composerEditor.exec('italic');
+    else if (before === '~~') composerEditor.exec('strikeThrough');
+    else if (before === '`') composerEditor.insertInlineCode();
+    else if (before === '> ') composerEditor.toggleBlock('blockquote');
+    else composerEditor.exec('bold');
+  }
+
+  /** 在当前行加前缀：引用/列表改为切换块级格式 */
+  function prefixLine(prefix) {
+    if (!composerEditor) return;
+    if (prefix === '> ') composerEditor.toggleBlock('blockquote');
+    else if (prefix === '- ') composerEditor.toggleList(false);
+    else if (prefix === '1. ') composerEditor.toggleList(true);
+  }
+
+  /** 全屏工具栏的动作分发 */
+  function runEditorAction(act, btn) {
+    if (!composerEditor) return true;
+    switch (act) {
+      case 'ed-undo': composerEditor.undo(); return true;
+      case 'ed-redo': composerEditor.redo(); return true;
+      case 'ed-h1': composerEditor.toggleHeading(1); return true;
+      case 'ed-h2': composerEditor.toggleHeading(2); return true;
+      case 'ed-h3': composerEditor.toggleHeading(3); return true;
+      case 'ed-h4': composerEditor.toggleHeading(4); return true;
+      case 'ed-p': composerEditor.toggleHeading(0); return true;
+      case 'ed-align-left': composerEditor.exec('justifyLeft'); return true;
+      case 'ed-align-center': composerEditor.exec('justifyCenter'); return true;
+      case 'ed-align-right': composerEditor.exec('justifyRight'); return true;
+      case 'ed-color': composerEditor.openPalette(btn, 'color'); return true;
+      case 'ed-highlight': composerEditor.openPalette(btn, 'highlight'); return true;
+      case 'ed-ol': composerEditor.toggleList(true); return true;
+      case 'ed-codeblock': composerEditor.insertCodeBlock(); return true;
+      case 'ed-table':
+        composerEditor.insertTable();
+        return true;
+      case 'ed-hr': composerEditor.insertHr(); return true;
+      case 'ed-math-inline': composerEditor.insertInlineMath(); return true;
+      case 'ed-math-block': composerEditor.insertBlockMath(); return true;
+      case 'ed-video': {
+        const url = window.prompt('粘贴哔哩哔哩播放器地址：', 'https://player.bilibili.com/player.html?bvid=');
+        if (url == null) return true;
+        if (!composerEditor.insertVideo(url)) {
+          toast('只支持 player.bilibili.com 播放器地址', 'err');
+        }
+        return true;
+      }
+      case 'ed-clear': composerEditor.clearFormat(); return true;
+      case 'ed-find': composerEditor.findReplace(); return true;
+      default: return false;
     }
   }
 
-  /** 在光标处插入文本，插完把焦点还给输入框 */
-  function insertAtCursor(text) {
-    const ta = composerInput();
-    if (!ta || !text) return;
-    const start = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
-    const end = ta.selectionEnd == null ? ta.value.length : ta.selectionEnd;
-    ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
-    const pos = start + text.length;
-    ta.focus();
-    try { ta.setSelectionRange(pos, pos); } catch (e) { /* noop */ }
-    growComposer(ta);
+  // ---------------------------- 原生表情合集 ----------------------------
+
+  const EMOJI_PAGE_SIZE = 20;
+  const EMOJI_COL_PAGE = 6;
+  const emojiPicker = {
+    loaded: false,
+    loading: false,
+    error: '',
+    collections: [],
+    colPage: 0,
+    collection: null,
+    page: 1,
+    pages: 1,
+    items: [],
+    itemLoading: false,
+    itemError: '',
+    reqId: 0
+  };
+
+  /** 站点接口可能返回数组或 {items}，统一取列表 */
+  function listOf(data) {
+    if (Array.isArray(data)) return data;
+    return data && Array.isArray(data.items) ? data.items : [];
   }
 
-  /** 用 Markdown 记号包住选中内容；没有选中就插入占位文本 */
-  function wrapSelection(before, after) {
-    const ta = composerInput();
-    if (!ta) return;
-    const start = ta.selectionStart == null ? 0 : ta.selectionStart;
-    const end = ta.selectionEnd == null ? start : ta.selectionEnd;
-    const selected = ta.value.slice(start, end) || '文字';
-    ta.value = ta.value.slice(0, start) + before + selected + after + ta.value.slice(end);
-    ta.focus();
+  async function loadEmojiPicker() {
+    if (!root) return;
+    if (emojiPicker.loading) { paintEmojiPicker(); return; }
+    if (emojiPicker.loaded && !emojiPicker.error) { paintEmojiPicker(); return; }
+    emojiPicker.loading = true;
+    emojiPicker.error = '';
+    paintEmojiPicker();
     try {
-      ta.setSelectionRange(start + before.length, start + before.length + selected.length);
-    } catch (e) { /* noop */ }
-    growComposer(ta);
+      const all = [];
+      let page = 1;
+      while (page <= 20) {
+        const data = await apiSend('/emoji-collections?page=' + page + '&pageSize=100', 'GET');
+        if (!root) return;
+        const items = listOf(data);
+        items.forEach((item) => { if (item && item.id) all.push(item); });
+        const total = Number(data && data.total) || all.length;
+        if (!items.length || all.length >= total) break;
+        page += 1;
+      }
+      emojiPicker.collections = all;
+      emojiPicker.loaded = true;
+      emojiPicker.colPage = 0;
+      emojiPicker.collection = all[0] || null;
+      emojiPicker.items = [];
+      emojiPicker.page = 1;
+      emojiPicker.pages = 1;
+      if (!all.length) emojiPicker.error = '还没有可用的表情合集';
+      if (emojiPicker.collection) await loadEmojiPage(1);
+    } catch (err) {
+      if (!root) return;
+      emojiPicker.error = err && err.status === 401
+        ? '登录后可以使用表情合集'
+        : '表情合集加载失败，已切换为常用表情';
+    } finally {
+      emojiPicker.loading = false;
+      paintEmojiPicker();
+    }
   }
 
-  /** 在当前行行首加前缀，适用于引用与列表 */
-  function prefixLine(prefix) {
-    const ta = composerInput();
-    if (!ta) return;
-    const start = ta.selectionStart == null ? 0 : ta.selectionStart;
-    const lineStart = ta.value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
-    ta.value = ta.value.slice(0, lineStart) + prefix + ta.value.slice(lineStart);
-    ta.focus();
-    const pos = start + prefix.length;
-    try { ta.setSelectionRange(pos, pos); } catch (e) { /* noop */ }
-    growComposer(ta);
+  async function loadEmojiPage(page) {
+    const col = emojiPicker.collection;
+    if (!col) return;
+    const req = ++emojiPicker.reqId;
+    emojiPicker.itemLoading = true;
+    emojiPicker.itemError = '';
+    paintEmojiPicker();
+    try {
+      const data = await apiSend(
+        '/emojis?collectionId=' + encodeURIComponent(col.id) + '&page=' + page,
+        'GET'
+      );
+      if (req !== emojiPicker.reqId || !root) return;
+      const items = listOf(data).filter((it) =>
+        it && it.id && (!it.state || it.state === 'ACTIVE'));
+      emojiPicker.items = items;
+      emojiPicker.page = page;
+      const total = Number(data && data.total) || items.length;
+      const size = Number(data && data.pageSize) || EMOJI_PAGE_SIZE;
+      emojiPicker.pages = Math.max(1, Math.ceil(total / Math.max(1, size)));
+    } catch (err) {
+      if (req !== emojiPicker.reqId || !root) return;
+      emojiPicker.items = [];
+      emojiPicker.itemError = err && err.status === 401
+        ? '登录后可以使用表情'
+        : '表情加载失败，请重试';
+    } finally {
+      if (req === emojiPicker.reqId) {
+        emojiPicker.itemLoading = false;
+        paintEmojiPicker();
+      }
+    }
   }
 
-  function insertImage() {
+  function selectEmojiCollection(id) {
+    const idx = emojiPicker.collections.findIndex((c) => String(c.id) === String(id));
+    if (idx < 0) return;
+    emojiPicker.collection = emojiPicker.collections[idx];
+    emojiPicker.colPage = Math.floor(idx / EMOJI_COL_PAGE);
+    emojiPicker.items = [];
+    emojiPicker.page = 1;
+    emojiPicker.pages = 1;
+    loadEmojiPage(1);
+  }
+
+  function emojiColPage(dir) {
+    const pages = Math.max(1, Math.ceil(emojiPicker.collections.length / EMOJI_COL_PAGE));
+    emojiPicker.colPage = Math.max(0, Math.min(pages - 1, emojiPicker.colPage + dir));
+    paintEmojiPicker();
+  }
+
+  function emojiPage(dir) {
+    if (emojiPicker.itemLoading) return;
+    const page = emojiPicker.page + dir;
+    if (page < 1 || page > emojiPicker.pages) return;
+    loadEmojiPage(page);
+  }
+
+  function pickEmoji(id) {
+    if (!id) return;
+    if (insertAtCursor('![emoji:' + id + ']')) closePops();
+  }
+
+  function paintEmojiPicker() {
+    if (!root) return;
+    const pop = root.querySelector('[data-role="emoji-pop"]');
+    if (!pop) return;
+    const colsEl = pop.querySelector('[data-role="emoji-cols"]');
+    const gridEl = pop.querySelector('[data-role="emoji-grid"]');
+    const stateEl = pop.querySelector('[data-role="emoji-state"]');
+    const nameEl = pop.querySelector('[data-role="emoji-colname"]');
+    const pageEl = pop.querySelector('[data-role="emoji-page"]');
+    const prev = pop.querySelector('[data-act="emoji-prev"]');
+    const next = pop.querySelector('[data-act="emoji-next"]');
+    if (!colsEl || !gridEl || !stateEl) return;
+
+    const colPages = Math.max(1, Math.ceil(emojiPicker.collections.length / EMOJI_COL_PAGE));
+    emojiPicker.colPage = Math.max(0, Math.min(colPages - 1, emojiPicker.colPage));
+    const start = emojiPicker.colPage * EMOJI_COL_PAGE;
+    const visible = emojiPicker.collections.slice(start, start + EMOJI_COL_PAGE);
+    colsEl.innerHTML = visible.map((col) => {
+      const active = emojiPicker.collection &&
+        String(emojiPicker.collection.id) === String(col.id);
+      const cover = col.coverUrl ? absUrl(col.coverUrl) : '';
+      return '<button type="button" class="pco-emoji-col' + (active ? ' is-active' : '') + '" ' +
+        'data-act="emoji-col" data-id="' + esc(col.id) + '" ' +
+        'title="' + esc(col.name || '表情合集') + '">' +
+        (cover
+          ? '<img src="' + esc(cover) + '" alt="" loading="lazy" />'
+          : '<span>' + esc(String(col.name || '表').slice(0, 1)) + '</span>') +
+      '</button>';
+    }).join('');
+    const colPrev = pop.querySelector('[data-act="emoji-col-prev"]');
+    const colNext = pop.querySelector('[data-act="emoji-col-next"]');
+    if (colPrev) colPrev.disabled = emojiPicker.colPage <= 0;
+    if (colNext) colNext.disabled = emojiPicker.colPage >= colPages - 1;
+    if (nameEl) nameEl.textContent = emojiPicker.collection ? (emojiPicker.collection.name || '') : '';
+
+    if (emojiPicker.loading || (emojiPicker.itemLoading && !emojiPicker.items.length)) {
+      gridEl.innerHTML = '';
+      stateEl.hidden = false;
+      stateEl.innerHTML = '<span>正在加载表情…</span>';
+    } else if (emojiPicker.error && !emojiPicker.collections.length) {
+      // 接口不可用时退回常用 emoji，保证回复框仍能插入表情
+      gridEl.innerHTML = EMOJIS.map((e) =>
+        '<button type="button" class="pco-emoji" data-act="emoji" data-emoji="' + esc(e) + '">' +
+          esc(e) +
+        '</button>'
+      ).join('');
+      stateEl.hidden = false;
+      stateEl.innerHTML = '<span>' + esc(emojiPicker.error) + '</span>' +
+        '<button type="button" class="pco-emoji-retry" data-act="emoji-retry">重试</button>';
+    } else if (emojiPicker.itemError) {
+      gridEl.innerHTML = '';
+      stateEl.hidden = false;
+      stateEl.innerHTML = '<span>' + esc(emojiPicker.itemError) + '</span>' +
+        '<button type="button" class="pco-emoji-retry" data-act="emoji-retry">重试</button>';
+    } else if (!emojiPicker.items.length) {
+      gridEl.innerHTML = '';
+      stateEl.hidden = false;
+      stateEl.textContent = emojiPicker.collections.length
+        ? '这个合集还没有表情'
+        : '还没有可用的表情合集';
+    } else {
+      stateEl.hidden = true;
+      stateEl.innerHTML = '';
+      gridEl.innerHTML = emojiPicker.items.map((it) => {
+        const src = it.imageUrl
+          ? absUrl(it.imageUrl)
+          : '/api/v1/emojis/' + encodeURIComponent(it.id) + '/image';
+        return '<button type="button" class="pco-emoji-item" data-act="emoji-pick" ' +
+          'data-id="' + esc(it.id) + '" title="插入表情">' +
+          '<img src="' + esc(src) + '" alt="" loading="lazy" />' +
+        '</button>';
+      }).join('');
+    }
+
+    if (pageEl) pageEl.textContent = emojiPicker.page + ' / ' + Math.max(1, emojiPicker.pages);
+    if (prev) prev.disabled = emojiPicker.page <= 1 || emojiPicker.itemLoading;
+    if (next) next.disabled = emojiPicker.page >= emojiPicker.pages || emojiPicker.itemLoading;
+    // 表情数量变化后高度会变，重新贴靠工具条
+    if (openPopName === 'emoji') placePop();
+  }
+
+  // ---------------------------- 原生个人图盘 ----------------------------
+
+  const imagePicker = {
+    loading: false,
+    error: '',
+    files: [],
+    nextCursor: '',
+    hasNext: false,
+    selected: '',
+    quota: null,
+    uploading: false,
+    uploadPercent: 0,
+    uploadError: '',
+    reqId: 0,
+    policy: null,
+    policyAt: 0
+  };
+
+  function imageFileId(file) {
+    if (!file) return '';
+    return file.id || (file.file && file.file.id) || '';
+  }
+
+  function imageErrorMessage(err) {
+    const status = err && err.status;
+    if (status === 401) return '请先登录后使用个人图盘';
+    if (status === 403) return '当前账号暂时无法使用个人图盘';
+    if (status === 429) return '请求过于频繁，请稍后再试';
+    if (status === 404) return '个人图盘接口暂不可用';
+    return '个人图盘加载失败，请重试';
+  }
+
+  function fmtBytes(n) {
+    if (!Number.isFinite(n) || n < 0) return '';
+    if (n >= 1024 * 1024 * 1024) return (n / 1024 / 1024 / 1024).toFixed(1) + ' GB';
+    if (n >= 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + ' MB';
+    if (n >= 1024) return Math.round(n / 1024) + ' KB';
+    return n + ' B';
+  }
+
+  function imageRemaining() {
+    const q = imagePicker.quota;
+    if (!q) return null;
+    const candidates = [
+      q.remainingBytes,
+      q.remaining,
+      q.availableBytes,
+      q.storage && q.storage.remainingBytes
+    ];
+    for (let i = 0; i < candidates.length; i += 1) {
+      const n = Number(candidates[i]);
+      if (Number.isFinite(n)) return n;
+    }
+    return null;
+  }
+
+  function openImagePicker() {
+    const pop = root && root.querySelector('[data-role="image-pop"]');
+    if (!pop) return;
+    imagePicker.error = '';
+    imagePicker.uploadError = '';
+    imagePicker.selected = '';
+    paintImagePicker();
+    loadImageFiles(true);
+    loadImageStorage();
+  }
+
+  async function loadImageFiles(reset) {
+    if (!root || imagePicker.loading) return;
+    const req = ++imagePicker.reqId;
+    imagePicker.loading = true;
+    imagePicker.error = '';
+    if (reset) {
+      imagePicker.files = [];
+      imagePicker.nextCursor = '';
+      imagePicker.hasNext = false;
+    }
+    paintImagePicker();
+    try {
+      let path = '/files?scope=OWN&state=READY';
+      if (!reset && imagePicker.nextCursor) {
+        path += '&cursor=' + encodeURIComponent(imagePicker.nextCursor);
+      }
+      const data = await apiSend(path, 'GET');
+      if (req !== imagePicker.reqId || !root) return;
+      const seen = new Set(imagePicker.files.map((f) => imageFileId(f)));
+      listOf(data).forEach((file) => {
+        const id = imageFileId(file);
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        imagePicker.files.push(file);
+      });
+      const info = data && data.pageInfo;
+      imagePicker.hasNext = !!(info && info.hasNextPage && info.nextCursor);
+      imagePicker.nextCursor = (info && info.nextCursor) || '';
+    } catch (err) {
+      if (req !== imagePicker.reqId || !root) return;
+      imagePicker.error = imageErrorMessage(err);
+    } finally {
+      if (req === imagePicker.reqId) {
+        imagePicker.loading = false;
+        paintImagePicker();
+      }
+    }
+  }
+
+  async function loadImageStorage() {
+    try {
+      const data = await apiSend('/file-storage', 'GET');
+      if (!root) return;
+      imagePicker.quota = data || null;
+      paintImagePicker();
+    } catch (e) { /* 容量读取失败不影响选择已有图片 */ }
+  }
+
+  function paintImagePicker() {
     if (!root) return;
     const pop = root.querySelector('[data-role="image-pop"]');
-    const input = pop && pop.querySelector('[data-role="image-url"]');
-    const url = input ? input.value.trim() : '';
-    if (!url) {
-      toast('先填写图片链接', 'err');
-      if (input) input.focus();
+    if (!pop) return;
+    const body = pop.querySelector('[data-role="image-body"]');
+    const grid = pop.querySelector('[data-role="image-grid"]');
+    const state = pop.querySelector('[data-role="image-state"]');
+    const more = pop.querySelector('[data-role="image-more"]');
+    const quotaEl = pop.querySelector('[data-role="image-quota"]');
+    const uploadBtn = pop.querySelector('[data-act="image-upload"]');
+    const confirmBtn = pop.querySelector('[data-act="image-confirm"]');
+    if (!grid || !state) return;
+    const scrollTop = body ? body.scrollTop : 0;
+
+    grid.innerHTML = imagePicker.files.map((file) => {
+      const id = imageFileId(file);
+      const active = id && String(id) === String(imagePicker.selected);
+      return '<button type="button" class="pco-image-cell' + (active ? ' is-active' : '') + '" ' +
+        'data-act="image-pick" data-id="' + esc(id) + '" title="选择这张图片">' +
+        '<img src="/api/v1/files/' + encodeURIComponent(id) + '" alt="" loading="lazy" />' +
+      '</button>';
+    }).join('');
+    if (more) more.hidden = !imagePicker.hasNext;
+
+    let stateHtml = '';
+    if (imagePicker.uploading) {
+      const pct = Math.max(0, Math.min(100, imagePicker.uploadPercent));
+      stateHtml = '<span>正在上传 ' + pct + '%</span>' +
+        '<span class="pco-image-progress"><i style="width:' + pct + '%"></i></span>';
+    } else if (imagePicker.uploadError) {
+      stateHtml = '<span class="is-err">' + esc(imagePicker.uploadError) + '</span>';
+    } else if (imagePicker.loading && !imagePicker.files.length) {
+      stateHtml = '<span>正在加载个人图盘…</span>';
+    } else if (imagePicker.error && !imagePicker.files.length) {
+      stateHtml = '<span class="is-err">' + esc(imagePicker.error) + '</span>' +
+        '<button type="button" class="pco-image-retry" data-act="image-retry">重试</button>';
+    } else if (!imagePicker.loading && !imagePicker.files.length) {
+      stateHtml = '<span>个人图盘还没有图片，选择本地图片上传吧</span>';
+    }
+    state.hidden = !stateHtml;
+    state.innerHTML = stateHtml;
+
+    const remaining = imageRemaining();
+    if (quotaEl) {
+      if (Number.isFinite(remaining)) {
+        quotaEl.textContent = remaining > 0 ? '剩余 ' + fmtBytes(remaining) : '图盘空间已满';
+      } else {
+        quotaEl.textContent = '';
+      }
+    }
+    if (uploadBtn) {
+      uploadBtn.disabled = imagePicker.uploading ||
+        (Number.isFinite(remaining) && remaining <= 0) ||
+        (imagePicker.error && imagePicker.error.indexOf('登录') !== -1);
+      uploadBtn.textContent = imagePicker.uploading ? '上传中…' : '选择本地图片';
+    }
+    if (confirmBtn) confirmBtn.disabled = !imagePicker.selected || imagePicker.uploading;
+    if (body) body.scrollTop = scrollTop;
+    // 图盘内容 / 上传进度会改变面板高度，重新贴靠工具条
+    if (openPopName === 'image') placePop();
+  }
+
+  function confirmImage() {
+    if (!imagePicker.selected) return;
+    if (insertAtCursor('![' + imagePicker.selected + ']')) closePops();
+  }
+
+  function newIdempotencyKey() {
+    let key = '';
+    try {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) key = crypto.randomUUID();
+    } catch (e) { /* noop */ }
+    if (!key) key = 'pco-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    return key;
+  }
+
+  async function uploadImage(file) {
+    if (!file || imagePicker.uploading) return;
+    if (!/^image\//.test(file.type || '')) {
+      toast('只能上传图片文件', 'err');
       return;
     }
-    insertAtCursor('![图片](' + url + ')\n');
-    if (input) input.value = '';
-    if (pop) pop.hidden = true;
+    const remaining = imageRemaining();
+    if (Number.isFinite(remaining) && remaining <= 0) {
+      toast('个人图盘空间已满', 'err');
+      return;
+    }
+    let policy = imagePicker.policy;
+    if (!policy || Date.now() - imagePicker.policyAt > 60000) {
+      try {
+        policy = await apiSend('/file-upload-policy', 'GET');
+        imagePicker.policy = policy;
+        imagePicker.policyAt = Date.now();
+      } catch (e) { policy = null; }
+    }
+    const rule = policy && (policy.policy || policy);
+    const isAnimated = /gif|webp|apng/i.test(file.type || '');
+    let max = Number(rule && (isAnimated ? rule.animatedMaxBytes : rule.staticMaxBytes));
+    if (!Number.isFinite(max) || max <= 0) max = 20 * 1024 * 1024;
+    if (file.size > max) {
+      toast('图片超过 ' + fmtBytes(max) + ' 限制', 'err');
+      return;
+    }
+
+    imagePicker.uploading = true;
+    imagePicker.uploadPercent = 0;
+    imagePicker.uploadError = '';
+    paintImagePicker();
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/v1/files');
+    xhr.withCredentials = true;
+    xhr.timeout = 120000;
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.setRequestHeader('Idempotency-Key', newIdempotencyKey());
+    xhr.upload.onprogress = (ev) => {
+      if (!ev.lengthComputable) return;
+      const pct = Math.round((ev.loaded / ev.total) * 100);
+      imagePicker.uploadPercent = pct;
+      // 只更新进度条，避免每个进度事件都重绘整张图盘
+      const state = root && root.querySelector('[data-role="image-state"]');
+      const bar = state && state.querySelector('.pco-image-progress i');
+      if (bar) bar.style.width = pct + '%';
+      const label = state && state.querySelector('span');
+      if (label) label.textContent = '正在上传 ' + pct + '%';
+    };
+    const finishUpload = (ok, data, status) => {
+      imagePicker.uploading = false;
+      imagePicker.uploadPercent = 0;
+      if (!root) return;
+      if (ok) {
+        imagePicker.uploadError = '';
+        const id = data && (data.id || (data.file && data.file.id));
+        if (!id) {
+          imagePicker.uploadError = '上传失败：服务没有返回图片编号';
+          paintImagePicker();
+          return;
+        }
+        imagePicker.selected = id;
+        if (insertAtCursor('![' + id + ']')) {
+          closePops();
+          toast('图片已插入');
+        } else {
+          imagePicker.uploadError = '图片已上传，但插入失败，请从图盘中选择';
+          paintImagePicker();
+        }
+        loadImageFiles(true);
+        loadImageStorage();
+        return;
+      }
+      const msg = (data && (data.message || data.reasonCode || data.code)) ||
+        (status ? '上传失败 HTTP ' + status : '上传失败，请检查网络');
+      imagePicker.uploadError = msg;
+      toast('图片上传失败：' + msg, 'err');
+      paintImagePicker();
+    };
+    xhr.onload = () => {
+      let data = null;
+      try { data = JSON.parse(xhr.responseText || 'null'); } catch (e) { data = null; }
+      finishUpload(xhr.status >= 200 && xhr.status < 300, data, xhr.status);
+    };
+    xhr.onerror = () => finishUpload(false, null, 0);
+    xhr.ontimeout = () => finishUpload(false, null, 0);
+    const form = new FormData();
+    form.append('ownership', 'PERSONAL');
+    form.append('file', file);
+    xhr.send(form);
+  }
+
+  // ---------------------------- 全屏回复编辑器 ----------------------------
+
+  function composerNode() {
+    return root && root.querySelector('.pco-composer');
+  }
+
+  function fillComposerFullHeader() {
+    if (!root) return;
+    const target = root.querySelector('[data-role="cf-target"]');
+    const topicEl = root.querySelector('[data-role="cf-topic"]');
+    const t = view && view.replyTo;
+    if (target) {
+      target.textContent = t ? (t.name ? '回复 @' + t.name : '回复 #' + t.no) : '写回复';
+    }
+    if (topicEl) topicEl.textContent = (view && view.topic && view.topic.title) || '';
+  }
+
+  function toggleComposerFull(force, immediate) {
+    if (!root) return;
+    const on = force === undefined ? !composerFull : !!force;
+    if (on === composerFull) return;
+    const node = composerNode();
+    const box = root.querySelector('.pco-composer-box');
+    const layer = root.querySelector('[data-role="composer-full"]');
+    const body = layer && layer.querySelector('[data-role="cf-body"]');
+    if (!node || !box || !layer || !body) return;
+    if (composerAnimTimer) {
+      clearTimeout(composerAnimTimer);
+      composerAnimTimer = null;
+    }
+    const btn = root.querySelector('[data-act="composer-full"]');
+    const ta = composerInput();
+
+    if (on) {
+      closePops();
+      node.style.transition = '';
+      node.style.transform = '';
+      node.style.transformOrigin = '';
+      composerHome = node.parentNode;
+      composerAnchor = document.createComment('pco-composer-home');
+      if (composerHome) composerHome.insertBefore(composerAnchor, node);
+      const first = node.getBoundingClientRect();
+      layer.hidden = false;
+      layer.style.background = '';
+      layer.style.pointerEvents = '';
+      body.appendChild(node);
+      root.classList.add('is-composer-full');
+      box.classList.add('pco-composer-box--full');
+      composerFull = true;
+      // 锁住页面滚动，避免全屏时背景还在跟着滚
+      if (composerPageOverflow === null) {
+        composerPageOverflow = document.documentElement.style.overflow || '';
+        document.documentElement.style.overflow = 'hidden';
+      }
+      fillComposerFullHeader();
+      if (btn) {
+        btn.setAttribute('aria-expanded', 'true');
+        btn.setAttribute('title', '退出全屏编辑');
+      }
+      const last = node.getBoundingClientRect();
+      if (!immediate && !reducedMotion() && first.width > 0 && last.width > 0 && last.height > 0) {
+        const dx = first.left - last.left;
+        const dy = first.top - last.top;
+        const sx = first.width / last.width;
+        const sy = first.height / last.height;
+        node.style.transformOrigin = 'top left';
+        node.style.transition = 'none';
+        node.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(' +
+          sx.toFixed(3) + ',' + sy.toFixed(3) + ')';
+        void node.offsetWidth;
+        node.style.transition = 'transform ' + sec(0.38) + ' var(--pco-ease)';
+        node.style.transform = '';
+        composerAnimTimer = setTimeout(() => {
+          composerAnimTimer = null;
+          if (!root || !composerFull) return;
+          node.style.transition = '';
+          node.style.transform = '';
+          node.style.transformOrigin = '';
+        }, 430 / animSpeed + 40);
+      }
+      if (ta) {
+        if (composerEditor) composerEditor.focusEnd();
+        else ta.focus();
+      }
+      return;
+    }
+
+    // 退出全屏：把回复框搬回原位，并从全屏尺寸收回
+    const first = node.getBoundingClientRect();
+    layer.style.background = 'transparent';
+    layer.style.pointerEvents = 'none';
+    if (composerHome && composerAnchor && composerAnchor.parentNode === composerHome) {
+      composerHome.insertBefore(node, composerAnchor);
+    }
+    if (composerAnchor && composerAnchor.parentNode) {
+      composerAnchor.parentNode.removeChild(composerAnchor);
+    }
+    composerHome = null;
+    composerAnchor = null;
+    box.classList.remove('pco-composer-box--full');
+    composerFull = false;
+    root.classList.remove('is-composer-full');
+    if (btn) {
+      btn.setAttribute('aria-expanded', 'false');
+      btn.setAttribute('title', '全屏编辑');
+    }
+    if (ta) growComposer(ta);
+    const last = node.getBoundingClientRect();
+    const finish = () => {
+      layer.hidden = true;
+      layer.style.background = '';
+      layer.style.pointerEvents = '';
+      node.style.transition = '';
+      node.style.transform = '';
+      node.style.transformOrigin = '';
+      if (composerPageOverflow !== null) {
+        document.documentElement.style.overflow = composerPageOverflow;
+        composerPageOverflow = null;
+      }
+      if (ta) {
+        if (composerEditor) composerEditor.focusEnd();
+        else ta.focus();
+      }
+    };
+    if (immediate || reducedMotion() || first.width <= 0 || last.width <= 0 || last.height <= 0) {
+      finish();
+      return;
+    }
+    const dx = first.left - last.left;
+    const dy = first.top - last.top;
+    const sx = first.width / last.width;
+    const sy = first.height / last.height;
+    node.style.transformOrigin = 'top left';
+    node.style.transition = 'none';
+    node.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(' +
+      sx.toFixed(3) + ',' + sy.toFixed(3) + ')';
+    void node.offsetWidth;
+    node.style.transition = 'transform ' + sec(0.34) + ' var(--pco-ease)';
+    node.style.transform = '';
+    composerAnimTimer = setTimeout(() => {
+      composerAnimTimer = null;
+      if (!root) return;
+      finish();
+    }, 380 / animSpeed + 40);
   }
 
   // ---------------------------- AI 助手 ----------------------------
@@ -2667,6 +4054,10 @@
     }
     aiPending = null;
     aiBusy = false;
+    if (aiCommitFrame) {
+      cancelAnimationFrame(aiCommitFrame);
+      aiCommitFrame = 0;
+    }
   }
 
   function setAiStatus(text) {
@@ -2699,7 +4090,9 @@
     const ta = composerInput();
     if (!ta) return;
 
-    const draft = ta.value.trim();
+    const draft = composerEditor
+      ? composerEditor.getMarkdown()
+      : String(ta.textContent || '').trim();
     if (kind === 'polish' && !draft) {
       toast('先写几句草稿再润色', 'err');
       ta.focus();
@@ -2725,10 +4118,22 @@
     const commit = () => {
       if (!root) return;
       const text = acc.trim();
-      if (text) {
-        ta.value = text;
+      if (!text) return;
+      // 流式输出按帧合并，避免每个 chunk 都重绘整篇富文本
+      if (aiCommitFrame) return;
+      aiCommitFrame = requestAnimationFrame(() => {
+        aiCommitFrame = 0;
+        if (!root) return;
+        if (composerEditor) composerEditor.setMarkdown(acc.trim());
+        else ta.textContent = acc.trim();
         growComposer(ta);
-      }
+      });
+    };
+
+    const restoreDraft = () => {
+      if (composerEditor) composerEditor.setMarkdown(draft);
+      else ta.textContent = draft;
+      growComposer(ta);
     };
 
     aiPending = {
@@ -2742,11 +4147,12 @@
         acc = (msg && msg.text) || acc;
         if (!acc.trim()) {
           setAiStatus('模型返回了空内容，请重试或更换模型');
-          if (kind === 'polish' && draft) { ta.value = draft; growComposer(ta); }
+          if (kind === 'polish' && draft) restoreDraft();
         } else {
           commit();
           setAiStatus('已生成，可直接发送或再修改');
-          ta.focus();
+          if (composerEditor) composerEditor.focusEnd();
+          else ta.focus();
         }
       },
       onError: (err) => {
@@ -2754,7 +4160,7 @@
         const message = (err && err.message) || '生成失败，请重试';
         setAiStatus(message);
         toast(message, 'err');
-        if (kind === 'polish' && draft) { ta.value = draft; growComposer(ta); }
+        if (kind === 'polish' && draft) restoreDraft();
       }
     };
 
@@ -2895,7 +4301,9 @@
         acc = (msg && msg.text) || acc;
         aiPanelText = acc.trim();
         paintAiPanel(false);
-        setAiPanelStatus(aiPanelText ? '生成完成' : '模型没有返回内容，请重试');
+        setAiPanelStatus(aiPanelText
+          ? ((msg && msg.cached) ? '已读取缓存总结' : '生成完成')
+          : '模型没有返回内容，请重试');
       },
       onError: (msg) => {
         aiBusy = false;
@@ -2906,11 +4314,12 @@
     };
 
     try {
+      const messages = summaryMessages(view.topic);
       port.postMessage({
         type: 'start',
         id: id,
-        messages: summaryMessages(view.topic),
-        bypass: true
+        messages: messages,
+        cacheKey: summaryCacheKey(messages)
       });
     } catch (e) {
       aiPending = null;
@@ -2935,6 +4344,22 @@
 
   function aiOut() {
     return root && root.querySelector('[data-role="ai-out"]');
+  }
+
+  /** 轻量哈希（djb2）：与 ai/content.js 的缓存键算法一致，浮层与帖子页可共用同一份缓存 */
+  function aiHash(str) {
+    let h = 5381;
+    const s = String(str || '');
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36);
+  }
+
+  /** 总结缓存键：帖子 + 模型 + 实际发出的提示词；正文或模型变化时自动失效 */
+  function summaryCacheKey(messages) {
+    const model = (aiConfig && aiConfig.model) || '';
+    const payload = model + '|' + messages.map((m) => m.content).join('\n');
+    const postId = (view && view.topic && view.topic.id) || '';
+    return 'sum:' + postId + ':' + aiHash(payload);
   }
 
   /** 总结用的提示词：与 ai/content.js 的默认模板一致，优先使用设置里自定义的版本 */
@@ -2988,6 +4413,8 @@
     setAiStatus('正在总结…');
     const id = 's' + (++aiSeq);
     let acc = '';
+    // 同一帖子已经出过结果时，再点一次视为「重新生成」，绕过缓存
+    const force = !!(out && out.dataset.donePost === String(view.topic.id));
 
     const paint = () => {
       if (!out || !root) return;
@@ -3007,7 +4434,8 @@
           setAiStatus('模型返回了空内容，请重试或更换模型');
         } else {
           paint();
-          setAiStatus('总结完成，可再次点击重新生成');
+          if (out) out.dataset.donePost = String(view.topic.id);
+          setAiStatus((msg && msg.cached) ? '已读取缓存总结' : '总结完成，可再次点击重新生成');
         }
       },
       onError: (err) => {
@@ -3019,8 +4447,9 @@
     };
 
     try {
-      port.postMessage({ type: 'start', id: id, messages: summaryMessages(view.topic),
-        cacheKey: null, bypass: true });
+      const messages = summaryMessages(view.topic);
+      port.postMessage({ type: 'start', id: id, messages: messages,
+        cacheKey: summaryCacheKey(messages), bypass: force });
     } catch (e) {
       aiPending = null;
       aiBusy = false;
@@ -3050,8 +4479,17 @@
         renderComments(view.topic, view.posts, buildMentionMap(view.topic, view.posts));
       }
     } else if (role === 'composer') {
+      insertPoint = null;
       growComposer(el);
     }
+  }
+
+  function onRootChange(e) {
+    const el = e.target;
+    if (!el || !el.getAttribute || el.getAttribute('data-role') !== 'image-file') return;
+    const file = el.files && el.files[0];
+    el.value = '';
+    if (file) uploadImage(file);
   }
 
   function onRootKeydown(e) {
@@ -3067,12 +4505,23 @@
   /** 工具条按钮不抢输入框焦点，保证「聚焦才显示」不会闪没 */
   function onRootMouseDown(e) {
     if (!root) return;
-    const btn = e.target.closest && e.target.closest('.pco-composer-tools button');
+    const btn = e.target.closest && e.target.closest('.pco-composer-tools button, .pco-pop button');
     if (btn) e.preventDefault();
+  }
+
+  /** 未开启文本选中时禁止拖动图片（含被链接包裹的图片），避免拽出半透明残影 */
+  function onRootDragStart(e) {
+    if (selectOn || !root) return;
+    const t = e.target;
+    if (!t || !t.closest) return;
+    const a = t.closest('a');
+    if (t.closest('img') || (a && a.querySelector('img'))) e.preventDefault();
   }
 
   function bind() {
     root.addEventListener('click', onRootClick);
+    root.addEventListener('change', onRootChange);
+    root.addEventListener('dragstart', onRootDragStart);
     root.addEventListener('input', onRootInput);
     root.addEventListener('keydown', onRootKeydown);
     root.addEventListener('mousedown', onRootMouseDown);
@@ -3203,7 +4652,10 @@
     const tools = root && root.querySelector('[data-role="tools"]');
     if (!tools) return;
     tools.hidden = !composerToolsEnabled;
-    if (!composerToolsEnabled) closePops();
+    if (!composerToolsEnabled) {
+      if (composerFull) toggleComposerFull(false, true);
+      closePops();
+    }
   }
 
   /** 应用设置：关闭时立即收起已打开的浮层，之后的点击恢复站点跳转 */
@@ -3286,5 +4738,6 @@
   window.addEventListener('resize', () => {
     if (!root) return;
     scheduleNavOffset();
+    placePop();
   });
 })();

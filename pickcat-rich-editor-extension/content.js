@@ -3814,9 +3814,10 @@
     saveAIPos();
   }
 
-  /** 打开写作助手窗口；已打开时再点一次即收起（独立窗口不受空白点击影响） */
-  function openAIWriter() {
-    if (aiPop) { closeAIWriter(); return; }
+  /** 打开写作助手窗口；已打开时再点一次即收起（独立窗口不受空白点击影响）。
+      keepOpen 为真时只保证「打开」，已打开则不收起（供跨扩展联动调用）。 */
+  function openAIWriter(keepOpen) {
+    if (aiPop) { if (!keepOpen) closeAIWriter(); return; }
     if (afPop) closeAIFormatter();   // 两个 AI 窗口同一时间只保留一个
     closePopups();          // 先收起其它浮层（AI 窗口自身已被 closePopups 排除在外）
     captureAIContext();     // 先捕获选区 / 光标，再把焦点交给窗口输入框
@@ -3836,6 +3837,46 @@
     aiPop = null;
     aiRefs = null;
   }
+
+  // ============================ 9.6.1 与 PICKCAT Plus 联动 ============================
+
+  /* 两个扩展的 content script 各自运行在隔离世界，彼此看不见变量、函数与 storage，
+     唯一零权限的通道是页面 window 的 postMessage。协议 v1 采用「广播 + 自报家门」：
+     用 source 字段辨认来源，谁先加载都能发现对方。详见 INTEGRATION.md。 */
+  (function linkPickcatPlus() {
+    /* 键 pcr_plus_link：与 options/options.js 的 PLUS_LINK_KEY 保持一致；
+       设置里关掉后仍应答心跳，但不再响应唤起写作助手的指令 */
+    const PLUS_LINK_KEY = 'pcr_plus_link';
+    const send = (o) => { try { window.postMessage(o, '*'); } catch (e) { /* 忽略 */ } };
+    const version = (() => {
+      try { return chrome.runtime.getManifest().version; } catch (e) { return ''; }
+    })();
+
+    window.addEventListener('message', (ev) => {
+      if (ev.origin !== location.origin) return;   // 只认本页同源消息
+      const d = ev.data;
+      if (!d || typeof d !== 'object' || d.source !== 'pickcat-plus') return;
+
+      // 对方在找我们：回一句「我在」，带上版本与能力
+      if (d.type === 'pickcat:link-ping') {
+        send({ source: 'pickscribe', type: 'pickscribe:hello', version, features: ['ai', 'editor'] });
+        return;
+      }
+
+      // 对方请我们打开 AI 助手：写作助手只在编辑页可用，其它页面直接忽略；
+      // 联动开关关闭时不弹窗（默认开启，读不到设置时按开启处理）
+      if (d.type === 'pickcat:open-ai' && isEditorPage()) {
+        try {
+          chrome.storage.local.get({ [PLUS_LINK_KEY]: true }, (raw) => {
+            if (raw[PLUS_LINK_KEY] !== false) openAIWriter(true);
+          });
+        } catch (e) { /* 扩展上下文失效时忽略 */ }
+      }
+    });
+
+    // 我们先喊一声（对方可能比我们晚加载）
+    [0, 1500, 4000].forEach((ms) => setTimeout(() => send({ source: 'pickscribe', type: 'pickscribe:link-ping' }), ms));
+  })();
 
   // ============================ 9.7 AI 排版 ============================
 
