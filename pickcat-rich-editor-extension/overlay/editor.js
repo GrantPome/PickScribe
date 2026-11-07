@@ -853,6 +853,10 @@
 
   PCOEditor.prototype.ensureRange = function () {
     const host = this.host;
+    // 浮层关闭或切帖重渲染后，编辑器宿主可能已脱离文档：
+    // 此时 focus 不会产生选区，继续设置选区会让 addRange 抛出
+    // “The given range isn't in document”，因此直接放弃
+    if (!host.isConnected) return null;
     host.focus({ preventScroll: true });
     const sel = window.getSelection();
     if (sel && sel.rangeCount && host.contains(sel.anchorNode)) return sel;
@@ -874,6 +878,8 @@
 
   PCOEditor.prototype.placeCaretEnd = function () {
     const host = this.host;
+    // 宿主已脱离文档时，该范围内的选区不在文档里，addRange 会抛异常
+    if (!host.isConnected) return;
     const range = document.createRange();
     range.selectNodeContents(host);
     range.collapse(false);
