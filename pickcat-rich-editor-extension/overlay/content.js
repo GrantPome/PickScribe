@@ -1097,16 +1097,8 @@
     if (!imageZoomOn) root.classList.add('pco-no-zoom');
     // 全屏与加宽都是会话级偏好，重开浮层时恢复
     if (fullOn) root.classList.add('is-full');
-    // 目录展开状态同样沿用上次：在首次绘制前就落位，
-    // 避免正文加载完成后目录再从 0 展开一次，看起来像重复播放开启动画
-    if (tocOn) {
-      root.classList.add('is-toc');
-      const tocBtn = root.querySelector('[data-act="toc"]');
-      if (tocBtn) {
-        tocBtn.setAttribute('aria-expanded', 'true');
-        tocBtn.classList.add('is-on');
-      }
-    }
+    // 目录不再在挂载时提前展开：此时标题还没扫，展开只会露出一个空侧栏。
+    // 统一等 buildToc 确认标题数量足够后，再恢复上次的展开状态。
     document.body.appendChild(root);
     lockScroll();
     initComposerEditor();
@@ -1307,6 +1299,8 @@
   /** 主题数据到手：记录状态、渲染正文、刷新操作栏 */
   function applyTopic(topic) {
     if (!root || !topic || !view) return;
+    // 先清掉上一帖的目录，避免新帖正文还在骨架屏时露出旧目录或空目录
+    resetToc();
     const first = topic.firstPost || {};
     view.topic = topic;
     view.liked = !!(first.viewerState && first.viewerState.liked);
@@ -1573,6 +1567,26 @@
     });
   }
 
+  /**
+   * 切帖 / 重新渲染前先把目录「归零」：清空条目、收起侧栏、隐藏入口。
+   * 这里只改类和 DOM，不读布局、不强制回流；是否重新展开由 buildToc 落定后决定，
+   * 保证「没有目录」的帖子在开门动画里一帧都不会露出空侧栏。
+   */
+  function resetToc() {
+    if (!root) return;
+    tocHeads = [];
+    tocActiveIdx = -1;
+    root.classList.remove('is-toc');
+    const btn = root.querySelector('[data-act="toc"]');
+    if (btn) {
+      btn.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      btn.classList.remove('is-on');
+    }
+    const list = root.querySelector('[data-role="toc-list"]');
+    if (list) list.innerHTML = '';
+  }
+
   /** 从正文里抽取标题生成目录；标题不足两个时隐藏入口 */
   function buildToc() {
     if (!root || !contentEl) return;
@@ -1591,10 +1605,8 @@
         .filter((h) => (h.textContent || '').trim() && !h.classList.contains('pco-empty'))
     );
     if (heads.length < 2) {
-      // 新帖没有可用大纲时收起侧栏（直接落位，不播放收起动画）
-      setTocInstant(false);
-      btn.hidden = true;
-      list.innerHTML = '';
+      // 没有可用大纲：入口与侧栏都不能出现在任何一帧里
+      resetToc();
       return;
     }
 
