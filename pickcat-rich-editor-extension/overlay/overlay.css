@@ -73,14 +73,6 @@ html.pco-lock body {
   opacity: 0;
   pointer-events: auto;
   transition: opacity calc(0.24s * var(--pco-dur)) ease;
-  /* 开合动画期间不做毛玻璃：底层页面正在缩放，整屏 backdrop-filter
-     会逐帧重新采样，是“没有媒体也掉帧”的主要来源之一。
-     动画结束后由 .is-settled 一次性挂上。 */
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
-#pco-root.is-settled .pco-backdrop {
   -webkit-backdrop-filter: blur(7px) saturate(1.06);
   backdrop-filter: blur(7px) saturate(1.06);
 }
