@@ -596,17 +596,22 @@ loadHomeSetting().catch((e) => setStatus('读取起始页设置失败：' + e.me
  * 模糊与背景缩放默认开启，保存时保留配置里的其他字段。
  */
 const OVERLAY_KEY = 'pco_config';
-const OVERLAY_DEFAULTS = { enabled: true, composerTools: false, blur: true, pageScale: true };
+const OVERLAY_DEFAULTS = { enabled: true, composerTools: false, blur: true, pageScale: true, animSpeed: 1, cardTilt: true, openTilt: true };
 
 let overlayCfg = { ...OVERLAY_DEFAULTS };
 
 function normalizeOverlay(raw) {
   const c = (raw && typeof raw === 'object') ? raw : {};
+  // 动画速度：限定在 0.5–2 倍之间，非法值回落到标准速度
+  const speed = Number(c.animSpeed);
   return {
     enabled: c.enabled !== false,
     composerTools: !!c.composerTools,
     blur: c.blur !== false,
-    pageScale: c.pageScale !== false
+    pageScale: c.pageScale !== false,
+    animSpeed: Number.isFinite(speed) && speed >= 0.5 && speed <= 2 ? speed : 1,
+    cardTilt: c.cardTilt !== false,
+    openTilt: c.openTilt !== false
   };
 }
 
@@ -615,10 +620,16 @@ function paintOverlay() {
   $('overlayComposerTools').checked = overlayCfg.composerTools;
   $('overlayBlur').checked = overlayCfg.blur;
   $('overlayPageScale').checked = overlayCfg.pageScale;
+  $('overlayAnimSpeed').value = String(overlayCfg.animSpeed);
+  $('overlayCardTilt').checked = overlayCfg.cardTilt;
+  $('overlayOpenTilt').checked = overlayCfg.openTilt;
   // 其余开关依附于浮窗本身，未启用时置灰，避免误以为已经生效
   $('overlayComposerTools').disabled = !overlayCfg.enabled;
   $('overlayBlur').disabled = !overlayCfg.enabled;
   $('overlayPageScale').disabled = !overlayCfg.enabled;
+  $('overlayAnimSpeed').disabled = !overlayCfg.enabled;
+  $('overlayCardTilt').disabled = !overlayCfg.enabled;
+  $('overlayOpenTilt').disabled = !overlayCfg.enabled;
 }
 
 async function saveOverlay(patch, message) {
@@ -654,6 +665,22 @@ $('overlayBlur').addEventListener('change', (e) => {
 
 $('overlayPageScale').addEventListener('change', (e) => {
   saveOverlay({ pageScale: e.target.checked }, e.target.checked ? '已开启背景缩放效果' : '已关闭背景缩放效果');
+});
+
+$('overlayAnimSpeed').addEventListener('change', (e) => {
+  const speed = Number(e.target.value);
+  saveOverlay(
+    { animSpeed: Number.isFinite(speed) ? speed : 1 },
+    '动画速度已调整为 ' + (Number.isFinite(speed) ? speed : 1) + '×'
+  );
+});
+
+$('overlayCardTilt').addEventListener('change', (e) => {
+  saveOverlay({ cardTilt: e.target.checked }, e.target.checked ? '已开启信息流卡片 3D 倾斜' : '已关闭信息流卡片 3D 倾斜');
+});
+
+$('overlayOpenTilt').addEventListener('change', (e) => {
+  saveOverlay({ openTilt: e.target.checked }, e.target.checked ? '已开启打开动画 3D 倾斜回正' : '已关闭打开动画 3D 倾斜回正');
 });
 
 loadOverlaySetting().catch((e) => setStatus('读取帖子浮窗设置失败：' + e.message, 'err'));
@@ -804,22 +831,267 @@ async function loadNotify() {
 
 loadNotify().catch((e) => setStatus('读取站内通知设置失败：' + e.message, 'err'));
 
-// ============================ 站点外观：鸿蒙字体开关（即时生效） ============================
+// ============================ 站点外观：字体（即时生效） ============================
 
 /** 键 pcr_harmony_font：与 content.js 的 FONT_KEY 保持一致，控制整站字体替换 */
 const HARMONY_FONT_KEY = 'pcr_harmony_font';
+/** 键 pcr_font_mode：'harmony' 内置鸿蒙 | 'custom' 用户上传 */
+const FONT_MODE_KEY = 'pcr_font_mode';
+/** 键 pcr_custom_font：{ faces:[{ id, name, size, weight }] }，字体字节存在扩展域 IndexedDB */
+const FONT_CUSTOM_KEY = 'pcr_custom_font';
 /** 键 pcr_image_zoom：与 overlay/content.js 的 IMAGE_ZOOM_KEY 保持一致，控制点击图片查看大图 */
 const IMAGE_ZOOM_KEY = 'pcr_image_zoom';
 
+/** 与 content.js / shared/font-host.js 保持一致的字体库位置 */
+const FONT_DB = 'pcr_fonts';
+const FONT_STORE = 'files';
+const FONT_MAX_BYTES = 20 * 1024 * 1024;
+const FONT_EXTS = ['woff2', 'woff', 'ttf', 'otf'];
+/** 字重选项：最后一个对应可变字体（声明的是一段区间） */
+const FONT_WEIGHT_OPTIONS = [
+  ['100', '100 Thin'],
+  ['300', '300 Light'],
+  ['400', '400 Regular'],
+  ['500', '500 Medium'],
+  ['600', '600 SemiBold'],
+  ['700', '700 Bold'],
+  ['800', '800 ExtraBold'],
+  ['900', '900 Black'],
+  ['100 900', '可变 100–900']
+];
+
+/** 已保存的字重（描述符）；字节在 IndexedDB */
+let savedFaces = [];
+/** 本次刚选中、尚未保存的文件（带 Blob，只在内存里） */
+let pendingFaces = [];
+
+function fontDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(FONT_DB, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(FONT_STORE)) db.createObjectStore(FONT_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function fontPut(id, rec) {
+  const db = await fontDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FONT_STORE, 'readwrite');
+    tx.objectStore(FONT_STORE).put(rec, id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function fontDelete(ids) {
+  if (!ids.length) return;
+  const db = await fontDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FONT_STORE, 'readwrite');
+    const store = tx.objectStore(FONT_STORE);
+    ids.forEach((id) => store.delete(id));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+const fmtFontSize = (bytes) => (bytes / 1048576).toFixed(1) + ' MB';
+
+/** 把描述符写回 storage：有字重就是 custom 模式，没有就退回鸿蒙 */
+async function persistCustomFont() {
+  const faces = savedFaces.map((f) => ({ id: f.id, name: f.name, size: f.size, weight: f.weight }));
+  await chrome.storage.local.set({
+    [FONT_CUSTOM_KEY]: faces.length ? { faces } : null,
+    [FONT_MODE_KEY]: faces.length ? 'custom' : 'harmony',
+    [HARMONY_FONT_KEY]: true
+  });
+  $('appearanceHarmonyFont').checked = true;
+  $('fontModeHarmony').checked = !faces.length;
+  $('fontModeCustom').checked = faces.length > 0;
+  syncFontUi();
+}
+
+/** 自定义字体区的显隐与禁用状态 */
+function syncFontUi() {
+  const custom = $('fontModeCustom').checked;
+  const on = $('appearanceHarmonyFont').checked;
+  $('customFontBox').hidden = !custom;
+  $('fontModeRow').classList.toggle('is-off', !on);
+  $('fontModeRow').querySelectorAll('input').forEach((el) => { el.disabled = !on; });
+  $('pickFontFiles').disabled = !on;
+  $('applyCustomFont').disabled = !on || !pendingFaces.length;
+  $('clearCustomFont').disabled = !on;
+  $('clearCustomFont').hidden = !savedFaces.length;
+}
+
+/** 列表：已保存的在前，待保存的在后 */
+function renderFontFaces() {
+  const box = $('fontFaceList');
+  box.textContent = '';
+  const rows = savedFaces.map((f) => ({ ...f, pending: false }))
+    .concat(pendingFaces.map((f) => ({ ...f, pending: true })));
+
+  if (!rows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'note';
+    empty.textContent = '还没有上传字体文件。';
+    box.appendChild(empty);
+  }
+
+  rows.forEach((f) => {
+    const row = document.createElement('div');
+    row.className = 'font-face';
+
+    const name = document.createElement('span');
+    name.className = 'font-face-name';
+    name.textContent = f.name;
+    name.title = f.name;
+
+    const size = document.createElement('span');
+    size.className = 'font-face-size';
+    size.textContent = fmtFontSize(f.size) + (f.pending ? ' · 待保存' : '');
+
+    const sel = document.createElement('select');
+    FONT_WEIGHT_OPTIONS.forEach(([value, label]) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      if (value === f.weight) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => {
+      const list = f.pending ? pendingFaces : savedFaces;
+      const item = list.find((x) => x.id === f.id);
+      if (item) item.weight = sel.value;
+      if (!f.pending) persistCustomFont().catch(() => {});
+    });
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn danger';
+    del.textContent = '移除';
+    del.addEventListener('click', () => removeFontFace(f.id, f.pending));
+
+    row.appendChild(name);
+    row.appendChild(size);
+    row.appendChild(sel);
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+
+  syncFontUi();
+}
+
+async function removeFontFace(id, pending) {
+  if (pending) {
+    pendingFaces = pendingFaces.filter((f) => f.id !== id);
+    renderFontFaces();
+    return;
+  }
+  savedFaces = savedFaces.filter((f) => f.id !== id);
+  try { await fontDelete([id]); } catch (e) { /* 库里没有也不影响描述符 */ }
+  if (!savedFaces.length) {
+    $('fontModeHarmony').checked = true;
+    await chrome.storage.local.set({ [FONT_CUSTOM_KEY]: null, [FONT_MODE_KEY]: 'harmony' });
+  } else {
+    await persistCustomFont();
+  }
+  renderFontFaces();
+  setStatus('已移除字体文件', 'ok');
+}
+
 async function loadAppearance() {
-  const raw = await chrome.storage.local.get([HARMONY_FONT_KEY, IMAGE_ZOOM_KEY]);
+  const raw = await chrome.storage.local.get([
+    HARMONY_FONT_KEY, IMAGE_ZOOM_KEY, FONT_MODE_KEY, FONT_CUSTOM_KEY
+  ]);
   $('appearanceHarmonyFont').checked = raw[HARMONY_FONT_KEY] !== false && raw[HARMONY_FONT_KEY] !== '0';
   $('appearanceImageZoom').checked = raw[IMAGE_ZOOM_KEY] !== false && raw[IMAGE_ZOOM_KEY] !== '0';
+
+  const spec = raw[FONT_CUSTOM_KEY];
+  savedFaces = (spec && Array.isArray(spec.faces) ? spec.faces : []).map((f) => ({
+    id: f.id,
+    name: f.name || '未命名字体',
+    size: Number(f.size) || 0,
+    weight: f.weight || '400'
+  }));
+  const mode = raw[FONT_MODE_KEY] === 'custom' ? 'custom' : 'harmony';
+  $('fontModeHarmony').checked = mode !== 'custom';
+  $('fontModeCustom').checked = mode === 'custom';
+  renderFontFaces();
 }
 
 $('appearanceHarmonyFont').addEventListener('change', async (e) => {
   await chrome.storage.local.set({ [HARMONY_FONT_KEY]: e.target.checked });
-  setStatus(e.target.checked ? '已启用鸿蒙字体' : '已恢复站点原字体', 'ok');
+  syncFontUi();
+  setStatus(e.target.checked ? '已启用整站字体替换' : '已恢复站点原字体', 'ok');
+});
+
+$('fontModeHarmony').addEventListener('change', async () => {
+  if (!$('fontModeHarmony').checked) return;
+  await chrome.storage.local.set({ [FONT_MODE_KEY]: 'harmony' });
+  syncFontUi();
+  setStatus('已切换为鸿蒙字体', 'ok');
+});
+
+$('fontModeCustom').addEventListener('change', async () => {
+  if (!$('fontModeCustom').checked) return;
+  await chrome.storage.local.set({ [FONT_MODE_KEY]: 'custom' });
+  syncFontUi();
+  setStatus(savedFaces.length ? '已切换为自定义字体' : '请先选择字体文件并保存', savedFaces.length ? 'ok' : '');
+});
+
+$('pickFontFiles').addEventListener('click', () => $('fontFiles').click());
+
+$('fontFiles').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = '';
+  const skipped = [];
+  files.forEach((file) => {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!FONT_EXTS.includes(ext)) { skipped.push(file.name + '（格式不支持）'); return; }
+    if (file.size > FONT_MAX_BYTES) { skipped.push(file.name + '（超过 20 MB）'); return; }
+    pendingFaces.push({
+      id: 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      name: file.name,
+      size: file.size,
+      weight: '400',
+      blob: file
+    });
+  });
+  renderFontFaces();
+  if (skipped.length) setStatus('已跳过：' + skipped.join('、'), 'err');
+  else if (files.length) setStatus('已选择 ' + files.length + ' 个文件，点「保存并应用」生效', '');
+});
+
+$('applyCustomFont').addEventListener('click', async () => {
+  if (!pendingFaces.length) return;
+  try {
+    for (const f of pendingFaces) {
+      await fontPut(f.id, { blob: f.blob, name: f.name, size: f.size });
+    }
+    savedFaces = savedFaces.concat(pendingFaces.map(({ blob, ...meta }) => meta));
+    pendingFaces = [];
+    await persistCustomFont();
+    renderFontFaces();
+    setStatus('自定义字体已保存并应用', 'ok');
+  } catch (err) {
+    setStatus('保存字体失败：' + err.message, 'err');
+  }
+});
+
+$('clearCustomFont').addEventListener('click', async () => {
+  const ids = savedFaces.map((f) => f.id);
+  savedFaces = [];
+  pendingFaces = [];
+  try { await fontDelete(ids); } catch (e) { /* noop */ }
+  await chrome.storage.local.set({ [FONT_CUSTOM_KEY]: null, [FONT_MODE_KEY]: 'harmony' });
+  $('fontModeHarmony').checked = true;
+  renderFontFaces();
+  setStatus('已移除自定义字体，恢复鸿蒙字体', 'ok');
 });
 
 $('appearanceImageZoom').addEventListener('change', async (e) => {

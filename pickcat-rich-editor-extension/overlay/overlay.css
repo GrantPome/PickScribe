@@ -18,14 +18,17 @@
   --pco-border: var(--ui-border, rgba(23, 24, 28, 0.1));
   --pco-soft: var(--ui-bg-accented, rgba(23, 24, 28, 0.045));
   --pco-primary: var(--ui-primary, #e5484d);
+  /* 动画时长倍率：由设置项写入（= 1 / 速度），>1 更慢；核心时长都乘以它 */
+  --pco-dur: 1;
   --pco-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  /* 位移与尺寸分开推进：位移的牵引力强于尺寸 */
-  --pco-move: cubic-bezier(0.16, 1.06, 0.32, 1);
-  --pco-size: cubic-bezier(0.3, 1.02, 0.4, 1);
+  /* 位移与尺寸分开推进：位移的牵引力强于尺寸；
+     过冲收小一点，避免打开时浮层"长太大再弹回"的视觉跳变 */
+  --pco-move: cubic-bezier(0.16, 1.02, 0.32, 1);
+  --pco-size: cubic-bezier(0.3, 1.005, 0.4, 1);
   --pco-move-close: cubic-bezier(0.3, 0.88, 0.26, 1);
   --pco-size-close: cubic-bezier(0.32, 0.72, 0.2, 1);
-  /* 上滑松手关闭：尺寸带过冲，先收到比卡片略小一点再弹回 */
-  --pco-size-close-spring: cubic-bezier(0.3, 1.42, 0.42, 1);
+  /* 上滑松手关闭：尺寸带过冲，先收到比卡片略小一点再弹回；过冲幅度收小，避免弹得太多 */
+  --pco-size-close-spring: cubic-bezier(0.3, 1.12, 0.42, 1);
   --pco-shadow: 0 32px 90px -24px rgba(8, 10, 16, 0.5),
     0 10px 28px -12px rgba(8, 10, 16, 0.28),
     0 0 0 1px var(--pco-border);
@@ -37,6 +40,10 @@
   align-items: center;
   justify-content: center;
   padding: 32px;
+  /* 打开动画的 3D 倾斜回正：透视放在 root，stage 加 preserve-3d，
+     让 shell 的缩放也参与 3D 空间，透视 1400px 让倾角更明显 */
+  perspective: 1400px;
+  perspective-origin: 50% 50%;
   color: var(--pco-text);
   font-size: 14px;
   line-height: 1.5;
@@ -62,7 +69,7 @@ html.pco-lock body {
   background: rgba(10, 12, 16, 0.44);
   opacity: 0;
   pointer-events: auto;
-  transition: opacity 0.24s ease;
+  transition: opacity calc(0.24s * var(--pco-dur)) ease;
   -webkit-backdrop-filter: blur(7px) saturate(1.06);
   backdrop-filter: blur(7px) saturate(1.06);
 }
@@ -161,8 +168,10 @@ html.pco-lock body {
   height: min(82vh, 820px);
   min-height: 460px;
   transform-origin: 50% 50%;
-  transition: transform 0.52s var(--pco-move),
-    width 0.3s var(--pco-ease), height 0.3s var(--pco-ease);
+  transform-style: preserve-3d;
+  transition: transform calc(0.52s * var(--pco-dur)) var(--pco-move),
+    width calc(0.3s * var(--pco-dur)) var(--pco-ease),
+    height calc(0.3s * var(--pco-dur)) var(--pco-ease);
   will-change: transform;
 }
 
@@ -188,16 +197,16 @@ html.pco-lock body {
 
 #pco-root.is-closing .pco-stage {
   /* 关闭位移 0.54s：慢于尺寸 0.44s，先收成卡片大小、再滑回卡片 */
-  transition: transform 0.54s var(--pco-move-close);
+  transition: transform calc(0.54s * var(--pco-dur)) var(--pco-move-close);
 }
 
 /* 松手回弹：低阻尼，比开合更快归位（正在关闭时让位给关闭时序） */
 #pco-root.is-springing:not(.is-closing) .pco-stage {
-  transition: transform 0.32s var(--pco-move);
+  transition: transform calc(0.32s * var(--pco-dur)) var(--pco-move);
 }
 
 #pco-root.is-springing:not(.is-closing) .pco-shell {
-  transition: transform 0.32s var(--pco-move);
+  transition: transform calc(0.32s * var(--pco-dur)) var(--pco-move);
 }
 
 /* 容器：尺寸由 transform: scale 收放，始终与卡片同形；投影随容器一起缩放 */
@@ -217,7 +226,7 @@ html.pco-lock body {
   transform-origin: 50% 50%;
   /* 打开尺寸 0.46s：比位移 0.52s 略快，先长到位、位移随后跟上；
      面板全程不透明，卡片长成浮层时不会透出底下的原卡片 */
-  transition: transform 0.46s var(--pco-size);
+  transition: transform calc(0.46s * var(--pco-dur)) var(--pco-size);
   will-change: transform;
 }
 
@@ -227,12 +236,12 @@ html.pco-lock body {
    这里若直接写 opacity:0，脚本为了钉住起始帧临时把 transition 设成 none 时，
    会立刻把面板变成全透明，整个退出动画就“看不见”了。 */
 #pco-root.is-closing .pco-shell {
-  transition: transform 0.44s var(--pco-size-close);
+  transition: transform calc(0.44s * var(--pco-dur)) var(--pco-size-close);
 }
 
 /* 只有上滑松手关闭保留“缩过头再弹回”的手感，按钮 / 空白处关闭不做过冲 */
 #pco-root.is-closing.is-drag-close .pco-shell {
-  transition: transform 0.44s var(--pco-size-close-spring);
+  transition: transform calc(0.44s * var(--pco-dur)) var(--pco-size-close-spring);
 }
 
 /* -------------------------- 底部导航横条 -------------------------- */
@@ -259,7 +268,7 @@ html.pco-lock body {
 
 #pco-root.is-open .pco-grabber {
   opacity: 1;
-  transition: opacity 0.2s ease 0.34s;
+  transition: opacity calc(0.2s * var(--pco-dur)) ease calc(0.34s * var(--pco-dur));
 }
 
 #pco-root.is-closing .pco-grabber {
@@ -332,7 +341,8 @@ html.pco-lock body {
 #pco-root .pco-content {
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.26s ease 0.02s, transform 0.34s var(--pco-ease) 0.02s;
+  transition: opacity calc(0.26s * var(--pco-dur)) ease calc(0.02s * var(--pco-dur)),
+    transform calc(0.34s * var(--pco-dur)) var(--pco-ease) calc(0.02s * var(--pco-dur));
 }
 
 #pco-root.is-loaded .pco-content {
@@ -680,7 +690,7 @@ html.pco-lock body {
 
 #pco-root .pco-comments-inner {
   opacity: 0;
-  transition: opacity 0.24s ease 0.03s;
+  transition: opacity calc(0.24s * var(--pco-dur)) ease calc(0.03s * var(--pco-dur));
 }
 
 #pco-root.is-side-loaded .pco-comments-inner {
@@ -1512,7 +1522,7 @@ html.pco-lock body {
   height: 100%;
   overflow: hidden;
   background: var(--pco-bg);
-  transition: width 0.26s var(--pco-ease);
+  transition: width calc(0.26s * var(--pco-dur)) var(--pco-ease);
 }
 
 /* 站点目录的折线：贯穿整个列表的 1px 竖线 + 每个条目一小段圆角横枝；
@@ -1574,7 +1584,7 @@ html.pco-lock body {
   overflow-wrap: anywhere;
   word-break: break-word;
   cursor: pointer;
-  transition: color 0.16s ease;
+  transition: color calc(0.2s * var(--pco-dur)) cubic-bezier(0, 0, 0.2, 1);
 }
 
 /* 折线：整列一条 SVG 路径，竖线随层级逐级内缩，
@@ -1594,13 +1604,20 @@ html.pco-lock body {
   stroke-linejoin: round;
 }
 
+/* 与站点一致：高亮裁剪窗在标题之间平滑滑动（0.2s ease-out） */
+#pco-root .pco-toc-clip-rect {
+  transition: y calc(0.2s * var(--pco-dur)) cubic-bezier(0, 0, 0.2, 1),
+    height calc(0.2s * var(--pco-dur)) cubic-bezier(0, 0, 0.2, 1);
+}
+
 #pco-root .pco-toc-flow-base {
   stroke: var(--pco-border);
 }
 
 #pco-root .pco-toc-flow-active {
   stroke: var(--pco-primary);
-  transition: stroke 0.16s ease;
+  transition: stroke calc(0.16s * var(--pco-dur)) ease,
+    opacity calc(0.2s * var(--pco-dur)) cubic-bezier(0, 0, 0.2, 1);
 }
 
 #pco-root .pco-toc-item:hover {
@@ -1820,7 +1837,7 @@ html.pco-lock body {
   z-index: 7;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.28s ease 0.06s;
+  transition: opacity calc(0.28s * var(--pco-dur)) ease calc(0.06s * var(--pco-dur));
 }
 
 #pco-root.is-open .pco-nav {
@@ -1893,7 +1910,7 @@ html.pco-lock body {
   background: var(--pco-bg);
   opacity: 1;
   pointer-events: none;
-  transition: opacity 0.26s ease;
+  transition: opacity calc(0.26s * var(--pco-dur)) ease;
 }
 
 #pco-root.is-loaded .pco-skeleton[data-skel="main"] {
@@ -2264,7 +2281,9 @@ html.pco-lock body {
   #pco-root .pco-nav,
   #pco-root .pco-backdrop,
   #pco-root .pco-lightbox,
-  #pco-root .pco-lightbox-img {
+  #pco-root .pco-lightbox-img,
+  #pco-root .pco-toc-clip-rect,
+  #pco-root .pco-toc-flow-active {
     transition-duration: 0.01ms !important;
     /* 交接淡出带着 0.54s 延迟，减弱动效时也要一并去掉，避免干等 */
     transition-delay: 0.01ms !important;

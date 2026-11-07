@@ -436,6 +436,74 @@ code {
 .field.checkbox span { color: var(--ui-text); font-size: 13.5px; }
 .field.checkbox:hover span { color: var(--ui-text-highlighted); }
 
+/* 字体来源：两枚单选 + 已上传字体列表 */
+.font-mode {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.font-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ui-text);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.font-mode input[type="radio"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--ui-primary);
+  cursor: pointer;
+}
+.font-mode.is-off { opacity: .45; }
+
+.font-faces {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.font-face {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg-muted);
+}
+.font-face-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text);
+  font-size: 13px;
+}
+.font-face-size {
+  flex: none;
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.font-face select {
+  flex: none;
+  width: auto;
+  min-width: 128px;
+  height: 30px;
+  font-size: 12.5px;
+}
+.font-face .btn {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+
 /* ============================ 按钮与行 ============================ */
 
 .row { display: flex; gap: 8px; flex-wrap: wrap; }

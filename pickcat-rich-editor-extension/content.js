@@ -32,9 +32,13 @@
   const MOUNT_FLAG = 'pcrMounted';        // textarea 上的挂载标记，防止重复注入
   const HINT_KEY = 'pcr_hint_closed';     // 新手提示是否已关闭
   const TOOLBAR_KEY = 'pcr_toolbar_style'; // 工具栏布局：compact（默认，紧凑单行）| line（仅分割线）| groups（仿 Word 功能组）
-  const FONT_KEY = 'pcr_harmony_font';    // 鸿蒙字体开关：由设置页写入 chrome.storage.local，默认开启
+  const FONT_KEY = 'pcr_harmony_font';    // 字体增强总开关：由设置页写入 chrome.storage.local，默认开启
+  const FONT_MODE_KEY = 'pcr_font_mode';  // 字体来源：'harmony'（内置鸿蒙）| 'custom'（用户上传）
+  const FONT_CUSTOM_KEY = 'pcr_custom_font'; // 自定义字体描述符：{ faces:[{ id, name, size, weight }] }
   const FONT_STYLE_ID = NS + '-font-style'; // 字体样式节点 id，开关与兜底恢复都靠它定位
-  let fontOn = true;                       // 鸿蒙字体开关状态（设置页写入 storage.local）
+  let fontOn = true;                       // 字体增强开关状态（设置页写入 storage.local）
+  let fontMode = 'harmony';                // 当前字体来源
+  let customSpec = null;                   // 自定义字体描述符（字体字节在扩展域 IndexedDB）
 
   /** 该页面是否是帖子编辑页（SPA 路由变化时用于兜底判断） */
   const isEditorPage = () => /\/forum\/editor(\/|$|\?)/.test(location.pathname + location.search);
@@ -786,30 +790,26 @@
      2. 站点把字体令牌统一挂在 :root 上（--font-sans，html 也直接引用它），因此只需覆盖这一个
         变量即可让正文 / 组件 / 本面板一起变成鸿蒙字体；--font-mono（代码块）与 KaTeX 数学
         字体不受影响，仍是各自专用字体。
-     3. 多语言：拉丁 / 希腊 / 西里尔用体积最小的 HarmonyOS Sans，中文按「简 → 繁」逐级兜底，
+     3. 字体是官方**可变字体**（VF，wght 轴 40–900）：一个文件覆盖全部字重，
+        600 / 650 / 800 这些站点用到的中间字重可以精确渲染，不再按四档就近替代。
+     4. 多语言：拉丁 / 希腊 / 西里尔用体积最小的 HarmonyOS Sans，中文用 SC 那份——
+        它已包含繁体字形，因此不再单独带 TC 文件（繁体按简中字形显示，结构一致、笔形略有差异）；
         阿拉伯文单独一套 Naskh Arabic；浏览器逐字回退，缺字时自然落回系统字体，不会出现方框。
-     4. 开关：默认为开，状态存 localStorage；切换靠 <style disabled>，不增删节点、无需刷新页面。 */
+     5. 许可：HarmonyOS Sans 允许原样嵌入与再分发，但禁止修改字形与字符集，
+        所以这里只做 TTF → WOFF2 的无损重封装，不做子集化。
+     6. 开关：默认为开，状态存 localStorage；切换靠 <style disabled>，不增删节点、无需刷新页面。 */
 
-  /** 字重表：站点令牌只用到 400/500/600/700/800/900，其中 600、800 由 700、900 就近替代 */
-  const FONT_WEIGHTS = [
-    { w: 400, name: 'Regular' },
-    { w: 500, name: 'Medium' },
-    { w: 700, name: 'Bold' },
-    { w: 900, name: 'Black' }
-  ];
-
-  /** 各语言子字体族，同名族内按字体风格区分；%W% 会被替换成字重名 */
+  /** 各语言子字体族的字体文件与可用字重区间（阿拉伯文的轴下限是 100） */
   const FONT_FACES = [
-    { family: 'HarmonyOS Sans PCR',        style: 'normal', tpl: 'HarmonyOS_Sans_%W%.woff2' },
-    { family: 'HarmonyOS Sans PCR',        style: 'italic', tpl: 'HarmonyOS_Sans_%W%_Italic.woff2' },
-    { family: 'HarmonyOS Sans SC PCR',     style: 'normal', tpl: 'HarmonyOS_Sans_SC_%W%.woff2' },
-    { family: 'HarmonyOS Sans TC PCR',     style: 'normal', tpl: 'HarmonyOS_Sans_TC_%W%.woff2' },
-    { family: 'HarmonyOS Sans Arabic PCR', style: 'normal', tpl: 'HarmonyOS_Sans_Naskh_Arabic_%W%.woff2' }
+    { family: 'HarmonyOS Sans PCR',        style: 'normal', file: 'HarmonyOS_Sans_VF.woff2',             range: '40 900' },
+    { family: 'HarmonyOS Sans PCR',        style: 'italic', file: 'HarmonyOS_Sans_VF_Italic.woff2',      range: '40 900' },
+    { family: 'HarmonyOS Sans SC PCR',     style: 'normal', file: 'HarmonyOS_Sans_SC_VF.woff2',          range: '40 900' },
+    { family: 'HarmonyOS Sans Arabic PCR', style: 'normal', file: 'HarmonyOS_Sans_Naskh_Arabic_VF.woff2', range: '100 900' }
   ];
 
   /** 字体栈：鸿蒙各语言族在前，后面保留站点原有的系统兜底与 emoji 字体 */
-  const FONT_STACK = "'HarmonyOS Sans PCR','HarmonyOS Sans SC PCR','HarmonyOS Sans TC PCR'," +
-    "'HarmonyOS Sans Arabic PCR',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue'," +
+  const FONT_STACK = "'HarmonyOS Sans PCR','HarmonyOS Sans SC PCR','HarmonyOS Sans Arabic PCR'," +
+    "system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue'," +
     "'Noto Sans','Liberation Sans',Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji'," +
     "'Segoe UI Symbol','Noto Color Emoji'";
 
@@ -823,59 +823,166 @@
     return '';
   }
 
-  /** 鸿蒙字体是否开启（由设置页控制，默认开启） */
-  function harmonyFontOn() {
+  /** 字体增强是否开启（由设置页控制，默认开启） */
+  function fontOnNow() {
     return fontOn;
   }
 
-  /** 生成 @font-face 与 --font-sans 覆盖样式；取不到字体文件时返回空串 */
-  function harmonyFontCss() {
+  /** 自定义字体的固定族名：用户上传的字体统一注册成这个名字，避免与站点字体撞名 */
+  const CUSTOM_FAMILY = 'PCR Custom Font';
+
+  /** 已注册到当前文档的自定义字体，切换 / 关闭时逐个移除 */
+  let customFaces = [];
+
+  /** 生成 @font-face 与 --font-sans 覆盖样式；custom 为 true 时把自定义字体排在最前 */
+  function fontCss(custom) {
     const faces = [];
     FONT_FACES.forEach((f) => {
-      FONT_WEIGHTS.forEach((w) => {
-        const url = fontUrl(f.tpl.replace('%W%', w.name));
-        if (!url) return;
-        faces.push('@font-face{font-family:\'' + f.family + '\';font-style:' + f.style +
-          ';font-weight:' + w.w + ';font-display:swap;src:url("' + url + '") format(\'woff2\');}');
-      });
+      const url = fontUrl(f.file);
+      if (!url) return;
+      // font-weight 写区间：可变字体声明自己覆盖 40–900 的连续字重
+      faces.push('@font-face{font-family:\'' + f.family + '\';font-style:' + f.style +
+        ';font-weight:' + f.range + ';font-display:swap;src:url("' + url + '") format(\'woff2\');}');
     });
     if (!faces.length) return '';
     // !important 压过站点（Nuxt UI / Tailwind）的令牌声明；未分层样式本身就优先于 @layer 内的声明
-    faces.push(':root{--font-sans:' + FONT_STACK + ' !important;}');
+    const stack = custom ? "'" + CUSTOM_FAMILY + "'," + FONT_STACK : FONT_STACK;
+    faces.push(':root{--font-sans:' + stack + ' !important;}');
     return faces.join('\n');
   }
 
-  /** 注入字体样式节点（只注入一次），并同步当前开关状态 */
-  function injectFontStyle() {
-    if (!document.getElementById(FONT_STYLE_ID)) {
-      const css = harmonyFontCss();
-      if (!css) return;
-      const style = document.createElement('style');
+  /**
+   * 通过隐藏 iframe 从扩展域 IndexedDB 取用户上传的字体字节。
+   * 走 MessageChannel 的私有端口：网页主世界的脚本拿不到端口，字体数据不会被页面读走。
+   * 任何一步失败都返回空数组，由调用方回退到鸿蒙字体。
+   */
+  function loadCustomFaces(spec) {
+    return new Promise((resolve) => {
+      let url = '';
+      try { url = chrome.runtime.getURL('shared/font-host.html'); } catch (e) { url = ''; }
+      if (!url || !spec || !Array.isArray(spec.faces) || !spec.faces.length) return resolve([]);
+
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;border:0;opacity:0;pointer-events:none;';
+
+      let done = false;
+      const finish = (faces) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        iframe.remove();
+        resolve(faces);
+      };
+      const timer = setTimeout(() => finish([]), 5000);
+
+      iframe.addEventListener('load', () => {
+        try {
+          const ch = new MessageChannel();
+          let asked = false;
+          ch.port1.onmessage = (ev) => {
+            const d = ev.data || {};
+            if (d.ready && !asked) {
+              asked = true;
+              ch.port1.postMessage({ ids: spec.faces.map((f) => f.id) });
+              return;
+            }
+            if (!Array.isArray(d.faces)) return;
+            const list = [];
+            d.faces.forEach((item) => {
+              const meta = spec.faces.find((f) => f.id === item.id);
+              if (!item.buffer || !meta) return;
+              try {
+                list.push(new FontFace(CUSTOM_FAMILY, item.buffer, {
+                  weight: meta.weight || '400',
+                  style: 'normal',
+                  display: 'swap'
+                }));
+              } catch (e) { /* 单个文件损坏时跳过，不影响其余字重 */ }
+            });
+            finish(list);
+          };
+          iframe.contentWindow.postMessage({ __pcrFontInit: true }, '*', [ch.port2]);
+        } catch (e) {
+          finish([]);
+        }
+      });
+
+      iframe.src = url;
+      (document.body || document.documentElement).appendChild(iframe);
+    });
+  }
+
+  /** 注入 / 更新字体样式节点，并同步当前开关状态 */
+  function injectFontStyle(custom) {
+    let style = document.getElementById(FONT_STYLE_ID);
+    const css = fontCss(!!custom);
+    if (!css) return;
+    if (!style) {
+      style = document.createElement('style');
       style.id = FONT_STYLE_ID;
-      style.textContent = css;
       (document.head || document.documentElement).appendChild(style);
     }
+    if (style.textContent !== css) style.textContent = css;
     applyFontState();
   }
 
   /** 开关状态直接落到样式节点的 disabled 上，切换即时生效且可逆 */
   function applyFontState() {
     const el = document.getElementById(FONT_STYLE_ID);
-    if (el) el.disabled = !harmonyFontOn();
+    if (el) el.disabled = !fontOnNow();
   }
 
-  /** 从设置页读取字体开关（键 pcr_harmony_font，默认开启），并在设置改动后即时应用 */
+  /**
+   * 应用当前字体配置：
+   * 先按鸿蒙字体渲染（保证首屏不空），自定义字体就绪后再把栈顶换成它；
+   * 自定义字体取不到时静默保留鸿蒙，不会让整站掉回系统默认字体。
+   */
+  async function applyFontConfig() {
+    if (customFaces.length) {
+      customFaces.forEach((f) => { try { document.fonts.delete(f); } catch (e) { /* noop */ } });
+      customFaces = [];
+    }
+    injectFontStyle(false);
+    if (fontMode !== 'custom') return;
+    if (!customSpec || !Array.isArray(customSpec.faces) || !customSpec.faces.length) return;
+
+    const faces = await loadCustomFaces(customSpec);
+    if (!faces.length) return;
+    faces.forEach((f) => document.fonts.add(f));
+    customFaces = faces;
+    injectFontStyle(true);
+    faces.forEach((f) => { f.load().catch(() => null); });
+  }
+
+  /**
+   * 读取字体设置（默认鸿蒙），并在设置页改动后即时应用：
+   * pcr_harmony_font —— 字体增强总开关
+   * pcr_font_mode    —— 'harmony' | 'custom'
+   * pcr_custom_font  —— { faces:[{ id, name, size, weight }] }
+   */
   function loadFontSetting() {
     try {
-      chrome.storage.local.get(FONT_KEY, (raw) => {
+      chrome.storage.local.get([FONT_KEY, FONT_MODE_KEY, FONT_CUSTOM_KEY], (raw) => {
         fontOn = raw[FONT_KEY] !== false && raw[FONT_KEY] !== '0';
-        applyFontState();
+        fontMode = raw[FONT_MODE_KEY] === 'custom' ? 'custom' : 'harmony';
+        customSpec = raw[FONT_CUSTOM_KEY] || null;
+        applyFontConfig();
       });
       chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== 'local' || !changes[FONT_KEY]) return;
-        const v = changes[FONT_KEY].newValue;
-        fontOn = v !== false && v !== '0';
-        applyFontState();
+        if (area !== 'local') return;
+        if (!changes[FONT_KEY] && !changes[FONT_MODE_KEY] && !changes[FONT_CUSTOM_KEY]) return;
+        if (changes[FONT_KEY]) {
+          const v = changes[FONT_KEY].newValue;
+          fontOn = v !== false && v !== '0';
+        }
+        if (changes[FONT_MODE_KEY]) {
+          fontMode = changes[FONT_MODE_KEY].newValue === 'custom' ? 'custom' : 'harmony';
+        }
+        if (changes[FONT_CUSTOM_KEY]) {
+          customSpec = changes[FONT_CUSTOM_KEY].newValue || null;
+        }
+        applyFontConfig();
       });
     } catch (e) {
       // 非扩展环境（油猴等）不支持 storage，沿用默认开启
@@ -2997,7 +3104,7 @@
   // 字体与编辑页无关（整站生效），因此放在编辑页判断之前：样式节点被重渲染丢掉时也要恢复。
   let lastHref = location.href;
   setInterval(() => {
-    if (!document.getElementById(FONT_STYLE_ID)) injectFontStyle();
+    if (!document.getElementById(FONT_STYLE_ID)) injectFontStyle(customFaces.length > 0);
     // 离开编辑页：把独立窗口一并收起，避免它跟着 SPA 路由飘到别的页面上
     if (!isEditorPage()) { if (aiPop) closeAIWriter(); return; }
     const routeChanged = location.href !== lastHref;
@@ -3020,8 +3127,8 @@
     }
   }, 700);
 
-  // 鸿蒙字体：与编辑页无关，整站生效，脚本启动即注入（开关在设置页「站点外观」里）
-  injectFontStyle();
+  // 字体：与编辑页无关，整站生效，脚本启动即注入；具体来源（鸿蒙 / 自定义）随后由设置决定
+  injectFontStyle(false);
   loadFontSetting();
 
   // 悬浮提示用全局事件委托，启动时绑定一次即可（面板会被站点重渲染重建，不需要重复绑定）

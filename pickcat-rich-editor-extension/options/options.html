@@ -17,8 +17,7 @@
       </div>
       <span class="topbar-spacer"></span>
       <span id="status" class="status" role="status" aria-live="polite"></span>
-      <button id="testBtn" class="btn" type="button">测试连接</button>
-      <button id="saveBtn" class="btn primary" type="button">保存</button>
+      <button id="saveBtn" class="btn primary" type="button" disabled>已保存</button>
       <div class="theme">
         <button type="button" class="theme-btn" id="themeBtn" title="选择主题" aria-label="选择主题"
                 aria-haspopup="menu" aria-expanded="false">
@@ -49,13 +48,17 @@
       <h1 class="side-title">PickScribe 设置</h1>
       <div class="side-card">
         <nav class="nav" aria-label="设置分区">
-          <a class="nav-item is-active" href="#sec-home">
-            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg>
-            起始页浮层
+          <a class="nav-item is-active" href="#sec-appearance">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19 12 5.5 19 19"/><path d="M8.4 14.6h7.2"/><path d="M4 21.6h16"/></svg>
+            站点外观
           </a>
           <a class="nav-item" href="#sec-overlay">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M2 20h20"/></svg>
             刷帖体验优化
+          </a>
+          <a class="nav-item" href="#sec-home">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg>
+            起始页浮层
           </a>
           <a class="nav-item" href="#sec-search">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
@@ -69,10 +72,6 @@
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/><path d="M18 16.5 18.6 18l1.5.6-1.5.6-.6 1.5-.6-1.5L15.9 18l1.5-.6.6-1.5Z"/></svg>
             AI 功能
           </a>
-          <a class="nav-item" href="#sec-appearance">
-            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 19 12 5.5 19 19"/><path d="M8.4 14.6h7.2"/><path d="M4 21.6h16"/></svg>
-            站点外观
-          </a>
           <a class="nav-item" href="#sec-about">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
             关于
@@ -83,6 +82,114 @@
     </aside>
 
     <main class="main">
+      <!-- 站点外观 -->
+      <section class="card" id="sec-appearance">
+        <div class="card-head">
+          <h2>站点外观</h2>
+          <p>影响整个站点的显示效果，改动即时生效，无需点右上角保存。</p>
+        </div>
+
+        <h3 class="sub-head">字体</h3>
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="appearanceHarmonyFont" />
+            <span>替换整站字体</span>
+          </label>
+        </div>
+
+        <div class="font-mode" id="fontModeRow">
+          <label><input type="radio" name="fontMode" value="harmony" id="fontModeHarmony" /><span>鸿蒙字体（内置）</span></label>
+          <label><input type="radio" name="fontMode" value="custom" id="fontModeCustom" /><span>自定义字体（上传）</span></label>
+        </div>
+
+        <div id="customFontBox" hidden>
+          <div class="row">
+            <button id="pickFontFiles" class="btn" type="button">选择字体文件…</button>
+            <input id="fontFiles" type="file" accept=".woff2,.woff,.ttf,.otf" multiple hidden />
+            <button id="applyCustomFont" class="btn primary" type="button" disabled>保存并应用</button>
+            <button id="clearCustomFont" class="btn danger" type="button" hidden>移除自定义字体</button>
+          </div>
+          <div class="font-faces" id="fontFaceList"></div>
+          <p class="note" id="customFontNote">支持 woff2 / woff / ttf / otf，单个文件不超过 20 MB。可一次上传多个字重（如 Regular + Bold），并为每个文件指定字重；可变字体请选「可变 100–900」。</p>
+        </div>
+
+        <p class="note">字体文件随扩展本地分发，不联网；只覆盖站点的正文与组件字体，代码块、公式仍使用各自的等宽 / 数学字体。关闭后恢复站点原字体。</p>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">图片</h3>
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="appearanceImageZoom" />
+            <span>点击图片可以像原站点那样查看大图</span>
+          </label>
+        </div>
+        <p class="note">在帖子浮窗的正文与回复里，点击图片会铺满一层深色大图，再点空白处或按 Esc 关闭；表情符号不放大。</p>
+      </section>
+
+      <!-- 刷帖体验优化 -->
+      <section class="card" id="sec-overlay">
+        <div class="card-head">
+          <h2>刷帖体验优化</h2>
+          <p>在信息流里点开帖子时，就地展开一层详情浮层，不切换页面。此功能默认开启，可在下方关闭。</p>
+        </div>
+
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayEnabled" />
+            <span>启用帖子浮窗预览（首页 / 论坛 / 分类 / 搜索页点击帖子就地展开）</span>
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">回复框工具条</h3>
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayComposerTools" />
+            <span>启用回复框工具条（排版 / 表情 / 图片 / AI）</span>
+          </label>
+        </div>
+        <p class="note">默认隐藏，不占输入框高度；开启后仅在输入框聚焦时展开，失焦即收起。</p>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">视觉效果</h3>
+        <div class="checks">
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayBlur" />
+            <span>遮罩使用背景模糊（毛玻璃）</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayPageScale" />
+            <span>打开浮层时背景页面同步缩放</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayCardTilt" />
+            <span>信息流卡片 3D 倾斜（悬停时卡片跟随鼠标视角轻微转动）</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="overlayOpenTilt" />
+            <span>打开浮层时 3D 倾斜回正（面板带透视倾角展开后转正）</span>
+          </label>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span>动画速度</span>
+            <select id="overlayAnimSpeed">
+              <option value="0.7">慢速（0.7×）</option>
+              <option value="1">标准（1×）</option>
+              <option value="1.4">快速（1.4×）</option>
+            </select>
+          </label>
+        </div>
+
+        <p class="note">以上开关均默认开启，改动即时生效（浮层已打开时也会立刻切换）。关闭模糊仍保留遮罩变暗；关闭缩放后背景页面保持原尺寸；系统开启「减少动态效果」时 3D 倾斜自动停用。动画速度影响浮层开合、目录高亮与内容入场动画，默认 1×。</p>
+
+        <p class="note">浮层内的正文、回复排序筛选、点赞、收藏与发表回复都使用站点自己的接口。关闭后点击帖子恢复站点原生跳转，其他功能不受影响。</p>
+      </section>
+
       <!-- 起始页浮层 -->
       <section class="card" id="sec-home">
         <div class="card-head">
@@ -128,6 +235,8 @@
         <p class="note">勾选要在起始页显示的磁贴，尺寸可选小 / 宽 / 大，↑ ↓ 调整顺序；也可以直接在起始页拖动磁贴排序。</p>
         <ul class="home-list" id="homeTileList"></ul>
 
+        <div class="divider"></div>
+
         <h3 class="sub-head">内容标签页</h3>
         <p class="note">至少保留一个标签页；「默认打开」会随启用项自动校正。</p>
         <ul class="home-list" id="homeTabList"></ul>
@@ -137,45 +246,6 @@
         </div>
 
         <p class="note">浮层只读取首页已有内容，不额外请求接口。关闭后不再自动弹出，其他功能不受影响。</p>
-      </section>
-
-      <!-- 刷帖体验优化 -->
-      <section class="card" id="sec-overlay">
-        <div class="card-head">
-          <h2>刷帖体验优化</h2>
-          <p>在信息流里点开帖子时，就地展开一层详情浮层，不切换页面。此功能默认开启，可在下方关闭。</p>
-        </div>
-
-        <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayEnabled" />
-            <span>启用帖子浮窗预览（首页 / 论坛 / 分类 / 搜索页点击帖子就地展开）</span>
-          </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayComposerTools" />
-            <span>启用回复框工具条（排版 / 表情 / 图片 / AI，仅在输入框聚焦时展开）</span>
-          </label>
-        </div>
-
-        <p class="note">回复框工具条默认隐藏，不占输入框高度；开启后仅在输入框聚焦时展开，失焦即收起。</p>
-
-        <div class="divider"></div>
-
-        <h3 class="sub-head">视觉效果</h3>
-        <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayBlur" />
-            <span>遮罩使用背景模糊（毛玻璃）</span>
-          </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayPageScale" />
-            <span>打开浮层时背景页面同步缩放</span>
-          </label>
-        </div>
-
-        <p class="note">两项均默认开启，改动即时生效（浮层已打开时也会立刻切换）。关闭模糊仍保留遮罩变暗；关闭缩放后背景页面保持原尺寸。</p>
-
-        <p class="note">浮层内的正文、回复排序筛选、点赞、收藏与发表回复都使用站点自己的接口。关闭后点击帖子恢复站点原生跳转，其他功能不受影响。</p>
       </section>
 
       <!-- 搜索页 -->
@@ -241,6 +311,8 @@
             <select id="notifyInterval"></select>
           </label>
         </div>
+
+        <div class="divider"></div>
 
         <h3 class="sub-head">监听站点</h3>
         <div class="checks">
@@ -396,34 +468,6 @@
           <button id="importBtn" class="btn">导入配置</button>
           <input id="importFile" type="file" accept="application/json" hidden />
         </div>
-      </section>
-
-      <!-- 站点外观 -->
-      <section class="card" id="sec-appearance">
-        <div class="card-head">
-          <h2>站点外观</h2>
-          <p>影响整个站点的显示效果，改动即时生效，无需点右上角保存。</p>
-        </div>
-
-        <h3 class="sub-head">字体</h3>
-        <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="appearanceHarmonyFont" />
-            <span>使用鸿蒙字体（HarmonyOS Sans）替换整站字体</span>
-          </label>
-        </div>
-        <p class="note">字体文件随扩展本地分发，不联网；只覆盖站点的正文与组件字体，代码块、公式仍使用各自的等宽 / 数学字体。关闭后恢复站点原字体。</p>
-
-        <div class="divider"></div>
-
-        <h3 class="sub-head">图片</h3>
-        <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="appearanceImageZoom" />
-            <span>点击图片可以像原站点那样查看大图</span>
-          </label>
-        </div>
-        <p class="note">在帖子浮窗的正文与回复里，点击图片会铺满一层深色大图，再点空白处或按 Esc 关闭；表情符号不放大。</p>
       </section>
 
       <!-- 关于 -->

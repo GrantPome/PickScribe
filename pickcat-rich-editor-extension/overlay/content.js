@@ -103,6 +103,10 @@
   let composerToolsEnabled = false; // 回复框工具条（排版 / 表情 / 图片 / AI），默认关闭
   let blurOn = true;              // 遮罩毛玻璃效果（设置项，默认开启）
   let pageScaleOn = true;         // 背景页面同步缩放（设置项，默认开启）
+  let animSpeed = 1;              // 动画速度倍率（设置项，1 为标准；越大越快）
+  let cardTiltOn = false;         // 信息流卡片 3D 倾斜（设置项，默认关闭）
+  let openTiltOn = true;          // 打开动画 3D 倾斜回正（设置项，默认开启）
+  let lastPointer = null;         // 最近一次按下位置（视口坐标），用于判定倾斜方向
   let imageZoomOn = true;         // 点击图片查看大图（站点外观设置项，默认开启）
   let pageEl = null;              // 浮层背后的站点页面容器，打开时整体后退缩放
   let drag = null;                // 拖动横条的手势状态 { id, x0, y0, x, y, t, v, dx, dy }
@@ -113,6 +117,8 @@
   let fullOn = false;             // 全屏显示（同一次会话内记忆）
   let tocHeads = [];              // 当前正文里的标题节点，用于文章导航
   let tocFrame = 0;               // 滚动同步目录高亮的 rAF 句柄
+  let tocActiveIdx = -1;          // 上次高亮的标题序号，用于判断是否需要滚动目录
+  let tocScrollLock = 0;          // 目录平滑滚动期间的上锁时间，避免逐帧打断动画
   let tocOn = false;              // 文章目录的展开状态（chrome.storage.local 记忆）
 
   /** 当前浮层的数据与交互状态；关闭时整体丢弃 */
@@ -163,6 +169,9 @@
   const reducedMotion = () => {
     try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
   };
+
+  /** 按用户设置的动画速度换算时长：speed > 1 更快，返回带 s 的合法 CSS 时长 */
+  const sec = (base) => (base / animSpeed).toFixed(3) + 's';
 
   // ============================ 2. 工具 ============================
 
@@ -696,7 +705,7 @@
     const ox = Math.round(window.innerWidth / 2 - box.left);
     const oy = Math.round(window.innerHeight / 2 - box.top);
     pageEl.style.transition =
-      'transform 0.4s cubic-bezier(0.32, 1.24, 0.44, 1), filter 0.28s ease';
+      'transform ' + sec(0.4) + ' cubic-bezier(0.32, 1.24, 0.44, 1), filter ' + sec(0.28) + ' ease';
     pageEl.style.transformOrigin = ox + 'px ' + oy + 'px';
     pageEl.style.transform = 'scale(' + PAGE_SCALE + ')';
     pageEl.style.filter = 'brightness(0.94) saturate(0.97)';
@@ -762,6 +771,7 @@
     root = document.createElement('div');
     root.id = 'pco-root';
     root.innerHTML = shellTemplate();
+    root.style.setProperty('--pco-dur', String(1 / animSpeed));
     if (!blurOn) root.classList.add('pco-no-blur');
     if (!imageZoomOn) root.classList.add('pco-no-zoom');
     // 全屏与加宽都是会话级偏好，重开浮层时恢复
@@ -804,14 +814,43 @@
       // 位移层把浮层中心从屏幕中心搬到卡片中心
       const dx = (first.left + first.width / 2) - (last.left + last.width / 2);
       const dy = (first.top + first.height / 2) - (last.top + last.height / 2);
-      // 尺寸交给 scale：从卡片大小拉伸到浮层大小
+      // 尺寸交给 scale：从卡片大小拉伸到浮层大小（起始严格等于卡片，不做下限钳制）
       const sx0 = Math.max(0.04, first.width / last.width);
       const sy0 = Math.max(0.04, first.height / last.height);
+      // 3D 倾斜回正：面板从点击所在侧倾斜展开后回正（模仿 iOS 27 APP 打开）。
+      // 方向以「点击点相对卡片中心的位置」为准：点卡片左侧 → 面板左侧近，点右侧 → 右侧近。
+      // 幅度固定：用归一化方向向量 × 固定角度，避免中间弱、四周强。
+      let tiltTf = '';
+      if (openTiltOn) {
+        const anchorEl = (current && current.link) || null;
+        const ar = anchorEl ? anchorEl.getBoundingClientRect() : first;
+        const cw = Math.max(ar.width || first.width, 1);
+        const ch = Math.max(ar.height || first.height, 1);
+        // 优先用真实点击坐标，没有则退回到卡片中心
+        const cx = lastPointer ? lastPointer.x : ar.left + cw / 2;
+        const cy = lastPointer ? lastPointer.y : ar.top + ch / 2;
+        // 点击点相对卡片中心的归一化位置，限制在 [-0.5, 0.5]
+        const nx = Math.max(-0.5, Math.min(0.5, (cx - (ar.left + cw / 2)) / cw));
+        const ny = Math.max(-0.5, Math.min(0.5, (cy - (ar.top + ch / 2)) / ch));
+        const AMP_X = 11;
+        const AMP_Y = 13;
+        let rx = -5, ry = 0; // 默认：正中间轻微前倾，保留 3D 体感
+        const len = Math.hypot(nx, ny);
+        if (len > 0.015) {
+          const ux = nx / len;
+          const uy = ny / len;
+          rx = -uy * AMP_X;  // 点上方→顶部近；点下方→底部近
+          ry = ux * AMP_Y;    // 点左侧→左侧近；点右侧→右侧近
+        }
+        tiltTf = ' rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg)';
+        // 透视点跟随卡片中心：避免从视口中心看偏移面板时方向被透视扭曲
+        root.style.perspectiveOrigin = (ar.left + cw / 2).toFixed(1) + 'px 50%';
+      }
 
       stage.style.transition = 'none';
       shell.style.transition = 'none';
 
-      stage.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+      stage.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)' + tiltTf;
       shell.style.transform = 'scale(' + sx0 + ', ' + sy0 + ')';
       // 原始卡片同步长向浮层：与浮层同向移动缩放，淡出交给后面的 rAF
       if (originCard && originCard.isConnected) {
@@ -833,17 +872,19 @@
       if (!root || !stage || !shell || closing) return;
       root.classList.add('is-open');
       pageBackIn();
+      root.style.perspectiveOrigin = '';
       stage.style.transform = '';
       shell.style.transform = '';
 
       if (animate && originCard && originCard.isConnected) {
-        // 卡片跟随浮层移动缩放（内联 var() 解析不到，这里写字面量曲线）
+        // 卡片跟随浮层移动缩放（内联 var() 解析不到，这里写字面量曲线）。
+        // 放大比例必须与浮层起始的 scale 严格一致，两者才能在起始帧完全重合。
         const gsx = Math.max(0.04, first.width / last.width);
         const gsy = Math.max(0.04, first.height / last.height);
         const dx = (last.left + last.width / 2) - (first.left + first.width / 2);
         const dy = (last.top + last.height / 2) - (first.top + first.height / 2);
         originCard.style.transition =
-          'transform 0.52s cubic-bezier(0.16, 1.06, 0.32, 1), opacity 0.16s ease';
+          'transform ' + sec(0.52) + ' cubic-bezier(0.16, 1.06, 0.32, 1), opacity ' + sec(0.16) + ' ease';
         originCard.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) ' +
           'scale(' + (1 / gsx) + ', ' + (1 / gsy) + ')';
         originCard.style.opacity = '0';
@@ -870,6 +911,7 @@
     if (root) cleanup();
 
     const card = link.closest('article') || link;
+    clearCardTilt(card);            // 摘掉悬停倾斜，保证量到未变形的矩形
     const rect = card.getBoundingClientRect();
 
     restoreFocus = document.activeElement;
@@ -1096,6 +1138,7 @@
     const list = root.querySelector('[data-role="toc-list"]');
     if (!body || !btn || !list) return;
     tocHeads = [];
+    tocActiveIdx = -1;
 
     // 与站点一致：帖子标题本身作为目录的第一项
     const title = contentEl.querySelector('.pco-title');
@@ -1218,6 +1261,7 @@
     const clip = document.createElementNS(SVG, 'clipPath');
     clip.setAttribute('id', 'pco-toc-clip');
     const rect = document.createElementNS(SVG, 'rect');
+    rect.setAttribute('class', 'pco-toc-clip-rect');
     rect.setAttribute('x', '0');
     rect.setAttribute('width', String(w));
     rect.setAttribute('height', '0');
@@ -1238,41 +1282,87 @@
     list.appendChild(svg);
   }
 
-  /** 依据滚动位置高亮当前阅读到的标题，并把它保持在目录可视区域内 */
+  /**
+   * 依据滚动位置高亮当前阅读到的标题，并把它保持在目录可视区域内。
+   * 与站点一致：可见区内的标题整段高亮，裁剪窗用 CSS 过渡平滑滑动。
+   */
   function paintTocActive() {
     if (!root || !tocHeads.length) return;
     const scroll = root.querySelector('[data-role="scroll"]');
     const list = root.querySelector('[data-role="toc-list"]');
     if (!scroll || !list) return;
 
-    const line = scroll.getBoundingClientRect().top + 20;
+    const items = Array.prototype.slice.call(list.querySelectorAll('.pco-toc-item'));
+    if (!items.length) return;
+
+    const box = scroll.getBoundingClientRect();
+    const line = box.top + 20;
+
+    // 当前阅读位置：最后一个越过参考线的标题
     let active = 0;
     for (let i = 0; i < tocHeads.length; i += 1) {
       const node = tocHeads[i];
       if (node.isConnected && node.getBoundingClientRect().top <= line) active = i;
     }
+
+    // 可见标题区间：首尾都在可视范围内时，整段折线一起高亮
+    const visible = [];
+    for (let i = 0; i < tocHeads.length; i += 1) {
+      const node = tocHeads[i];
+      if (!node.isConnected) continue;
+      const top = node.getBoundingClientRect().top;
+      const next = tocHeads[i + 1];
+      const bottom = next && next.isConnected ? next.getBoundingClientRect().top : box.bottom;
+      if (top < box.bottom && Math.min(bottom, box.bottom) > line) visible.push(i);
+    }
+    const first = visible.length ? visible[0] : -1;
+    const last = visible.length ? visible[visible.length - 1] : -1;
+    const visibleSet = new Set(visible);
+
     let activeEl = null;
-    list.querySelectorAll('.pco-toc-item').forEach((el) => {
-      const on = Number(el.getAttribute('data-idx')) === active;
-      el.classList.toggle('is-active', on);
-      if (on) activeEl = el;
+    items.forEach((el, i) => {
+      el.classList.toggle('is-active', visibleSet.has(i));
+      if (i === active) {
+        el.setAttribute('aria-current', 'location');
+        activeEl = el;
+      } else {
+        el.removeAttribute('aria-current');
+      }
     });
 
-    // 折线高亮：把彩色副本裁到当前条目那一段
+    // 折线高亮：裁剪窗的 y / height 交给 CSS 过渡，切换标题时平滑滑动
     const clipRect = list.querySelector('.pco-toc-flow clipPath rect');
     if (clipRect) {
-      clipRect.setAttribute('y', activeEl ? String(activeEl.offsetTop) : '0');
-      clipRect.setAttribute('height', activeEl ? String(activeEl.offsetHeight) : '0');
+      if (first >= 0) {
+        const start = items[first].offsetTop;
+        const end = items[last].offsetTop + items[last].offsetHeight;
+        clipRect.style.y = start + 'px';
+        clipRect.style.height = Math.max(0, end - start) + 'px';
+      } else {
+        clipRect.style.height = '0px';
+      }
     }
+    const activePath = list.querySelector('.pco-toc-flow-active');
+    if (activePath) activePath.style.opacity = first >= 0 ? '1' : '0';
 
     // 侧栏收起时不做滚动补偿，避免把隐藏列表滚乱
     if (!activeEl || !root.classList.contains('is-toc')) return;
-    const box = list.getBoundingClientRect();
-    if (!box.height) return;
+    const listBox = list.getBoundingClientRect();
+    if (!listBox.height) return;
     const item = activeEl.getBoundingClientRect();
-    if (item.top < box.top || item.bottom > box.bottom) {
-      list.scrollTop += item.top - box.top - (box.height - item.height) / 2;
+    const out = item.top < listBox.top || item.bottom > listBox.bottom;
+    if (!out) {
+      tocActiveIdx = active;
+      return;
     }
+    if (active === tocActiveIdx || Date.now() < tocScrollLock) return;
+
+    // 与站点一致：目录自身平滑滚动到当前标题，而不是瞬间跳位
+    tocActiveIdx = active;
+    tocScrollLock = Date.now() + 360;
+    const target = list.scrollTop + item.top - listBox.top - (listBox.height - item.height) / 2;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    list.scrollTo({ top: target, behavior: reduce ? 'auto' : 'smooth' });
   }
 
   function onContentScroll() {
@@ -1891,18 +1981,18 @@
     //    并立刻放开点击拦截，让下一张卡片可以马上点 ——
     const bd = root.querySelector('.pco-backdrop');
     if (bd) {
-      bd.style.transition = 'opacity 0.18s ease 0.1s';
+      bd.style.transition = 'opacity ' + sec(0.18) + ' ease ' + sec(0.1);
       bd.style.opacity = '0';
       bd.style.pointerEvents = 'none';
     }
     const navEl = root.querySelector('.pco-nav');
     if (navEl) {
-      navEl.style.transition = 'opacity 0.14s ease';
+      navEl.style.transition = 'opacity ' + sec(0.14) + ' ease';
       navEl.style.opacity = '0';
     }
     const grabEl = root.querySelector('.pco-grabber');
     if (grabEl) {
-      grabEl.style.transition = 'opacity 0.1s ease';
+      grabEl.style.transition = 'opacity ' + sec(0.1) + ' ease';
       grabEl.style.opacity = '0';
     }
 
@@ -1943,7 +2033,8 @@
       pageEl.style.transform = pageTf;
       void pageEl.offsetWidth;
       pageEl.style.transition =
-        'transform 0.44s cubic-bezier(0.32, 0.72, 0.2, 1), filter 0.18s ease 0.1s';
+        'transform ' + sec(0.44) + ' cubic-bezier(0.32, 0.72, 0.2, 1), filter ' +
+        sec(0.18) + ' ease ' + sec(0.1);
       pageEl.style.transform = '';
       pageEl.style.filter = '';
     }
@@ -1968,6 +2059,7 @@
       // 拖动时的收缩量：从当前 scale 继续收成卡片大小
       const s0x = stageRect.width > 0 ? Math.min(1, vis.width / stageRect.width) : 1;
       const s0y = stageRect.height > 0 ? Math.min(1, vis.height / stageRect.height) : 1;
+      // 目标收缩到卡片大小（与打开时的起始比例完全对称）
       const s1x = stageRect.width > 0 ? Math.min(1, target.width / stageRect.width) : 0.06;
       const s1y = stageRect.height > 0 ? Math.min(1, target.height / stageRect.height) : 0.06;
 
@@ -1989,7 +2081,8 @@
       // 显形压到浮层落位之后（0.54s），两者在同一位置做一次几乎无感的交接
       if (originCard && originCard.isConnected) {
         originCard.style.transition =
-          'transform 0.54s cubic-bezier(0.3, 0.88, 0.26, 1), opacity 0.14s ease 0.54s';
+          'transform ' + sec(0.54) + ' cubic-bezier(0.3, 0.88, 0.26, 1), opacity ' +
+          sec(0.14) + ' ease ' + sec(0.54);
         originCard.style.transform = '';
         originCard.style.opacity = '1';
       }
@@ -2011,9 +2104,9 @@
       shellFadeTimer = setTimeout(() => {
         shellFadeTimer = null;
         if (!shell) return;
-        shell.style.transition = 'opacity 0.14s ease';
+        shell.style.transition = 'opacity ' + sec(0.14) + ' ease';
         shell.style.opacity = '0';
-      }, 540);
+      }, Math.round(540 / animSpeed));
     }
 
     closeTimer = setTimeout(() => {
@@ -2023,7 +2116,7 @@
         pendingBack = false;
         try { history.back(); } catch (e) { /* noop */ }
       }
-    }, CLOSE_MS);
+    }, Math.round(CLOSE_MS / animSpeed));
 
     // 关闭后把焦点还给原来那张卡片，键盘用户不会「掉出去」
     if (focusTarget && focusTarget.isConnected) {
@@ -2989,6 +3082,120 @@
     root.addEventListener('pointercancel', onPointerUp);
   }
 
+  /* ---------------- 信息流卡片 3D 倾斜 ----------------
+   * 悬停时卡片随指针位置轻微俯仰 / 偏航；用 rAF 缓动插值，不写 CSS transition，
+   * 这样既不覆盖站点自己的 hover 过渡，也不和浮层开合时写给卡片的 transform 打架。
+   * 悬停期间矩形只在进入时量一次：用倾斜后的矩形反推指针比例会自我反馈、越抖越厉害。 */
+
+  const TILT_CARD_SEL = 'article[data-slot="root"]';
+  const TILT_MAX_X = 12;            // 俯仰最大角（度）
+  const TILT_MAX_Y = 16;            // 偏航最大角（度）
+
+  let tiltCard = null;              // 当前正在倾斜的卡片
+  let tiltRect = null;              // 进入时量下的未变形矩形
+  let tiltRaf = 0;
+  let tiltInside = false;           // 指针是否还在卡片上（决定缓动目标）
+  const tiltTo = { x: 0, y: 0 };    // 目标角度
+  const tiltAt = { x: 0, y: 0 };    // 插值后的当前角度
+
+  function tiltTick() {
+    tiltRaf = 0;
+    if (!tiltCard) return;
+    // 卡片被浮层接管（originCard）或浮层已开：倾斜引擎立刻松手，样式归浮层管
+    if (tiltCard === originCard || root) {
+      tiltCard = null;
+      tiltInside = false;
+      return;
+    }
+    const ease = tiltInside ? 0.24 : 0.16;
+    tiltAt.x += (tiltTo.x - tiltAt.x) * ease;
+    tiltAt.y += (tiltTo.y - tiltAt.y) * ease;
+    if (!tiltInside && Math.abs(tiltAt.x) < 0.03 && Math.abs(tiltAt.y) < 0.03) {
+      tiltCard.style.transform = '';
+      tiltCard.style.boxShadow = '';
+      tiltCard.style.willChange = '';
+      tiltCard = null;
+      tiltRect = null;
+      return;
+    }
+    // 透视拉近到 700px + 随倾角偏移的阴影，让 3D 体感一眼可辨；
+    // 阴影跟随倾斜方向轻微位移，淡且小，不抢画面
+    const shadowDx = (tiltAt.y / TILT_MAX_Y) * 3;
+    const shadowDy = (tiltAt.x / TILT_MAX_X) * 3 + 2;
+    const shadowBlur = 6 + (Math.abs(tiltAt.x) + Math.abs(tiltAt.y)) * 0.4;
+    tiltCard.style.transform =
+      'perspective(700px) rotateX(' + tiltAt.x.toFixed(2) + 'deg) rotateY(' + tiltAt.y.toFixed(2) + 'deg)';
+    tiltCard.style.boxShadow =
+      shadowDx.toFixed(1) + 'px ' + shadowDy.toFixed(1) + 'px ' + shadowBlur.toFixed(1) +
+      'px rgba(0,0,0,0.10)';
+    tiltRaf = requestAnimationFrame(tiltTick);
+  }
+
+  function tiltSchedule() {
+    if (!tiltRaf && tiltCard) tiltRaf = requestAnimationFrame(tiltTick);
+  }
+
+  /** 让当前倾斜的卡片缓动回正（不改开关状态） */
+  function tiltRelease() {
+    if (!tiltCard) return;
+    tiltInside = false;
+    tiltTo.x = 0;
+    tiltTo.y = 0;
+    tiltSchedule();
+  }
+
+  /** 立刻摘掉指定卡片的倾斜（打开浮层量矩形前调用，保证量到未变形的尺寸） */
+  function clearCardTilt(card) {
+    if (!card) return;
+    if (tiltCard === card) {
+      tiltCard = null;
+      tiltRect = null;
+      tiltInside = false;
+      if (tiltRaf) { cancelAnimationFrame(tiltRaf); tiltRaf = 0; }
+      tiltAt.x = 0; tiltAt.y = 0; tiltTo.x = 0; tiltTo.y = 0;
+    }
+    // originCard 的内联样式归浮层开合动画管，这里不碰
+    if (card !== originCard) {
+      card.style.transform = '';
+      card.style.boxShadow = '';
+      card.style.willChange = '';
+    }
+  }
+
+  function onTiltMove(e) {
+    const off = !cardTiltOn || !overlayEnabled || !!root || closing ||
+      reducedMotion() || e.pointerType === 'touch';
+    if (off) { tiltRelease(); return; }
+    const t = e.target instanceof Element ? e.target : null;
+    const card = t && t.closest ? t.closest(TILT_CARD_SEL) : null;
+    if (!card || card === originCard) { tiltRelease(); return; }
+    if (card !== tiltCard) {
+      if (tiltCard) {   // 换卡：旧卡直接复位，不等缓动
+        tiltCard.style.transform = '';
+        tiltCard.style.boxShadow = '';
+        tiltCard.style.willChange = '';
+        if (tiltRaf) { cancelAnimationFrame(tiltRaf); tiltRaf = 0; }
+      }
+      tiltCard = card;
+      tiltRect = card.getBoundingClientRect();
+      tiltAt.x = 0; tiltAt.y = 0;
+      card.style.willChange = 'transform';
+    }
+    const r = tiltRect;
+    if (!r || r.width < 2 || r.height < 2) return;
+    const px = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const py = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+    tiltTo.x = (0.5 - py) * TILT_MAX_X;
+    tiltTo.y = (px - 0.5) * TILT_MAX_Y;
+    tiltInside = true;
+    tiltSchedule();
+  }
+
+  function onTiltOut(e) {
+    // 指针离开窗口：pointermove 不再触发，靠这里把卡片放回去
+    if (!e.relatedTarget) tiltRelease();
+  }
+
   // ============================ 9. 开关 ============================
 
   /** 按设置显隐回复框工具条；关闭时整条移除（不占高度） */
@@ -3005,6 +3212,12 @@
     composerToolsEnabled = !!(cfg && cfg.composerTools);
     blurOn = !(cfg && cfg.blur === false);
     pageScaleOn = !(cfg && cfg.pageScale === false);
+    // 动画速度：0.5–2 倍，非法值回落到标准速度
+    const speed = Number(cfg && cfg.animSpeed);
+    animSpeed = Number.isFinite(speed) && speed >= 0.5 && speed <= 2 ? speed : 1;
+    cardTiltOn = !(cfg && cfg.cardTilt === false);
+    openTiltOn = !(cfg && cfg.openTilt === false);
+    if (!cardTiltOn && tiltCard) clearCardTilt(tiltCard);
 
     if (!overlayEnabled && root) {
       cleanup();
@@ -3014,6 +3227,7 @@
     syncComposerTools();
     if (root) {
       root.classList.toggle('pco-no-blur', !blurOn);
+      root.style.setProperty('--pco-dur', String(1 / animSpeed));
       if (pageScaleOn) pageBackIn();
       else pageBackOut();
     }
@@ -3064,6 +3278,9 @@
   loadTocPref();
   document.addEventListener('click', onDocClick, true);
   document.addEventListener('keydown', onDocKeydown, true);
+  document.addEventListener('pointerdown', (e) => { lastPointer = { x: e.clientX, y: e.clientY }; }, true);
+  document.addEventListener('pointermove', onTiltMove, { passive: true });
+  document.addEventListener('pointerout', onTiltOut, { passive: true });
   window.addEventListener('popstate', onPopState);
   // 视口变化时重新计算两侧切换按钮的位置（加宽宽度由 CSS 的 vw 决定）
   window.addEventListener('resize', () => {
