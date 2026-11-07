@@ -4,10 +4,12 @@
 
 > 一个注入到 Pickcat 的浏览器扩展：
 > 在**编辑页**把「写 Markdown 源码」变成「像 Word 一样排版」，和原生 Markdown 源码**双向实时同步**；
-> 在**帖子详情页**的分隔线下方提供 **AI 一键总结**，支持 DeepSeek / 豆包 / 通义 / Kimi / 智谱 / 硅基流动 / OpenRouter / 本地 Ollama 等多家模型。
+> 在**帖子详情页**的分隔线下方提供 **AI 一键总结**，支持 DeepSeek / 豆包 / 通义 / Kimi / 智谱 / 硅基流动 / OpenRouter / 本地 Ollama 等多家模型；
+> 在**信息流**里点帖子不跳页，直接浮层预览——文章目录、富文本回复、AI 总结一屏搞定。
 > 不改后台、不改提交逻辑，安心用。
 
 [![Chrome 扩展](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4.svg)](https://developer.chrome.com/docs/extensions)
+[![版本](https://img.shields.io/badge/version-3.9.3-2ea44f.svg)](https://github.com/GrantPome/PickScribe/releases/latest)
 
 > PickScribe 是一个 **Chrome 扩展（Manifest V3）**，不再需要 Tampermonkey。
 > 仓库的 `legacy/` 目录仍保留早期油猴脚本 `pickcat-rich-editor.user.js`，但推荐使用扩展版。
@@ -47,8 +49,12 @@
 | 🤖 AI 帖子总结 | 帖子详情页分隔线下方一键总结，流式输出、结果可复制、命中缓存秒出 |
 | 🪟 帖子浮层预览 | 信息流里点帖子不跳页，卡片原位放大成浮层（可带 3D 倾斜回正），正文与热门回复一屏看完，关闭后留在原位置；底部横条向上拖即可关闭；卡片悬停支持 3D 视角倾斜，均可在设置关闭 |
 | 🧱 信息流网格 | 首页 / 论坛 / 分类页可一键在列表与网格之间切换，一屏多卡、高度对齐，选择自动记忆 |
+| 🏠 起始页磁贴 | 每次整页打开首页时铺一屏 Windows 8 风格彩色磁贴：社区精选 + 快捷导航 + 搜索 / 时钟底栏，磁贴尺寸、标签页与各块显隐都能在设置页调整 |
+| 🔎 搜索页美化 | 收起站点顶栏与筛选栏，改成「居中 LOGO + 大搜索框 + 筛选胶囊」的窄栏布局；提交与筛选仍代理给站点原控件，结果与分页逻辑不变 |
+| 🔔 站内通知转发 | 站内通知可由后台转成系统通知推送，设置页可以发送一条测试通知确认权限正常 |
 | 🧭 浮层文章目录 | 左侧固定目录沿用站点结构：整列一条折线、随层级逐级内缩并平滑过渡，当前章节用主题色点亮（14px、38px 行高，长标题可换行），点按钮展开 / 收起并记住状态，点击跳转、随阅读高亮；右侧操作栏可一键返回顶部，标题栏左右箭头按钮可加宽 / 还原窗口，也支持全屏铺满 |
-| 🤖 浮层 AI 助手 | 浮层内直接总结本帖或起草回复，流式输出、可停止，结果可复制或一键填入回复框 |
+| 🤖 浮层 AI 助手 | 浮层里点标题右侧的「**总结本帖**」，流式输出、可停止；结果占满正文列、可复制或一键填入回复框；面板显隐由右上角「AI 助手」按钮控制 |
+| 💬 浮层富文本评论 | 浮层回复框就是所见即所得编辑器，与编辑页共用同一套工具条；全屏评论支持 H1–H4、对齐、颜色、列表、代码块、表格、公式、视频，显示实时字数，图片可直接拖进回复框上传 |
 | 🧾 AI 排版 | 编辑页一键把整篇正文整理成规范 Markdown：补齐标题层级、统一空行与列表，保留图片 / 链接 / 公式，预览确认后再整篇应用 |
 | 🔌 多家模型可选 | 内置 DeepSeek / 豆包 / 通义 / Kimi / 智谱 / 硅基流动 / OpenRouter / 本地 Ollama，也可自定义任意 OpenAI 兼容接口 |
 | 🔤 鸿蒙字体 | 内置 HarmonyOS Sans 可变字体（wght 40–900 连续字重，多语言），安装后整站字体自动换成鸿蒙字体；面板右上角开关，可随时切回原字体 |
@@ -90,6 +96,9 @@
 3. 想把面板收起来，点右上角「关闭」，本页不再显示（重新打开帖子会再次出现）；
 4. 命中缓存时**秒出**，不会重复消耗 token。
 
+> 在信息流里用**浮层**打开帖子时，入口在文章标题行右侧（按钮文字同样是「总结本帖」），
+> 输出面板铺满正文列并跟随阅读宽度；浮层里还有「AI 助手」开关可以随时收起面板。
+
 **配置模型**：点扩展图标 → 「打开设置」，或右键扩展图标选择「选项」。
 
 | 配置项 | 说明 |
@@ -119,7 +128,7 @@
 
 **方式 A · 下载打包好的 `.zip`（推荐）**
 
-1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载 `pickcat-rich-editor-extension.zip`
+1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载最新的 `pickcat-rich-editor-extension-3.9.3.zip`（文件名带版本号）
 2. 解压到任意目录，得到一个包含 `manifest.json` 的文件夹
 3. 打开 `chrome://extensions/`（Edge 为 `edge://extensions/`），右上角开启「**开发者模式**」
 4. 点「**加载已解压的扩展程序**」，选择第 2 步解压出的文件夹
@@ -167,17 +176,28 @@
 ```
 pickscribe/
 ├── pickcat-rich-editor-extension/       # Chrome 扩展（安装这个）
-│   ├── manifest.json                    # Manifest V3 清单
+│   ├── manifest.json                    # Manifest V3 清单（当前 3.9.3）
 │   ├── content.js                       # 编辑器主体逻辑（命名空间 pcr）
-│   ├── ai/content.js                    # AI 总结面板（命名空间 pcai，仅详情页）
-│   ├── level/content.js                 # 等级成长弹窗三维度与社区熟悉度进度
+│   ├── ai/
+│   │   ├── content.js                   # 详情页 AI 总结面板（命名空间 pcai）
+│   │   └── reply.js                     # 回复框旁的 AI 起草助手（前缀 pcrr）
+│   ├── overlay/
+│   │   ├── content.js                   # 帖子浮层预览：目录、评论、AI、全屏（命名空间 pco）
+│   │   ├── editor.js                    # 浮层评论复用的富文本编辑器
+│   │   └── overlay.css                  # 浮层全部样式（pco- 前缀，复用站点 --ui-* 令牌）
+│   ├── feed/                            # 信息流列表 / 网格切换（命名空间 pcf）
+│   ├── home/                            # 起始页磁贴浮层（pch- 前缀）
+│   ├── search/                          # 搜索页美化（命名空间 pcs）
+│   ├── level/
+│   │   └── content.js                   # 等级成长弹窗三维度与社区熟悉度进度
 │   ├── background/
-│   │   ├── service-worker.js            # 消息中枢：Port 收发、缓存
-│   │   └── llm-client.js                # OpenAI 兼容请求 + SSE 流式解析
+│   │   ├── service-worker.js            # 消息中枢：Port 收发、缓存、通知推送
+│   │   ├── llm-client.js                # OpenAI 兼容请求 + SSE 流式解析
+│   │   └── notifications.js             # 站内通知 → 系统通知
 │   ├── shared/
 │   │   ├── constants.js                 # 服务商预设、选择器、默认提示词
 │   │   └── storage.js                   # chrome.storage.local 配置与缓存
-│   ├── options/                         # 设置页（模型 / 提示词 / 行为 / 数据）
+│   ├── options/                         # 设置页（模型 / 提示词 / 行为 / 外观 / 数据）
 │   ├── popup/                           # 扩展图标弹窗（开关 + 快速切模型）
 │   ├── fonts/                           # 鸿蒙字体（HarmonyOS Sans VF，多语言 woff2，含 LICENSE）
 │   └── icons/                           # 扩展图标
@@ -192,7 +212,7 @@ pickscribe/
 │   └── pickcat-rich-editor.user.js      # 早期油猴脚本（保留兼容）
 ├── assets/
 │   └── pickscribe-banner.png            # 宣传图
-├── CHANGELOG.md                         # 更新日志
+├── CHANGELOG.md                         # 更新日志（每个版本的改动逐条记录）
 └── README.md
 ```
 
