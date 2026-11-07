@@ -137,6 +137,17 @@ function sampleMessages(c) {
 
 // ============================ 事件绑定 ============================
 
+/** AI 配置一改动就把顶栏保存按钮点亮，保存成功后回到「已保存」 */
+const saveBtn = $('saveBtn');
+function markAiDirty() {
+  if (saveBtn.disabled) {
+    saveBtn.disabled = false;
+    saveBtn.textContent = '保存';
+  }
+}
+$('sec-ai').addEventListener('input', markAiDirty);
+$('sec-ai').addEventListener('change', markAiDirty);
+
 $('provider').addEventListener('change', (e) => {
   applyProvider(e.target.value, false);
 });
@@ -148,7 +159,7 @@ $('toggleKey').addEventListener('click', () => {
   $('toggleKey').textContent = show ? '隐藏' : '显示';
 });
 
-$('saveBtn').addEventListener('click', async () => {
+saveBtn.addEventListener('click', async () => {
   const values = readForm();               // 同步读取，保住用户手势
   const granted = await ensureOrigin(values.baseUrl);
   if (!granted) {
@@ -161,6 +172,8 @@ $('saveBtn').addEventListener('click', async () => {
     setStatus('已保存', 'ok');
   }
   await setConfig(values);
+  saveBtn.disabled = true;
+  saveBtn.textContent = '已保存';
 });
 
 $('testBtn').addEventListener('click', async () => {
