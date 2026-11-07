@@ -407,11 +407,12 @@ html.pco-lock body {
 }
 
 /* 标题行：标题与「总结本帖」并排，按钮紧贴标题文字，长标题换行时按钮留在首行右侧 */
+/* 宽屏时右上角那组按钮浮在右侧评论栏上，标题行不需要再让位，右边缘与正文右边界对齐 */
 #pco-root .pco-title-row {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin: 6px 208px 12px 0;
+  margin: 6px 0 12px;
 }
 
 #pco-root .pco-title-row .pco-title {
@@ -425,7 +426,8 @@ html.pco-lock body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-top: 3px;
+  /* 与标题首行文字基线对齐（26px 标题 / 12.5px 胶囊） */
+  margin-top: 12px;
   padding: 6px 11px;
   border: 1px solid color-mix(in oklab, var(--pco-primary) 26%, var(--pco-border));
   border-radius: 999px;
@@ -2619,29 +2621,31 @@ html.pco-lock body {
 #pco-root .pco-toc.has-heads .pco-toc-ai {
   flex: 0 0 auto;
   height: clamp(240px, 40%, 360px);
-  /* 与「文章目录」标题、目录项的左边缘对齐 */
-  padding: 10px 12px 14px 24px;
+  /* 11px + 面板 1px 边框 + 头部 12px = 24px，与「文章目录」标题文字左边缘对齐 */
+  padding: 10px 12px 14px 11px;
   border-top: 1px solid var(--pco-border);
 }
 
-/* 折叠态：只留标题条，把高度让回目录；内边距一并收掉，避免底部留白 */
-#pco-root .pco-toc-ai.is-collapsed {
+/* 折叠态：只留一条 46px 的标题条，flex 也不许再撑高；上下左右留白按同一基准收齐 */
+#pco-root .pco-toc .pco-toc-ai.is-collapsed {
+  flex: 0 0 46px !important;
   height: 46px !important;
-  padding-top: 0 !important;
-  padding-bottom: 0;
+  padding: 0 12px 0 11px;
 }
 
-#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel {
-  padding-bottom: 0;
+#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel {
+  padding: 0;
+  height: 46px;
 }
 
-#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-head {
-  padding: 7px 12px;
+#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel-head {
+  height: 100%;
+  padding: 0 12px;
 }
 
-#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-status,
-#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-out,
-#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-foot {
+#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel-status,
+#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel-out,
+#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel-foot {
   display: none;
 }
 
@@ -3353,6 +3357,11 @@ html.pco-lock body {
 
   #pco-root .pco-title-row .pco-title {
     font-size: 21px;
+  }
+
+  /* 标题字号降下来后胶囊跟着上移，仍与首行文字基线对齐 */
+  #pco-root .pco-title-row .pco-sum-btn {
+    margin-top: 5px;
   }
 
   #pco-root .pco-side-head {
