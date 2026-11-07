@@ -701,25 +701,6 @@
         '<div class="pco-toc" id="pco-toc" data-role="toc">' +
           '<div class="pco-toc-head">文章目录</div>' +
           '<div class="pco-toc-list" data-role="toc-list"></div>' +
-          // AI 助手与目录共用左侧这一列：没有目录时占满整列，有目录时缩成列底部一块
-          '<div class="pco-toc-ai" data-role="toc-ai"' + (aiHidden() ? ' hidden' : '') + '>' +
-            '<div class="pco-ai-panel" data-role="ai-panel">' +
-              '<div class="pco-ai-panel-head">' +
-                '<span class="pco-ai-panel-title">' + icon('sparkles', 15) + 'AI 助手</span>' +
-                '<button type="button" class="pco-ai-collapse" data-act="ai-collapse" ' +
-                  'title="收起 AI 助手" aria-label="收起 AI 助手" aria-expanded="true">' +
-                  icon('chevronRight', 14) + '</button>' +
-              '</div>' +
-              // 「总结本帖」放在文章标题旁（renderTopic），面板里只展示状态与结果
-              '<div class="pco-ai-panel-status" data-role="ai-panel-status">' +
-                '点标题旁的「总结本帖」开始生成</div>' +
-              '<div class="pco-ai-panel-out" data-role="ai-panel-out"></div>' +
-              '<div class="pco-ai-panel-foot">' +
-                '<button type="button" class="pco-ai-foot-btn" data-act="ai-stop" hidden>停止</button>' +
-                '<button type="button" class="pco-ai-foot-btn" data-act="ai-copy" hidden>复制</button>' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
         '</div>' +
         '<div class="pco-frame">' +
           '<section class="pco-main">' +
@@ -1133,8 +1114,6 @@
     contentEl = root.querySelector('[data-role="content"]');
     countEl = root.querySelector('[data-role="count"]');
     syncComposerTools();
-    // 结果区按当前是否有内容决定是否显示，避免打开时先露出一块空框
-    paintAiPanel(false);
     paintViewControls();
     const scrollBox = root.querySelector('[data-role="scroll"]');
     if (scrollBox) scrollBox.addEventListener('scroll', onContentScroll, { passive: true });
@@ -1427,14 +1406,7 @@
     ).join('');
 
     contentEl.innerHTML =
-      // 标题区：右侧紧跟「总结本帖」，点击才发起，不在打开帖子时自动跑
-      '<div class="pco-title-row">' +
-        '<h1 class="pco-title">' + esc(topic.title || '无标题帖子') + '</h1>' +
-        '<button type="button" class="pco-sum-btn" data-act="ai-summarize" ' +
-          'title="用 AI 总结本帖" aria-label="用 AI 总结本帖">' +
-          icon('sparkles', 15) + '<span>总结本帖</span>' +
-        '</button>' +
-      '</div>' +
+      '<h1 class="pco-title">' + esc(topic.title || '无标题帖子') + '</h1>' +
       '<div class="pco-author">' +
         avatarHtml(author, 'pco-avatar') +
         '<div class="pco-author-main">' +
@@ -1448,8 +1420,25 @@
           '</div>' +
         '</div>' +
       '</div>' +
-      // AI 助手已移到左侧目录列，正文流里不再重复渲染
-      // 窄屏操作栏收起时，用这一行打开左侧抽屉里的 AI 助手
+      // AI 助手：回到正文流原位（分割线下方、正文之前），宽度由 CSS 收口
+      '<div class="pco-ai-panel" data-role="ai-panel"' + (aiHidden() ? ' hidden' : '') + '>' +
+        '<div class="pco-ai-panel-head">' +
+          '<span class="pco-ai-panel-title">' + icon('sparkles', 15) + 'AI 助手</span>' +
+          '<span class="pco-ai-panel-hint">AI 总结</span>' +
+        '</div>' +
+        '<div class="pco-ai-panel-actions">' +
+          '<button type="button" class="pco-ai-run" data-act="ai-run">' +
+            icon('sparkles', 14) + '总结本帖</button>' +
+        '</div>' +
+        '<div class="pco-ai-panel-status" data-role="ai-panel-status">' +
+          '使用设置里的模型与密钥生成</div>' +
+        '<div class="pco-ai-panel-out" data-role="ai-panel-out"></div>' +
+        '<div class="pco-ai-panel-foot">' +
+          '<button type="button" class="pco-ai-foot-btn" data-act="ai-stop" hidden>停止</button>' +
+          '<button type="button" class="pco-ai-foot-btn" data-act="ai-copy" hidden>复制</button>' +
+        '</div>' +
+      '</div>' +
+      // 窄屏操作栏收起时，用这一行切换同一块面板
       '<div class="pco-ai-row">' +
         '<button type="button" class="pco-ai-row-btn" data-act="rail-ai">' +
           icon('sparkles', 15) + '<span>AI 助手</span></button>' +
@@ -1596,9 +1585,6 @@
     }
     const list = root.querySelector('[data-role="toc-list"]');
     if (list) list.innerHTML = '';
-    const col = root.querySelector('[data-role="toc"]');
-    if (col) col.classList.remove('has-heads');
-    applyAiLayout();
   }
 
   /** 从正文里抽取标题生成目录；标题不足两个时隐藏入口 */
@@ -1636,10 +1622,6 @@
 
     tocHeads = heads;
     btn.hidden = false;
-    // 有目录：目录占上半区、AI 助手缩成列底部一块；无目录时整列给 AI
-    const col = root.querySelector('[data-role="toc"]');
-    if (col) col.classList.add('has-heads');
-    applyAiLayout();
     // 沿用上次的展开状态（直接落位，避免开浮层时重复播放展开动画）
     if (tocOn) setTocInstant(true);
     paintTocFlow();
@@ -1944,7 +1926,7 @@
     aiPanelText = '';
     aiPanelBusy = false;
     paintAiPanel(false);
-    setAiPanelStatus('点标题旁的「总结本帖」开始生成');
+    setAiPanelStatus('使用设置里的模型与密钥生成');
   }
 
   /** 命中缓存时给正文与回复加一段同向轻滑，外层浮层本身不重播动画 */
@@ -3065,35 +3047,11 @@
         }
       } else if (act === 'rail-ai') {
         e.preventDefault();
-        const box = root.querySelector('[data-role="toc-ai"]');
-        const narrow = window.matchMedia('(max-width: 900px)').matches;
-        if (narrow) {
-          // 窄屏这一列是覆盖抽屉：先保证抽屉打开，再让 AI 区可见
-          if (!root.classList.contains('is-toc')) {
-            tocOn = true;
-            try { localStorage.setItem(TOC_KEY, '1'); } catch (err) { /* noop */ }
-            setTocInstant(true);
-            setAiHidden(false);
-          } else if (box && !box.hidden) {
-            setAiHidden(true);
-          } else {
-            setAiHidden(false);
-          }
-        } else {
-          setAiHidden(!(box && !box.hidden));
-        }
-      } else if (act === 'ai-collapse') {
+        // 只切换正文里那块面板的显示，不弹浮层
+        const panel = root.querySelector('[data-role="ai-panel"]');
+        setAiHidden(!!panel && !panel.hidden);
+      } else if (act === 'ai-run') {
         e.preventDefault();
-        setAiCollapsed(!aiCollapsed());
-      } else if (act === 'ai-summarize') {
-        e.preventDefault();
-        // 面板可能被收起或在窄屏抽屉里：先让它可见，再开始生成
-        if (window.matchMedia('(max-width: 900px)').matches && !root.classList.contains('is-toc')) {
-          tocOn = true;
-          setTocInstant(true);
-        }
-        if (aiCollapsed()) setAiCollapsed(false);
-        setAiHidden(false);
         runAiPanel();
       } else if (act === 'ai-stop') {
         e.preventDefault();
@@ -3209,49 +3167,16 @@
   // ---------------------------- 操作栏「AI 助手」开关 ----------------------------
 
   const AI_HIDDEN_KEY = 'pco_ai_hidden';
-  const AI_COLLAPSE_KEY = 'pco_ai_collapsed';
 
-  /** 显示状态持久化：切帖 / 重渲染后按上次开关恢复 */
+  /** 显示状态持久化：面板回到正文流，切帖 / 重渲染后按上次开关恢复 */
   function aiHidden() {
     try { return localStorage.getItem(AI_HIDDEN_KEY) === '1'; } catch (e) { return false; }
   }
 
-  /** 折叠只作用于「有目录」的场景：收成一条标题栏，把高度让回目录 */
-  function aiCollapsed() {
-    try { return localStorage.getItem(AI_COLLAPSE_KEY) === '1'; } catch (e) { return false; }
-  }
-
-  function setAiCollapsed(collapsed) {
-    try { localStorage.setItem(AI_COLLAPSE_KEY, collapsed ? '1' : '0'); } catch (e) { /* noop */ }
-    applyAiLayout();
-  }
-
-  /**
-   * 列宽与 AI 区的布局统一由这里决定：
-   *   is-ai-open → 左侧这一列保持展开（即使目录被收起）
-   *   has-heads  → 目录在上、AI 缩成列底部一块；否则 AI 占满整列
-   */
-  function applyAiLayout() {
-    if (!root) return;
-    const col = root.querySelector('[data-role="toc"]');
-    const box = root.querySelector('[data-role="toc-ai"]');
-    if (!col || !box) return;
-    root.classList.toggle('is-ai-open', !box.hidden);
-    box.classList.toggle('is-collapsed', aiCollapsed());
-    const btn = box.querySelector('[data-act="ai-collapse"]');
-    if (btn) {
-      const collapsed = aiCollapsed();
-      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-      btn.title = collapsed ? '展开 AI 助手' : '收起 AI 助手';
-      btn.setAttribute('aria-label', btn.title);
-    }
-  }
-
   function setAiHidden(hidden) {
     try { localStorage.setItem(AI_HIDDEN_KEY, hidden ? '1' : '0'); } catch (e) { /* 隐私模式忽略 */ }
-    const box = root && root.querySelector('[data-role="toc-ai"]');
-    if (box) box.hidden = hidden;
-    applyAiLayout();
+    const panel = root && root.querySelector('[data-role="ai-panel"]');
+    if (panel) panel.hidden = hidden;
     if (root) {
       root.querySelectorAll('[data-act="rail-ai"]').forEach((btn) => {
         btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
@@ -3272,12 +3197,8 @@
     btn.title = 'AI 助手';
     btn.setAttribute('aria-label', 'AI 助手');
     btn.innerHTML = icon('sparkles', 18);
-    // 紧跟在「文章目录」下方：目录按钮没有目录时会隐藏，AI 按钮随之自然上移，不会留空
-    const tocBtn = rail.querySelector('[data-act="toc"]');
     const more = rail.querySelector('[data-act="more"]');
-    if (tocBtn) rail.insertBefore(btn, tocBtn.nextSibling);
-    else if (more) rail.insertBefore(btn, more);
-    else rail.appendChild(btn);
+    if (more) rail.insertBefore(btn, more); else rail.appendChild(btn);
     setAiHidden(aiHidden());
   }
 
@@ -4444,14 +4365,12 @@
   function paintAiPanel(streaming) {
     const parts = aiPanelParts();
     if (!parts || !parts.out) return;
-    // 还没有内容时整块结果区都不显示：首个 token 到达后再出现，不留空框占位
-    const hasText = !!aiPanelText;
-    parts.out.hidden = !hasText;
     if (streaming) parts.out.textContent = aiPanelText;
-    else parts.out.innerHTML = hasText ? mdRender(aiPanelText) : '';
+    else parts.out.innerHTML = aiPanelText ? mdRender(aiPanelText) : '';
+    parts.out.classList.toggle('is-empty', !aiPanelText);
     if (parts.stop) parts.stop.hidden = !aiPanelBusy;
-    if (parts.copy) parts.copy.hidden = aiPanelBusy || !hasText;
-    if (hasText) parts.out.scrollTop = parts.out.scrollHeight;
+    if (parts.copy) parts.copy.hidden = aiPanelBusy || !aiPanelText;
+    parts.out.scrollTop = parts.out.scrollHeight;
   }
 
   function runAiPanel() {

@@ -406,53 +406,6 @@ html.pco-lock body {
   color: var(--pco-text);
 }
 
-/* 标题行：标题与「总结本帖」并排，按钮紧贴标题文字，长标题换行时按钮留在首行右侧 */
-/* 宽屏时右上角那组按钮浮在右侧评论栏上，标题行不需要再让位，右边缘与正文右边界对齐 */
-#pco-root .pco-title-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin: 6px 0 12px;
-}
-
-#pco-root .pco-title-row .pco-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-}
-
-#pco-root .pco-sum-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  /* 与标题首行文字基线对齐（26px 标题 / 12.5px 胶囊） */
-  margin-top: 12px;
-  padding: 6px 11px;
-  border: 1px solid color-mix(in oklab, var(--pco-primary) 26%, var(--pco-border));
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--pco-primary) 8%, var(--pco-bg));
-  color: color-mix(in oklab, var(--pco-primary) 78%, var(--pco-text));
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 650;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-}
-
-#pco-root .pco-sum-btn:hover {
-  border-color: var(--pco-primary);
-  background: color-mix(in oklab, var(--pco-primary) 14%, var(--pco-bg));
-  color: var(--pco-primary);
-}
-
-#pco-root .pco-sum-btn:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--pco-primary) 60%, #fff);
-  outline-offset: 2px;
-}
-
 #pco-root .pco-author {
   display: flex;
   align-items: center;
@@ -2533,8 +2486,7 @@ html.pco-lock body {
 
 /* 站点目录的折线：贯穿整个列表的 1px 竖线 + 每个条目一小段圆角横枝；
    竖线由每个条目自绘（随列表一起滚动），激活条目整段变主题色 */
-#pco-root.is-toc .pco-toc,
-#pco-root.is-ai-open .pco-toc {
+#pco-root.is-toc .pco-toc {
   width: 288px;
 }
 
@@ -2567,136 +2519,6 @@ html.pco-lock body {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-}
-
-/* ---------- 左侧列里的 AI 助手 ----------
-   列高固定 100%：目录列表自己滚动，AI 区在底部不再撑高整列。
-   无目录：AI 区 flex:1 占满整列；
-   有目录：AI 区固定 clamp(240px, 40%, 360px)，目录列表吃掉剩余高度。 */
-#pco-root .pco-toc-ai {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  width: 288px;
-  min-height: 0;
-  padding: 0 12px 14px;
-  overflow: hidden;
-  transition: height calc(0.26s * var(--pco-dur)) var(--pco-ease);
-}
-
-#pco-root .pco-toc-ai[hidden] {
-  display: none;
-}
-
-/* 无目录：目录头与列表都不渲染，整列都给 AI */
-#pco-root .pco-toc:not(.has-heads) .pco-toc-head,
-#pco-root .pco-toc:not(.has-heads) .pco-toc-list {
-  display: none;
-}
-
-#pco-root .pco-toc:not(.has-heads) .pco-toc-ai {
-  flex: 1 1 auto;
-  padding-top: 20px;
-}
-
-/* 目录被手动收起、但 AI 还开着：目录区让位，AI 独占整列 */
-#pco-root:not(.is-toc) .pco-toc-head,
-#pco-root:not(.is-toc) .pco-toc-list {
-  display: none;
-}
-
-#pco-root:not(.is-toc) .pco-toc.has-heads .pco-toc-ai {
-  flex: 1 1 auto;
-  height: auto;
-  padding-top: 20px;
-  border-top: 0;
-}
-
-/* 有目录：列表可滚动并保底 96px，AI 缩成列底部一块 */
-#pco-root .pco-toc.has-heads .pco-toc-list {
-  flex: 1 1 auto;
-  min-height: 96px;
-}
-
-#pco-root .pco-toc.has-heads .pco-toc-ai {
-  flex: 0 0 auto;
-  height: clamp(240px, 40%, 360px);
-  /* 11px + 面板 1px 边框 + 头部 12px = 24px，与「文章目录」标题文字左边缘对齐 */
-  padding: 10px 12px 14px 11px;
-  border-top: 1px solid var(--pco-border);
-}
-
-/* 折叠态：只留一条 46px 的标题条，flex 也不许再撑高；上下左右留白按同一基准收齐 */
-#pco-root .pco-toc .pco-toc-ai.is-collapsed {
-  flex: 0 0 46px !important;
-  height: 46px !important;
-  padding: 0 12px 0 11px;
-}
-
-#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel {
-  padding: 0;
-  height: 46px;
-}
-
-#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel-head {
-  height: 100%;
-  padding: 0 12px;
-}
-
-#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel-status,
-#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel-out,
-#pco-root .pco-toc .pco-toc-ai.is-collapsed .pco-ai-panel-foot {
-  display: none;
-}
-
-/* 面板填满 AI 区，结果区自己滚动，不把目录顶走 */
-#pco-root .pco-toc-ai .pco-ai-panel {
-  flex: 1;
-  width: 100%;
-  max-width: none;
-  min-height: 0;
-  margin: 0;
-  padding-bottom: 10px;
-  border-radius: 12px;
-}
-
-#pco-root .pco-toc-ai .pco-ai-panel-out {
-  flex: 1;
-  max-height: none;
-  min-height: 46px;
-}
-
-#pco-root .pco-toc-ai .pco-ai-panel-head {
-  padding: 10px 12px 6px;
-}
-
-#pco-root .pco-ai-collapse {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--pco-dim);
-  cursor: pointer;
-}
-
-#pco-root .pco-ai-collapse:hover {
-  color: var(--pco-text);
-  background: var(--pco-soft);
-}
-
-#pco-root .pco-ai-collapse svg {
-  transition: transform 0.2s var(--pco-ease);
-  transform: rotate(90deg);
-}
-
-#pco-root .pco-toc-ai.is-collapsed .pco-ai-collapse svg {
-  transform: none;
 }
 
 /* 与站点一致：无圆角无底色，只靠缩进与颜色区分层级；
@@ -2855,9 +2677,50 @@ html.pco-lock body {
   white-space: nowrap;
 }
 
+#pco-root .pco-ai-panel-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  padding: 2px 14px 10px;
+}
+
+#pco-root .pco-ai-run {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--pco-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 12px 26px -16px color-mix(in oklab, var(--pco-primary) 85%, transparent);
+  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+#pco-root .pco-ai-run:hover {
+  background: color-mix(in oklab, var(--pco-primary) 88%, #000);
+  color: #fff;
+  box-shadow: 0 14px 30px -15px color-mix(in oklab, var(--pco-primary) 90%, transparent);
+}
+
+#pco-root .pco-ai-run:active {
+  transform: translateY(1px);
+}
+
+#pco-root .pco-ai-run:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--pco-primary) 60%, #fff);
+  outline-offset: 2px;
+}
+
 #pco-root .pco-ai-panel-status {
   flex: none;
-  padding: 0 12px 8px;
+  padding: 0 14px 10px;
   font-size: 11.5px;
   color: var(--pco-dim);
 }
@@ -2878,6 +2741,17 @@ html.pco-lock body {
   color: var(--pco-text);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 还没有结果时用虚线空态，弱化存在感 */
+#pco-root .pco-ai-panel-out.is-empty {
+  border-style: dashed;
+  background: transparent;
+}
+
+#pco-root .pco-ai-panel-out.is-empty::before {
+  content: '生成结果会显示在这里';
+  color: var(--pco-dim);
 }
 
 /* 停止 / 复制都隐藏时不占位 */
@@ -3350,18 +3224,9 @@ html.pco-lock body {
     padding: 18px 20px 22px;
   }
 
-  #pco-root .pco-title-row {
-    gap: 10px;
+  #pco-root .pco-title {
     margin-right: 170px;
-  }
-
-  #pco-root .pco-title-row .pco-title {
     font-size: 21px;
-  }
-
-  /* 标题字号降下来后胶囊跟着上移，仍与首行文字基线对齐 */
-  #pco-root .pco-title-row .pco-sum-btn {
-    margin-top: 5px;
   }
 
   #pco-root .pco-side-head {
@@ -3382,11 +3247,6 @@ html.pco-lock body {
   #pco-root.is-toc .pco-toc,
   #pco-root .pco-toc-head,
   #pco-root .pco-toc-list {
-    width: min(288px, 84vw);
-  }
-
-  /* 抽屉里的 AI 区跟随同一个宽度 */
-  #pco-root .pco-toc-ai {
     width: min(288px, 84vw);
   }
 

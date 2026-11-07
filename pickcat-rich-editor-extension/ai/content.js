@@ -1118,10 +1118,7 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
           '<button class="' + NS + '-run" data-run="1">' + ICONS.spark + (runLabel || '总结本帖') + '</button>' +
         '</div>') +
       (status ? '<div class="' + NS + '-status">' + escapeHtml(status) + '</div>' : '') +
-      // 没有内容就不铺结果框：只有空态提示或真实内容时才渲染
-      (out || empty
-        ? '<div class="' + NS + '-out' + (empty ? ' is-empty' : '') + '">' + (out || '') + '</div>'
-        : '');
+      '<div class="' + NS + '-out' + (empty ? ' is-empty' : '') + '">' + (out || '') + '</div>';
   }
 
   function renderIdle(note) {
@@ -1150,8 +1147,6 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
 
   function renderStream() {
     if (!refs) return;
-    // 首个可见字符到达前保持加载态，不提前铺一块空结果框
-    if (!streamText.trim()) return;
     refs.paneSum.innerHTML = sumShell({
       showRun: false,
       status: '正在生成…（可在底部停止）',
@@ -1164,27 +1159,9 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
     syncButtons();
   }
 
-  /** 生成结束却没有内容：给一条明确的空态，而不是留下只有边框的结果框 */
-  function renderEmptyResult(note) {
-    if (!refs) return;
-    refs.paneSum.innerHTML = sumShell({
-      runLabel: '重新总结',
-      status: note,
-      empty: true
-    });
-    refs.paneSum.querySelector('[data-run]').addEventListener('click', () => runSummary({ bypass: true }));
-    clearUsageChip();
-    syncButtons();
-  }
-
   function renderDone(text, cached) {
     if (!refs) return;
     streamText = text;
-    // 流式结束但模型没给出内容：不留空壳，直接给可重试的空态
-    if (!text || !text.trim()) {
-      renderEmptyResult('模型没有返回内容，可重试或换个模型');
-      return;
-    }
     refs.paneSum.innerHTML = sumShell({
       runLabel: '重新总结',
       status: cached ? '来自本地缓存，未消耗 Token' : '生成完成，可复制或重新总结',
