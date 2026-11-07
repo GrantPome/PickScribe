@@ -710,12 +710,9 @@
                   'title="收起 AI 助手" aria-label="收起 AI 助手" aria-expanded="true">' +
                   icon('chevronRight', 14) + '</button>' +
               '</div>' +
-              '<div class="pco-ai-panel-actions">' +
-                '<button type="button" class="pco-ai-run" data-act="ai-run">' +
-                  icon('sparkles', 14) + '总结本帖</button>' +
-              '</div>' +
+              // 「总结本帖」放在文章标题旁（renderTopic），面板里只展示状态与结果
               '<div class="pco-ai-panel-status" data-role="ai-panel-status">' +
-                '使用设置里的模型与密钥生成</div>' +
+                '点标题旁的「总结本帖」开始生成</div>' +
               '<div class="pco-ai-panel-out" data-role="ai-panel-out"></div>' +
               '<div class="pco-ai-panel-foot">' +
                 '<button type="button" class="pco-ai-foot-btn" data-act="ai-stop" hidden>停止</button>' +
@@ -1430,7 +1427,14 @@
     ).join('');
 
     contentEl.innerHTML =
-      '<h1 class="pco-title">' + esc(topic.title || '无标题帖子') + '</h1>' +
+      // 标题区：右侧紧跟「总结本帖」，点击才发起，不在打开帖子时自动跑
+      '<div class="pco-title-row">' +
+        '<h1 class="pco-title">' + esc(topic.title || '无标题帖子') + '</h1>' +
+        '<button type="button" class="pco-sum-btn" data-act="ai-summarize" ' +
+          'title="用 AI 总结本帖" aria-label="用 AI 总结本帖">' +
+          icon('sparkles', 15) + '<span>总结本帖</span>' +
+        '</button>' +
+      '</div>' +
       '<div class="pco-author">' +
         avatarHtml(author, 'pco-avatar') +
         '<div class="pco-author-main">' +
@@ -1940,7 +1944,7 @@
     aiPanelText = '';
     aiPanelBusy = false;
     paintAiPanel(false);
-    setAiPanelStatus('使用设置里的模型与密钥生成');
+    setAiPanelStatus('点标题旁的「总结本帖」开始生成');
   }
 
   /** 命中缓存时给正文与回复加一段同向轻滑，外层浮层本身不重播动画 */
@@ -3081,8 +3085,15 @@
       } else if (act === 'ai-collapse') {
         e.preventDefault();
         setAiCollapsed(!aiCollapsed());
-      } else if (act === 'ai-run') {
+      } else if (act === 'ai-summarize') {
         e.preventDefault();
+        // 面板可能被收起或在窄屏抽屉里：先让它可见，再开始生成
+        if (window.matchMedia('(max-width: 900px)').matches && !root.classList.contains('is-toc')) {
+          tocOn = true;
+          setTocInstant(true);
+        }
+        if (aiCollapsed()) setAiCollapsed(false);
+        setAiHidden(false);
         runAiPanel();
       } else if (act === 'ai-stop') {
         e.preventDefault();

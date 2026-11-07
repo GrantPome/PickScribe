@@ -406,6 +406,51 @@ html.pco-lock body {
   color: var(--pco-text);
 }
 
+/* 标题行：标题与「总结本帖」并排，按钮紧贴标题文字，长标题换行时按钮留在首行右侧 */
+#pco-root .pco-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 6px 208px 12px 0;
+}
+
+#pco-root .pco-title-row .pco-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+#pco-root .pco-sum-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  padding: 6px 11px;
+  border: 1px solid color-mix(in oklab, var(--pco-primary) 26%, var(--pco-border));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--pco-primary) 8%, var(--pco-bg));
+  color: color-mix(in oklab, var(--pco-primary) 78%, var(--pco-text));
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+#pco-root .pco-sum-btn:hover {
+  border-color: var(--pco-primary);
+  background: color-mix(in oklab, var(--pco-primary) 14%, var(--pco-bg));
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-sum-btn:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--pco-primary) 60%, #fff);
+  outline-offset: 2px;
+}
+
 #pco-root .pco-author {
   display: flex;
   align-items: center;
@@ -2574,17 +2619,26 @@ html.pco-lock body {
 #pco-root .pco-toc.has-heads .pco-toc-ai {
   flex: 0 0 auto;
   height: clamp(240px, 40%, 360px);
-  padding-top: 10px;
+  /* 与「文章目录」标题、目录项的左边缘对齐 */
+  padding: 10px 12px 14px 24px;
   border-top: 1px solid var(--pco-border);
 }
 
-/* 折叠态：只留标题条，把高度让回目录 */
+/* 折叠态：只留标题条，把高度让回目录；内边距一并收掉，避免底部留白 */
 #pco-root .pco-toc-ai.is-collapsed {
-  height: 54px !important;
-  padding-bottom: 6px;
+  height: 46px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0;
 }
 
-#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-actions,
+#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel {
+  padding-bottom: 0;
+}
+
+#pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-head {
+  padding: 7px 12px;
+}
+
 #pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-status,
 #pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-out,
 #pco-root .pco-toc-ai.is-collapsed .pco-ai-panel-foot {
@@ -2797,50 +2851,9 @@ html.pco-lock body {
   white-space: nowrap;
 }
 
-#pco-root .pco-ai-panel-actions {
-  display: flex;
-  flex: none;
-  gap: 8px;
-  padding: 2px 14px 10px;
-}
-
-#pco-root .pco-ai-run {
-  display: inline-flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 9px 14px;
-  border: 0;
-  border-radius: 10px;
-  background: var(--pco-primary);
-  color: #fff;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 12px 26px -16px color-mix(in oklab, var(--pco-primary) 85%, transparent);
-  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
-}
-
-#pco-root .pco-ai-run:hover {
-  background: color-mix(in oklab, var(--pco-primary) 88%, #000);
-  color: #fff;
-  box-shadow: 0 14px 30px -15px color-mix(in oklab, var(--pco-primary) 90%, transparent);
-}
-
-#pco-root .pco-ai-run:active {
-  transform: translateY(1px);
-}
-
-#pco-root .pco-ai-run:focus-visible {
-  outline: 2px solid color-mix(in oklab, var(--pco-primary) 60%, #fff);
-  outline-offset: 2px;
-}
-
 #pco-root .pco-ai-panel-status {
   flex: none;
-  padding: 0 14px 10px;
+  padding: 0 12px 8px;
   font-size: 11.5px;
   color: var(--pco-dim);
 }
@@ -3333,8 +3346,12 @@ html.pco-lock body {
     padding: 18px 20px 22px;
   }
 
-  #pco-root .pco-title {
+  #pco-root .pco-title-row {
+    gap: 10px;
     margin-right: 170px;
+  }
+
+  #pco-root .pco-title-row .pco-title {
     font-size: 21px;
   }
 
