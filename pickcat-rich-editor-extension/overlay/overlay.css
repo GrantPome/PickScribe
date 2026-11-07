@@ -2646,9 +2646,10 @@ html.pco-lock body {
   overflow: hidden;
 }
 
-/* 宽度收口：不铺满整行，整块靠右，避免与正文左对齐 */
+/* 宽度收口：随内容列同比收窄（最宽 560px），整块靠右，避免与正文左对齐；
+   正文列变窄（开目录、切窄屏）时不会撑出边界，也不会突然占满整行 */
 #pco-root .pco-ai-panel {
-  width: min(560px, 100%);
+  width: min(560px, 68%);
   margin-left: auto;
   flex: none;
 }
@@ -3231,6 +3232,11 @@ html.pco-lock body {
 
   #pco-root .pco-title {
     font-size: 21px;
+  }
+
+  /* 窄屏正文列更宽，面板同比放大，避免右侧只剩一条细缝 */
+  #pco-root .pco-ai-panel {
+    width: min(560px, 88%);
   }
 
   #pco-root .pco-side-head {
