@@ -2863,17 +2863,6 @@ html.pco-lock body {
   word-break: break-word;
 }
 
-/* 还没有结果时用虚线空态，弱化存在感 */
-#pco-root .pco-ai-panel-out.is-empty {
-  border-style: dashed;
-  background: transparent;
-}
-
-#pco-root .pco-ai-panel-out.is-empty::before {
-  content: '生成结果会显示在这里';
-  color: var(--pco-dim);
-}
-
 /* 停止 / 复制都隐藏时不占位 */
 #pco-root .pco-ai-panel-foot:not(:has(> button:not([hidden]))) {
   display: none;

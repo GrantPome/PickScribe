@@ -1136,6 +1136,8 @@
     contentEl = root.querySelector('[data-role="content"]');
     countEl = root.querySelector('[data-role="count"]');
     syncComposerTools();
+    // 结果区按当前是否有内容决定是否显示，避免打开时先露出一块空框
+    paintAiPanel(false);
     paintViewControls();
     const scrollBox = root.querySelector('[data-role="scroll"]');
     if (scrollBox) scrollBox.addEventListener('scroll', onContentScroll, { passive: true });
@@ -4427,12 +4429,14 @@
   function paintAiPanel(streaming) {
     const parts = aiPanelParts();
     if (!parts || !parts.out) return;
+    // 还没有内容时整块结果区都不显示：首个 token 到达后再出现，不留空框占位
+    const hasText = !!aiPanelText;
+    parts.out.hidden = !hasText;
     if (streaming) parts.out.textContent = aiPanelText;
-    else parts.out.innerHTML = aiPanelText ? mdRender(aiPanelText) : '';
-    parts.out.classList.toggle('is-empty', !aiPanelText);
+    else parts.out.innerHTML = hasText ? mdRender(aiPanelText) : '';
     if (parts.stop) parts.stop.hidden = !aiPanelBusy;
-    if (parts.copy) parts.copy.hidden = aiPanelBusy || !aiPanelText;
-    parts.out.scrollTop = parts.out.scrollHeight;
+    if (parts.copy) parts.copy.hidden = aiPanelBusy || !hasText;
+    if (hasText) parts.out.scrollTop = parts.out.scrollHeight;
   }
 
   function runAiPanel() {
