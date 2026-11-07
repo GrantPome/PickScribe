@@ -1995,6 +1995,107 @@ html.pco-lock body {
   border-right: 0;
 }
 
+/* ---------- 全屏工具栏布局（与帖子编辑页三种布局一致） ----------
+   紧凑（默认）：单行按钮，组间不留分割线
+   分组线（is-tb-grouped）：组间细线、组高对齐、按组换行
+   功能组（is-tb-grouped + is-tb-labels）：在分组线基础上组名独占一行 */
+#pco-root .pco-composer-full:not(.is-tb-grouped) .pco-ed-group {
+  border-right: 0;
+}
+
+#pco-root .pco-composer-full.is-tb-grouped .pco-ed-toolbar {
+  align-items: stretch;
+  gap: 0;
+  padding: 6px 4px;
+}
+
+#pco-root .pco-composer-full.is-tb-grouped .pco-ed-group {
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: space-between;
+  padding: 0 6px;
+}
+
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group {
+  padding-bottom: 2px;
+}
+
+/* 组名只在「功能组」下显示；「分组线」模式只保留分割线 */
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group::after {
+  flex: 0 0 100%;
+  display: block;
+  padding-top: 4px;
+  content: "";
+  font-size: 10.5px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: var(--pco-dim);
+  opacity: 0.8;
+  user-select: none;
+  pointer-events: none;
+}
+
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(1)::after { content: "历史"; }
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(2)::after { content: "格式"; }
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(3)::after { content: "标题"; }
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(4)::after { content: "对齐"; }
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(5)::after { content: "颜色"; }
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(6)::after { content: "列表"; }
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(7)::after { content: "代码"; }
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(8)::after { content: "插入"; }
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(9)::after { content: "公式"; }
+#pco-root .pco-composer-full.is-tb-labels .pco-ed-group:nth-child(10)::after { content: "工具"; }
+
+/* 切换布局时轻量淡入，避免硬切 */
+@keyframes pcoTbSwap {
+  from { opacity: 0.4; transform: translateY(-2px); }
+  to { opacity: 1; transform: none; }
+}
+
+#pco-root .pco-ed-toolbar.is-tb-anim {
+  animation: pcoTbSwap 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 全屏头部：字数与布局切换按钮 */
+#pco-root .pco-cf-count {
+  flex: none;
+  color: var(--pco-dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+#pco-root .pco-cf-layout {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--pco-border);
+  border-radius: 9px;
+  background: var(--pco-soft);
+  color: var(--pco-muted);
+  cursor: pointer;
+}
+
+#pco-root .pco-cf-layout:hover {
+  color: var(--pco-text);
+}
+
+#pco-root .pco-cf-layout.is-on {
+  color: var(--pco-primary);
+  border-color: color-mix(in oklab, var(--pco-primary) 45%, var(--pco-border));
+  background: color-mix(in oklab, var(--pco-primary) 10%, transparent);
+}
+
+/* 拖拽图片进入回复框时的高亮 */
+#pco-root [data-role="composer"].is-dragover {
+  outline: 2px dashed color-mix(in oklab, var(--pco-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
 #pco-root .pco-ed-btn {
   display: inline-flex;
   align-items: center;

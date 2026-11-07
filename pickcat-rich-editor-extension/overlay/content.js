@@ -79,6 +79,7 @@
     chevronLeft: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.657 17.657L9 12l5.657-5.657"/>',
     chevronRight: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.343 17.657L15 12l-5.657-5.657"/>',
     arrowUp: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19.5V5m0 0l-6.2 6.2M12 5l6.2 6.2"/>',
+    layout: '<rect x="3" y="4.5" width="18" height="6" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3" y="13.5" width="18" height="6" rx="1.6" fill="none" stroke="currentColor" stroke-width="2"/>',
     list: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 6h11M9 12h11M9 18h7"/><circle cx="4.6" cy="6" r="1.3" fill="currentColor"/><circle cx="4.6" cy="12" r="1.3" fill="currentColor"/><circle cx="4.6" cy="18" r="1.3" fill="currentColor"/>',
     width: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12h16m0 0-4.2-4.2M20 12l-4.2 4.2M4 12l4.2-4.2M4 12l4.2 4.2"/>',
     full: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5"/>',
@@ -941,6 +942,10 @@
             '<b data-role="cf-target">写回复</b>' +
             '<span class="pco-cf-topic" data-role="cf-topic"></span>' +
           '</div>' +
+          '<span class="pco-cf-count" data-role="cf-count">0 字</span>' +
+          '<button type="button" class="pco-cf-layout" data-act="composer-layout" ' +
+            'title="工具栏布局：紧凑（点击切换）" aria-label="切换工具栏布局">' +
+            icon('layout', 16) + '</button>' +
           '<button type="button" class="pco-cf-exit" data-act="composer-full-exit">' +
             icon('close', 16) + '<span>退出全屏</span>' +
           '</button>' +
@@ -2939,6 +2944,9 @@
       } else if (act === 'composer-full') {
         e.preventDefault();
         toggleComposerFull();
+      } else if (act === 'composer-layout') {
+        e.preventDefault();
+        cycleTbStyle();
       } else if (act === 'composer-full-exit') {
         e.preventDefault();
         toggleComposerFull(false);
@@ -3205,6 +3213,7 @@
         return (hit && hit.name) || shortMentionId(id);
       },
       onChange: () => {
+        paintComposerCount();
         if (!composerFull) growComposer(host);
       },
       onRendered: (el) => {
@@ -3212,6 +3221,7 @@
         if (composerEditor) composerEditor.refreshState();
       }
     });
+    bindComposerDrop(host);
   }
 
   /** 统一取回复框里的 Markdown 内容 */
@@ -3878,6 +3888,89 @@
     if (topicEl) topicEl.textContent = (view && view.topic && view.topic.title) || '';
   }
 
+  // ---------- 全屏排版工具栏：布局切换 / 字数 / 拖拽上传 ----------
+  /** 三种工具栏布局，与帖子编辑页共用同一个存储键：compact → line → groups */
+  const TB_KEY = 'pcr_toolbar_style';
+  const TB_MODES = ['compact', 'line', 'groups'];
+  const TB_NAMES = { compact: '紧凑', line: '分组线', groups: '功能组' };
+
+  function readTbStyle() {
+    try {
+      const v = localStorage.getItem(TB_KEY);
+      return TB_MODES.indexOf(v) > -1 ? v : 'compact';
+    } catch (e) { return 'compact'; }
+  }
+
+  /** 只切类名、不重建 DOM，与帖子编辑页的工具栏布局行为一致 */
+  function applyTbStyle(style, animate) {
+    const layer = root && root.querySelector('[data-role="composer-full"]');
+    if (!layer) return;
+    const s = TB_MODES.indexOf(style) > -1 ? style : 'compact';
+    layer.classList.toggle('is-tb-grouped', s !== 'compact');
+    layer.classList.toggle('is-tb-labels', s === 'groups');
+    const btn = layer.querySelector('[data-act="composer-layout"]');
+    if (btn) {
+      btn.classList.toggle('is-on', s !== 'compact');
+      btn.setAttribute('title', '工具栏布局：' + TB_NAMES[s] + '（点击切换）');
+    }
+    if (animate) {
+      const tb = layer.querySelector('.pco-ed-toolbar');
+      if (tb) {
+        tb.classList.remove('is-tb-anim');
+        void tb.offsetWidth;
+        tb.classList.add('is-tb-anim');
+      }
+    }
+  }
+
+  function cycleTbStyle() {
+    const next = TB_MODES[(TB_MODES.indexOf(readTbStyle()) + 1) % TB_MODES.length];
+    try { localStorage.setItem(TB_KEY, next); } catch (e) { /* noop */ }
+    applyTbStyle(next, true);
+  }
+
+  /** 全屏头部的字数：按去掉空白后的字符数统计 */
+  function paintComposerCount() {
+    const el = root && root.querySelector('[data-role="cf-count"]');
+    if (!el) return;
+    const n = composerMarkdown().replace(/\s+/g, '').length;
+    el.textContent = n + ' 字';
+  }
+
+  /** 拖拽图片到回复框直接上传，与帖子编辑页一致 */
+  function hasImageFiles(dt) {
+    if (!dt || !dt.types) return false;
+    if (Array.prototype.indexOf.call(dt.types, 'Files') === -1) return false;
+    const items = dt.items ? Array.prototype.slice.call(dt.items) : [];
+    return items.length
+      ? items.some((it) => it.kind === 'file' && /^image\//.test(it.type))
+      : true;
+  }
+
+  function bindComposerDrop(host) {
+    if (!host || host.__pcoDropBound) return;
+    host.__pcoDropBound = true;
+    const clear = () => host.classList.remove('is-dragover');
+    host.addEventListener('dragover', (e) => {
+      if (!hasImageFiles(e.dataTransfer)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      host.classList.add('is-dragover');
+    });
+    host.addEventListener('dragleave', (e) => {
+      if (e.relatedTarget && host.contains(e.relatedTarget)) return;
+      clear();
+    });
+    host.addEventListener('drop', (e) => {
+      if (!hasImageFiles(e.dataTransfer)) return;
+      e.preventDefault();
+      clear();
+      const files = Array.prototype.slice.call(e.dataTransfer.files || [])
+        .filter((f) => /^image\//.test(f.type || ''));
+      files.slice(0, 4).forEach((f) => uploadImage(f));
+    });
+  }
+
   function toggleComposerFull(force, immediate) {
     if (!root) return;
     const on = force === undefined ? !composerFull : !!force;
@@ -3916,6 +4009,8 @@
         document.documentElement.style.overflow = 'hidden';
       }
       fillComposerFullHeader();
+      applyTbStyle(readTbStyle(), false);
+      paintComposerCount();
       if (btn) {
         btn.setAttribute('aria-expanded', 'true');
         btn.setAttribute('title', '退出全屏编辑');
