@@ -1,0 +1,379 @@
+/**
+ * 首次访问确认弹窗（pcc 前缀）。
+ *
+ * 视觉与引导保持一致：半透明黑遮罩、居中卡片、站点 --ui-* 令牌、
+ * 深色模式跟随 html.dark / data-theme，reduced-motion 下关闭所有过渡。
+ * 不复用 #pcg-root，避免和引导的落点逻辑互相影响。
+ */
+
+#pcr-consent-root {
+  --pcc-bg: var(--ui-bg-elevated, var(--ui-bg, #ffffff));
+  --pcc-text: var(--ui-text, #1c1d21);
+  --pcc-muted: var(--ui-text-muted, #65666d);
+  --pcc-dim: var(--ui-text-dimmed, #8a8b92);
+  --pcc-border: var(--ui-border, rgba(23, 24, 28, 0.12));
+  --pcc-soft: var(--ui-bg-accented, rgba(23, 24, 28, 0.05));
+  --pcc-input: var(--ui-bg-input, rgba(23, 24, 28, 0.06));
+  --pcc-primary: var(--ui-primary, #fa322d);
+  --pcc-primary-text: #ffffff;
+  --pcc-danger: var(--ui-error, #d93838);
+  --pcc-shadow: 0 32px 90px -24px rgba(8, 10, 16, 0.48), 0 0 0 1px var(--pcc-border);
+  --pcc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  color-scheme: light;
+
+  position: fixed;
+  inset: 0;
+  z-index: 2147483650;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--pcc-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#pcr-consent-root[hidden] { display: none; }
+
+html.dark #pcr-consent-root,
+html[data-theme="dark"] #pcr-consent-root {
+  --pcc-bg: var(--ui-bg-elevated, #232326);
+  --pcc-text: var(--ui-text, oklch(92.2% 0 none));
+  --pcc-muted: var(--ui-text-muted, oklch(72% 0 none));
+  --pcc-dim: var(--ui-text-dimmed, oklch(60% 0 none));
+  --pcc-border: var(--ui-border, rgba(255, 255, 255, 0.14));
+  --pcc-soft: var(--ui-bg-accented, rgba(255, 255, 255, 0.07));
+  --pcc-input: var(--ui-bg-input, rgba(255, 255, 255, 0.08));
+  --pcc-primary: var(--ui-primary, #fa322d);
+  --pcc-danger: var(--ui-error, #ff7a7a);
+  --pcc-shadow: 0 32px 90px -24px rgba(0, 0, 0, 0.82), 0 0 0 1px var(--pcc-border);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] #pcr-consent-root {
+    --pcc-bg: var(--ui-bg-elevated, #232326);
+    --pcc-text: var(--ui-text, oklch(92.2% 0 none));
+    --pcc-muted: var(--ui-text-muted, oklch(72% 0 none));
+    --pcc-dim: var(--ui-text-dimmed, oklch(60% 0 none));
+    --pcc-border: var(--ui-border, rgba(255, 255, 255, 0.14));
+    --pcc-soft: var(--ui-bg-accented, rgba(255, 255, 255, 0.07));
+    --pcc-input: var(--ui-bg-input, rgba(255, 255, 255, 0.08));
+    --pcc-danger: var(--ui-error, #ff7a7a);
+    --pcc-shadow: 0 32px 90px -24px rgba(0, 0, 0, 0.82), 0 0 0 1px var(--pcc-border);
+    color-scheme: dark;
+  }
+}
+
+#pcr-consent-root *,
+#pcr-consent-root *::before,
+#pcr-consent-root *::after {
+  box-sizing: border-box;
+}
+
+#pcr-consent-root .pcc-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.56);
+}
+
+html.dark #pcr-consent-root .pcc-scrim,
+html[data-theme="dark"] #pcr-consent-root .pcc-scrim {
+  background: rgba(0, 0, 0, 0.74);
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] #pcr-consent-root .pcc-scrim {
+    background: rgba(0, 0, 0, 0.74);
+  }
+}
+
+#pcr-consent-root .pcc-card {
+  position: relative;
+  width: min(460px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--pcc-border);
+  border-radius: 20px;
+  background: var(--pcc-bg);
+  color: var(--pcc-text);
+  box-shadow: var(--pcc-shadow);
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  transition: opacity 0.2s var(--pcc-ease), transform 0.2s var(--pcc-ease);
+}
+
+#pcr-consent-root.is-open .pcc-card {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+#pcr-consent-root .pcc-card:focus { outline: none; }
+
+#pcr-consent-root .pcc-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--pcc-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+#pcr-consent-root .pcc-close:hover {
+  background: var(--pcc-soft);
+  color: var(--pcc-text);
+}
+
+#pcr-consent-root .pcc-close:focus-visible {
+  outline: 2px solid var(--pcc-primary);
+  outline-offset: 2px;
+}
+
+#pcr-consent-root .pcc-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-right: 28px;
+}
+
+#pcr-consent-root .pcc-badge {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--pcc-primary) 12%, transparent);
+  color: var(--pcc-primary);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+#pcr-consent-root .pcc-head-text { min-width: 0; }
+
+#pcr-consent-root .pcc-title {
+  margin: 1px 0 4px;
+  color: var(--pcc-text);
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+#pcr-consent-root .pcc-desc {
+  margin: 0;
+  color: var(--pcc-muted);
+  font-size: 13px;
+}
+
+#pcr-consent-root .pcc-meta {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--pcc-border);
+  border-radius: 12px;
+  background: var(--pcc-soft);
+}
+
+#pcr-consent-root .pcc-meta-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+#pcr-consent-root .pcc-meta-row > span {
+  flex: none;
+  color: var(--pcc-muted);
+}
+
+#pcr-consent-root .pcc-meta-row > strong {
+  min-width: 0;
+  color: var(--pcc-text);
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+#pcr-consent-root .pcc-perms-wrap { margin-top: 18px; }
+
+#pcr-consent-root .pcc-section {
+  margin: 0 0 8px;
+  color: var(--pcc-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+#pcr-consent-root .pcc-perms {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+#pcr-consent-root .pcc-perm {
+  padding: 10px 12px;
+  border: 1px solid var(--pcc-border);
+  border-radius: 10px;
+  background: var(--pcc-bg);
+}
+
+#pcr-consent-root .pcc-perm > strong {
+  display: block;
+  color: var(--pcc-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+#pcr-consent-root .pcc-perm > span {
+  display: block;
+  margin-top: 2px;
+  color: var(--pcc-muted);
+  font-size: 12px;
+}
+
+#pcr-consent-root .pcc-perm-empty {
+  color: var(--pcc-dim);
+  font-size: 12px;
+}
+
+#pcr-consent-root .pcc-warn {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--pcc-primary) 7%, transparent);
+  color: var(--pcc-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+#pcr-consent-root .pcc-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+#pcr-consent-root .pcc-actions-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#pcr-consent-root .pcc-btn {
+  min-width: 96px;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+#pcr-consent-root .pcc-btn:active { transform: translateY(1px); }
+
+#pcr-consent-root .pcc-btn:focus-visible {
+  outline: 2px solid var(--pcc-primary);
+  outline-offset: 2px;
+}
+
+#pcr-consent-root .pcc-btn-deny {
+  min-width: 0;
+  height: auto;
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--pcc-muted);
+  font-weight: 600;
+}
+
+#pcr-consent-root .pcc-btn-deny:hover {
+  background: transparent;
+  color: var(--pcc-text);
+  text-decoration: underline;
+}
+
+/* 长期允许：描边次级按钮；仅本次允许：主按钮。拒绝是弱化的文字按钮。 */
+#pcr-consent-root .pcc-btn-allow {
+  border: 1px solid var(--pcc-border);
+  background: transparent;
+  color: var(--pcc-text);
+}
+
+#pcr-consent-root .pcc-btn-allow:hover {
+  border-color: color-mix(in srgb, var(--pcc-primary) 48%, var(--pcc-border));
+  background: var(--pcc-soft);
+}
+
+#pcr-consent-root .pcc-btn-once {
+  border: 1px solid var(--pcc-primary);
+  background: var(--pcc-primary);
+  color: var(--pcc-primary-text);
+}
+
+#pcr-consent-root .pcc-btn-once:hover {
+  border-color: color-mix(in srgb, var(--pcc-primary) 86%, #000);
+  background: color-mix(in srgb, var(--pcc-primary) 86%, #000);
+}
+
+#pcr-consent-root .pcc-once-hint {
+  margin: 10px 0 0;
+  color: var(--pcc-dim);
+  font-size: 11.5px;
+  line-height: 1.55;
+  text-align: right;
+}
+
+#pcr-consent-root .pcc-foot {
+  margin: 6px 0 0;
+  color: var(--pcc-dim);
+  font-size: 11.5px;
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  #pcr-consent-root .pcc-card { padding: 20px; }
+  #pcr-consent-root .pcc-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+  }
+  #pcr-consent-root .pcc-actions-main { flex-direction: column-reverse; }
+  #pcr-consent-root .pcc-btn { width: 100%; }
+  #pcr-consent-root .pcc-btn-deny { align-self: center; width: auto; }
+  #pcr-consent-root .pcc-once-hint,
+  #pcr-consent-root .pcc-foot { text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pcr-consent-root .pcc-card,
+  #pcr-consent-root .pcc-btn,
+  #pcr-consent-root .pcc-close {
+    transition: none !important;
+  }
+  #pcr-consent-root .pcc-card {
+    transform: none;
+    opacity: 1;
+  }
+  #pcr-consent-root .pcc-btn:active { transform: none; }
+}

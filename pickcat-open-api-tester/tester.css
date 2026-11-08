@@ -1,0 +1,390 @@
+/* 测试助手面板：固定右下角，样式自包含，不继承站点主题。 */
+
+#pcr-tester-root {
+  position: fixed !important;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  width: 352px;
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1f2328;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  overflow: hidden;
+}
+
+#pcr-tester-root * {
+  box-sizing: border-box;
+}
+
+#pcr-tester-root.is-collapsed .pcr-tester-body {
+  display: none;
+}
+
+.pcr-tester-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  background: linear-gradient(180deg, rgba(250, 50, 45, 0.08), rgba(250, 50, 45, 0.02));
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.pcr-tester-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: #1f2328;
+}
+
+.pcr-tester-chip {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #6b7280;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pcr-tester-chip.is-found {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.pcr-tester-icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 6px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 14px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.pcr-tester-icon:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.pcr-tester-body {
+  padding: 10px 12px 12px;
+}
+
+.pcr-tester-meta {
+  margin: 0 0 8px;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.pcr-tester-meta code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #b91c1c;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+}
+
+.pcr-tester-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pcr-tester-btn {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1f2328;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.pcr-tester-btn strong {
+  display: block;
+  font-weight: 600;
+}
+
+.pcr-tester-btn span {
+  display: block;
+  margin-top: 1px;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pcr-tester-btn:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: rgba(250, 50, 45, 0.45);
+}
+
+.pcr-tester-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.pcr-tester-btn.is-warn {
+  border-color: rgba(250, 50, 45, 0.35);
+  background: rgba(250, 50, 45, 0.05);
+}
+
+.pcr-tester-guide {
+  margin-top: 10px;
+  padding: 6px 8px;
+  border: 1px dashed rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  color: #4b5563;
+}
+
+.pcr-tester-guide summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #374151;
+}
+
+.pcr-tester-guide ol {
+  margin: 6px 0 2px;
+  padding-left: 18px;
+}
+
+.pcr-tester-guide li {
+  margin: 4px 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pcr-tester-logbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.pcr-tester-tools {
+  display: flex;
+  gap: 6px;
+}
+
+.pcr-tester-mini {
+  padding: 1px 6px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 5px;
+  background: #ffffff;
+  color: #4b5563;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pcr-tester-mini:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.pcr-tester-log {
+  max-height: 208px;
+  margin-top: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.pcr-tester-log-item {
+  padding: 5px 6px 5px 8px;
+  margin-bottom: 4px;
+  border-left: 3px solid rgba(15, 23, 42, 0.18);
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.pcr-tester-log-item.is-pending {
+  border-left-color: #d97706;
+}
+
+.pcr-tester-log-item.is-ok {
+  border-left-color: #16a34a;
+}
+
+.pcr-tester-log-item.is-fail {
+  border-left-color: #dc2626;
+}
+
+.pcr-tester-log-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.pcr-tester-log-time {
+  flex: none;
+  color: #9ca3af;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+}
+
+.pcr-tester-log-action {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #374151;
+  font-size: 11px;
+}
+
+.pcr-tester-log-state {
+  flex: none;
+  font-weight: 600;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.is-ok .pcr-tester-log-state {
+  color: #15803d;
+}
+
+.is-fail .pcr-tester-log-state {
+  color: #b91c1c;
+}
+
+.is-pending .pcr-tester-log-state {
+  color: #b45309;
+}
+
+.pcr-tester-log-detail {
+  margin-top: 2px;
+  color: #6b7280;
+  font-size: 10.5px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+@media (prefers-color-scheme: dark) {
+  #pcr-tester-root {
+    color: #e5e7eb;
+    background: #1c1e22;
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  }
+
+  .pcr-tester-head {
+    background: linear-gradient(180deg, rgba(250, 50, 45, 0.16), rgba(250, 50, 45, 0.04));
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .pcr-tester-title {
+    color: #f3f4f6;
+  }
+
+  .pcr-tester-chip {
+    background: rgba(255, 255, 255, 0.1);
+    color: #9ca3af;
+  }
+
+  .pcr-tester-chip.is-found {
+    background: rgba(34, 197, 94, 0.18);
+    color: #86efac;
+  }
+
+  .pcr-tester-icon,
+  .pcr-tester-mini {
+    background: #24272c;
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #d1d5db;
+  }
+
+  .pcr-tester-icon:hover,
+  .pcr-tester-mini:hover {
+    background: #2d3138;
+  }
+
+  .pcr-tester-meta {
+    color: #9ca3af;
+  }
+
+  .pcr-tester-meta code {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fca5a5;
+  }
+
+  .pcr-tester-btn {
+    background: #24272c;
+    border-color: rgba(255, 255, 255, 0.14);
+    color: #e5e7eb;
+  }
+
+  .pcr-tester-btn span {
+    color: #9ca3af;
+  }
+
+  .pcr-tester-btn:hover:not(:disabled) {
+    background: #2d3138;
+    border-color: rgba(250, 50, 45, 0.55);
+  }
+
+  .pcr-tester-btn.is-warn {
+    background: rgba(250, 50, 45, 0.12);
+    border-color: rgba(250, 50, 45, 0.45);
+  }
+
+  .pcr-tester-guide {
+    border-color: rgba(255, 255, 255, 0.16);
+    color: #9ca3af;
+  }
+
+  .pcr-tester-guide summary {
+    color: #d1d5db;
+  }
+
+  .pcr-tester-logbar {
+    border-top-color: rgba(255, 255, 255, 0.08);
+    color: #9ca3af;
+  }
+
+  .pcr-tester-log-item {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .pcr-tester-log-action {
+    color: #d1d5db;
+  }
+
+  .pcr-tester-log-detail {
+    color: #9ca3af;
+  }
+
+  .is-ok .pcr-tester-log-state {
+    color: #86efac;
+  }
+
+  .is-fail .pcr-tester-log-state {
+    color: #fca5a5;
+  }
+
+  .is-pending .pcr-tester-log-state {
+    color: #fbbf24;
+  }
+}
