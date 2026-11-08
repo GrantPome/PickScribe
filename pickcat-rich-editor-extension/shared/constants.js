@@ -143,7 +143,13 @@ export const SELECTORS = {
 
 // ============================ 4. 默认配置 ============================
 export const DEFAULT_CONFIG = {
-  enabled: true,            // 详情页 AI 面板总开关
+  aiEnabled: true,           // AI 功能总开关：关闭后隐藏所有 AI 入口且不发请求
+  enabled: true,             // 帖子总结（详情页面板 + 浮层「总结本帖」）
+  aiAuto: true,              // 自动总结（仅在 trigger 为 auto 时生效）
+  aiChat: true,              // 总结面板内的「提问」标签
+  aiReply: true,             // AI 回帖助手（站内回复框 + 浮层写回复 / 润色）
+  aiFormat: true,            // AI 排版（编辑器整理整篇正文）
+  aiWriter: true,            // AI 写作助手（编辑器写作助手窗口）
   provider: 'deepseek',      // 服务商预设 id
   baseUrl: '',               // 自定义 Base URL（预设为空时用预设值）
   apiKey: '',
@@ -209,6 +215,16 @@ export const STORAGE_KEYS = {
   config: 'pcai_config',
   cache: 'pcai_cache',
   usage: 'pcai_usage'
+};
+
+// ============================ 7. 新手引导 ============================
+// 引导内容版本：只有引导步骤增删时才 +1，与扩展版本号解耦（小版本升级不重播）。
+// 内容脚本 guide/guide.js 为经典脚本，无法 import，这里的值需与它保持一致。
+export const GUIDE_VERSION = 1;
+
+export const GUIDE_KEYS = {
+  state: 'pco_guide',        // 整体 + 步骤级：state / done[] / welcomeDone / replay
+  hints: 'pco_guide_hints'   // 气泡级：每个 id 的展示次数与时间
 };
 
 /** 缓存上限（条），超出按最早写入淘汰 */

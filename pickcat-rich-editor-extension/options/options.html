@@ -47,6 +47,15 @@
   <div class="layout">
     <aside class="side">
       <h1 class="side-title">PickScribe 设置</h1>
+
+      <div class="side-profile">
+        <div class="side-avatar" id="sideAvatarWrap">
+          <img id="sideAvatar" src="https://avatars.githubusercontent.com/u/125468685?v=4" alt="Grant 的 GitHub 头像" width="48" height="48" loading="lazy" decoding="async" />
+          <span class="side-avatar-fallback" aria-hidden="true">G</span>
+        </div>
+        <p class="side-name">Grant</p>
+        <a class="side-mail" href="mailto:3803746525@qq.com">3803746525@qq.com</a>
+      </div>
       <div class="side-card">
         <nav class="nav" aria-label="设置分区">
           <a class="nav-item is-active" href="#sec-appearance">
@@ -77,6 +86,10 @@
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.6 14.4 14.4 9.6"/><path d="M11 6.6 12.9 4.7a4 4 0 0 1 5.7 5.7l-1.9 1.9"/><path d="M13 17.4 11.1 19.3a4 4 0 0 1-5.7-5.7l1.9-1.9"/></svg>
             PICKCAT Plus 联动
           </a>
+          <a class="nav-item" href="#sec-api">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/><path d="M13.5 5 10.5 19"/></svg>
+            开放接口
+          </a>
           <a class="nav-item" href="#sec-about">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg>
             关于
@@ -91,20 +104,22 @@
       <section class="card" id="sec-appearance">
         <div class="card-head">
           <h2>站点外观</h2>
-          <p>影响整个站点的显示效果，改动即时生效，无需点右上角保存。</p>
         </div>
 
         <h3 class="sub-head">字体</h3>
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="appearanceHarmonyFont" />
+          <label class="field switch-row">
             <span>替换整站字体</span>
+            <input type="checkbox" id="appearanceHarmonyFont" />
           </label>
         </div>
 
-        <div class="font-mode" id="fontModeRow">
-          <label><input type="radio" name="fontMode" value="harmony" id="fontModeHarmony" /><span>鸿蒙字体（内置）</span></label>
-          <label><input type="radio" name="fontMode" value="custom" id="fontModeCustom" /><span>自定义字体（上传）</span></label>
+        <div class="row">
+          <span class="row-label">字体来源</span>
+          <div class="font-mode" id="fontModeRow">
+            <label><input type="radio" name="fontMode" value="harmony" id="fontModeHarmony" /><span>鸿蒙字体（内置）</span></label>
+            <label><input type="radio" name="fontMode" value="custom" id="fontModeCustom" /><span>自定义字体（上传）</span></label>
+          </div>
         </div>
 
         <div id="customFontBox" hidden>
@@ -115,67 +130,66 @@
             <button id="clearCustomFont" class="btn danger" type="button" hidden>移除自定义字体</button>
           </div>
           <div class="font-faces" id="fontFaceList"></div>
-          <p class="note" id="customFontNote">支持 woff2 / woff / ttf / otf，单个文件不超过 20 MB。可一次上传多个字重（如 Regular + Bold），并为每个文件指定字重；可变字体请选「可变 100–900」。</p>
+          <p class="note" id="customFontNote">woff2 / woff / ttf / otf，单文件不超过 20 MB；可一次上传多个字重文件。</p>
         </div>
 
-        <p class="note">字体文件随扩展本地分发，不联网；只覆盖站点的正文与组件字体，代码块、公式仍使用各自的等宽 / 数学字体。关闭后恢复站点原字体。</p>
+        <p class="note">字体文件只在本地分发，不联网。</p>
 
         <div class="divider"></div>
 
         <h3 class="sub-head">图片</h3>
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="appearanceImageZoom" />
+          <label class="field switch-row">
             <span>点击图片可以像原站点那样查看大图</span>
+            <input type="checkbox" id="appearanceImageZoom" />
           </label>
         </div>
-        <p class="note">在帖子浮窗的正文与回复里，点击图片会铺满一层深色大图，再点空白处或按 Esc 关闭；表情符号不放大。</p>
       </section>
 
       <!-- 刷帖体验优化 -->
       <section class="card" id="sec-overlay">
         <div class="card-head">
           <h2>刷帖体验优化</h2>
-          <p>在信息流里点开帖子时，就地展开一层详情浮层，不切换页面。此功能默认开启，可在下方关闭。</p>
         </div>
 
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayEnabled" />
+          <label class="field switch-row">
             <span>启用帖子浮窗预览（首页 / 论坛 / 分类 / 搜索页点击帖子就地展开）</span>
+            <input type="checkbox" id="overlayEnabled" />
           </label>
+          <p class="note">关闭后点击帖子恢复站点原生跳转。</p>
         </div>
 
         <div class="divider"></div>
 
         <h3 class="sub-head">回复框工具条</h3>
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayComposerTools" />
+          <label class="field switch-row">
             <span>启用回复框工具条（排版 / 表情 / 图片 / AI）</span>
+            <input type="checkbox" id="overlayComposerTools" />
           </label>
         </div>
-        <p class="note">默认隐藏，不占输入框高度；开启后仅在输入框聚焦时展开，失焦即收起。</p>
+        <p class="note">仅在输入框聚焦时展开。</p>
 
         <div class="divider"></div>
 
         <h3 class="sub-head">视觉效果</h3>
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayBlur" />
+          <label class="field switch-row">
             <span>遮罩使用背景模糊（毛玻璃）</span>
+            <input type="checkbox" id="overlayBlur" />
           </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayPageScale" />
+          <label class="field switch-row">
             <span>打开浮层时背景页面同步缩放</span>
+            <input type="checkbox" id="overlayPageScale" />
           </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayCardTilt" />
+          <label class="field switch-row">
             <span>信息流卡片 3D 倾斜（悬停时卡片跟随鼠标视角轻微转动）</span>
+            <input type="checkbox" id="overlayCardTilt" />
           </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="overlayOpenTilt" />
+          <label class="field switch-row">
             <span>打开浮层时 3D 倾斜回正（面板带透视倾角展开后转正）</span>
+            <input type="checkbox" id="overlayOpenTilt" />
           </label>
         </div>
 
@@ -190,22 +204,25 @@
           </label>
         </div>
 
-        <p class="note">以上开关均默认开启，改动即时生效（浮层已打开时也会立刻切换）。关闭模糊仍保留遮罩变暗；关闭缩放后背景页面保持原尺寸；系统开启「减少动态效果」时 3D 倾斜自动停用。动画速度影响浮层开合、目录高亮与内容入场动画，默认 1×。</p>
+        <div class="divider"></div>
 
-        <p class="note">浮层内的正文、回复排序筛选、点赞、收藏与发表回复都使用站点自己的接口。关闭后点击帖子恢复站点原生跳转，其他功能不受影响。</p>
+        <h3 class="sub-head">新手引导</h3>
+        <div class="row">
+          <p class="note">会清空全部引导记录，等同于首次安装状态；已打开的站点标签页会自动重新弹卡。</p>
+          <button id="replayGuide" class="btn danger" type="button">重新开始新手引导</button>
+        </div>
       </section>
 
       <!-- 起始页浮层 -->
       <section class="card" id="sec-home">
         <div class="card-head">
           <h2>起始页浮层</h2>
-          <p>打开站点首页时展示的一层 Windows 8 风格磁贴起始页。此区改动即时生效。</p>
         </div>
 
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="homeEnabled" />
+          <label class="field switch-row">
             <span>每次打开站点首页时显示起始页浮层</span>
+            <input type="checkbox" id="homeEnabled" />
           </label>
         </div>
 
@@ -220,66 +237,64 @@
         </div>
 
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="homeShowSearch" />
+          <label class="field switch-row">
             <span>显示搜索框</span>
+            <input type="checkbox" id="homeShowSearch" />
           </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="homeShowClock" />
+          <label class="field switch-row">
             <span>显示时钟</span>
+            <input type="checkbox" id="homeShowClock" />
           </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="homeShowFooter" />
+          <label class="field switch-row">
             <span>显示底部说明</span>
+            <input type="checkbox" id="homeShowFooter" />
           </label>
         </div>
 
         <div class="divider"></div>
 
         <h3 class="sub-head">功能磁贴</h3>
-        <p class="note">勾选要在起始页显示的磁贴，尺寸可选小 / 宽 / 大，↑ ↓ 调整顺序；也可以直接在起始页拖动磁贴排序。</p>
+        <p class="note">↑ ↓ 调整顺序，也可直接在起始页拖动磁贴排序。</p>
         <ul class="home-list" id="homeTileList"></ul>
 
         <div class="divider"></div>
 
         <h3 class="sub-head">内容标签页</h3>
-        <p class="note">至少保留一个标签页；「默认打开」会随启用项自动校正。</p>
+        <p class="note">至少保留一个标签页。</p>
         <ul class="home-list" id="homeTabList"></ul>
 
         <div class="row home-actions">
-          <button id="homeReset" class="btn" type="button">恢复默认布局</button>
+          <p class="note">只读取首页已有内容，不额外请求接口。</p>
+          <button id="homeReset" class="btn danger" type="button">恢复默认布局</button>
         </div>
-
-        <p class="note">浮层只读取首页已有内容，不额外请求接口。关闭后不再自动弹出，其他功能不受影响。</p>
       </section>
 
       <!-- 搜索页 -->
       <section class="card" id="sec-search">
         <div class="card-head">
           <h2>搜索页</h2>
-          <p>站点搜索页的排版、吸顶与搜索记录。此区改动即时生效，无需点右上角保存。</p>
         </div>
 
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="searchEnabled" />
+          <label class="field switch-row">
             <span>启用搜索页美化（居中搜索 / 搜索引擎式结果排版）</span>
+            <input type="checkbox" id="searchEnabled" />
           </label>
-          <label class="field checkbox">
-            <input type="checkbox" id="searchSticky" />
+          <label class="field switch-row">
             <span>搜索框与筛选栏滚动到顶部时吸顶</span>
+            <input type="checkbox" id="searchSticky" />
           </label>
         </div>
 
         <div class="divider"></div>
 
         <h3 class="sub-head">搜索记录</h3>
-        <p class="note">只在搜索首屏显示最近搜过的词，点击即可再次搜索；记录保存在本机，不随账号同步。</p>
+        <p class="note">记录只保存在本机，不随账号同步。</p>
 
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="searchHistory" />
+          <label class="field switch-row">
             <span>记录最近搜索的关键词</span>
+            <input type="checkbox" id="searchHistory" />
           </label>
         </div>
 
@@ -291,22 +306,21 @@
         </div>
 
         <div class="row">
+          <p class="note" id="searchHistoryNote"></p>
           <button id="searchClearHistory" class="btn danger" type="button">清除搜索记录</button>
         </div>
-        <p class="note" id="searchHistoryNote"></p>
       </section>
 
       <!-- 站内通知 -->
       <section class="card" id="sec-notify">
         <div class="card-head">
           <h2>站内通知</h2>
-          <p>后台轮询社区未读消息，通过 Windows 右下角的系统通知弹出。改动即时生效，无需点右上角保存。</p>
         </div>
 
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="notifyEnabled" />
+          <label class="field switch-row">
             <span>开启系统通知推送（浏览器运行期间后台轮询）</span>
+            <input type="checkbox" id="notifyEnabled" />
           </label>
         </div>
 
@@ -319,7 +333,7 @@
 
         <div class="divider"></div>
 
-        <h3 class="sub-head">监听站点</h3>
+        <h3 class="sub-head">监听站点（可多选）</h3>
         <div class="checks">
           <label class="field checkbox">
             <input type="checkbox" id="notifyPickcat" />
@@ -332,21 +346,57 @@
         </div>
 
         <div class="row">
+          <p class="note">首次开启只记录当前未读，之后仅提示新增；系统开启专注助手 / 勿扰时可能被拦截。</p>
           <button id="notifyTest" class="btn" type="button">发送测试通知</button>
         </div>
-
-        <p class="note">首次开启会静默记录当前未读，之后只弹新增通知；点击通知直达对应帖子，工具栏图标上的红色角标为当前未读数。若 Windows 开启了专注助手 / 勿扰，通知可能被系统拦截。</p>
       </section>
 
       <!-- AI 功能 -->
       <section class="card" id="sec-ai">
         <div class="card-head">
           <h2>AI 功能</h2>
-          <p>模型连接、生成参数、提示词、触发行为与本地数据统一在此配置。</p>
         </div>
 
+        <h3 class="sub-head">功能开关</h3>
+        <p class="note">关闭后各分项置灰，所有 AI 入口隐藏，也不会再向模型发请求。</p>
+
+        <div class="checks">
+          <label class="field switch-row">
+            <span>启用 AI 功能（关闭后隐藏所有 AI 入口）</span>
+            <input type="checkbox" id="aiEnabled" />
+          </label>
+        </div>
+
+        <div class="checks" id="aiSubSwitches">
+          <label class="field switch-row">
+            <span>帖子总结（详情页面板与浮层「总结本帖」）</span>
+            <input type="checkbox" id="enabled" />
+          </label>
+          <label class="field switch-row">
+            <span>自动总结（打开帖子后按下方触发方式自动生成）</span>
+            <input type="checkbox" id="aiAuto" />
+          </label>
+          <label class="field switch-row">
+            <span>面板内提问（AI 总结面板的「提问」标签）</span>
+            <input type="checkbox" id="aiChat" />
+          </label>
+          <label class="field switch-row">
+            <span>AI 回帖助手（站内回复框、浮层「写一条回复 / 润色草稿」）</span>
+            <input type="checkbox" id="aiReply" />
+          </label>
+          <label class="field switch-row">
+            <span>AI 排版（编辑器里整理整篇正文）</span>
+            <input type="checkbox" id="aiFormat" />
+          </label>
+          <label class="field switch-row">
+            <span>AI 写作助手（编辑器里的写作助手窗口）</span>
+            <input type="checkbox" id="aiWriter" />
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
         <h3 class="sub-head">模型与连接</h3>
-        <p class="note">选择服务商，填写模型名与 API Key。全部走 OpenAI 兼容协议。</p>
 
         <div class="grid">
           <label class="field">
@@ -395,7 +445,7 @@
         <div class="divider"></div>
 
         <h3 class="sub-head">提示词与输出</h3>
-        <p class="note">留空则使用内置提示词。自定义时保留变量占位符即可。</p>
+        <p class="note">留空使用内置提示词。</p>
 
         <label class="field block">
           <span>系统提示词</span>
@@ -425,14 +475,6 @@
         <div class="divider"></div>
 
         <h3 class="sub-head">行为</h3>
-        <p class="note">控制 AI 总结何时出现，以及是否流式显示。</p>
-
-        <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="enabled" />
-            <span>在帖子详情页启用 AI 总结面板</span>
-          </label>
-        </div>
 
         <div class="grid">
           <label class="field">
@@ -446,16 +488,16 @@
         </div>
 
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="stream" />
+          <label class="field switch-row">
             <span>流式输出（边生成边显示）</span>
+            <input type="checkbox" id="stream" />
           </label>
         </div>
 
         <div class="divider"></div>
 
         <h3 class="sub-head">AI 数据</h3>
-        <p class="note">缓存以「帖子 + 模型 + 提示词」为键，命中即秒出；清空后下次打开帖子会重新调用模型。</p>
+        <p class="note">缓存按「帖子 + 模型 + 提示词」区分，清空后下次会重新调用模型。</p>
 
         <div class="usage" id="usageBox">
           <div class="usage-item"><span>输入</span><strong id="usagePrompt">0</strong></div>
@@ -463,12 +505,12 @@
           <div class="usage-item"><span>合计</span><strong id="usageTotal">0</strong></div>
           <div class="usage-item"><span>请求次数</span><strong id="usageCalls">0</strong></div>
         </div>
-        <p class="note" id="usageNote">仅统计真实调用，缓存命中不计入；服务商未返回 usage 时按字符估算。</p>
+        <p class="note" id="usageNote">仅统计真实调用；服务商未返回用量时按字符估算。</p>
         <p class="note" id="usageModels"></p>
 
         <div class="row">
-          <button id="clearUsage" class="btn">清空用量统计</button>
-          <button id="clearCache" class="btn">清空总结缓存</button>
+          <button id="clearUsage" class="btn danger">清空用量统计</button>
+          <button id="clearCache" class="btn danger">清空总结缓存</button>
           <button id="exportBtn" class="btn">导出配置</button>
           <button id="importBtn" class="btn">导入配置</button>
           <input id="importFile" type="file" accept="application/json" hidden />
@@ -479,22 +521,22 @@
       <section class="card" id="sec-plus">
         <div class="card-head">
           <h2>PICKCAT Plus 联动</h2>
-          <p>两个扩展各自独立运行，通过页面内的 postMessage 协议互相发现，不读取对方的配置与数据。</p>
+          <p>两个扩展独立运行，不读取对方的配置与数据。</p>
         </div>
 
         <h3 class="sub-head">联动开关</h3>
         <p class="note">关闭后仍会应答对方的心跳，但不再接受「打开写作助手」的指令。</p>
 
         <div class="checks">
-          <label class="field checkbox">
-            <input type="checkbox" id="plusLinkEnabled" />
+          <label class="field switch-row">
             <span>允许 PICKCAT Plus 唤起写作助手</span>
+            <input type="checkbox" id="plusLinkEnabled" />
           </label>
         </div>
 
         <div class="callout">
           <p class="callout-title">协议 v1</p>
-          <p class="note">PICKCAT Plus 广播 <code>pickcat:link-ping</code>，PickScribe 回复 <code>pickscribe:hello</code>；需要写作助手时由对方发送 <code>pickcat:open-ai</code>，仅在编辑页生效。消息带来源字段校验并限定同源。</p>
+          <p class="note">消息限定同源并校验来源，仅在编辑页生效。</p>
         </div>
 
         <div class="divider"></div>
@@ -516,19 +558,90 @@
         </ul>
       </section>
 
+      <!-- 开放接口 v1.0 -->
+      <section class="card" id="sec-api">
+        <div class="card-head">
+          <h2>开放接口 v1.0</h2>
+          <p>供第三方扩展通过 <code>postMessage</code> 调用；仅做 L1 同源校验。</p>
+        </div>
+
+        <h3 class="sub-head">能力权限</h3>
+        <p class="note">默认允许读取，写入与 AI 额度默认关闭。</p>
+
+        <div class="checks">
+          <label class="field switch-row">
+            <span>允许第三方读取当前帖子正文</span>
+            <input type="checkbox" id="apiReadPost" />
+          </label>
+          <label class="field switch-row">
+            <span>允许第三方读取编辑器内容</span>
+            <input type="checkbox" id="apiReadEditor" />
+          </label>
+          <label class="field switch-row">
+            <span>允许第三方写入编辑器</span>
+            <input type="checkbox" id="apiWriteEditor" />
+          </label>
+          <label class="field switch-row">
+            <span>允许第三方消耗 AI 额度</span>
+            <input type="checkbox" id="apiAiQuota" />
+          </label>
+        </div>
+
+        <div class="callout">
+          <p class="callout-title">已实现的动作</p>
+          <p class="note"><code>ai.open</code> / <code>post.open</code> 无需授权；<code>post.context</code> / <code>editor.read</code> 会检查开关并首次确认。写编辑器与 AI 总结尚未实现。</p>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">已授权扩展</h3>
+        <p class="note">撤销后该扩展下次请求会重新弹窗；删除整条记录会清空它的全部授权。</p>
+        <div class="api-grants" id="apiGrants" aria-live="polite"></div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">联动状态</h3>
+        <p class="note">在 Pickcat 站点页面打开时刷新才能检测；扩展 ID 可提供给第三方扩展。</p>
+
+        <div class="api-status">
+          <div class="api-status-item"><span>内容脚本</span><strong id="apiStatusScript">未检测</strong></div>
+          <div class="api-status-item"><span>当前页面</span><strong id="apiStatusPage">—</strong></div>
+          <div class="api-status-item"><span>协议版本</span><strong id="apiStatusProtocol">v1</strong></div>
+          <div class="api-status-item"><span>可用动作</span><strong id="apiStatusActions">—</strong></div>
+          <div class="api-status-item"><span>能力开关</span><strong id="apiStatusPerms">—</strong></div>
+          <div class="api-status-item"><span>扩展 ID</span><strong id="apiStatusId">—</strong></div>
+        </div>
+
+        <div class="api-actions">
+          <button class="btn" type="button" id="apiRefresh">刷新状态</button>
+          <button class="btn" type="button" id="apiCopyId">复制扩展 ID</button>
+          <button class="btn" type="button" id="apiCopyTest">复制自检命令</button>
+        </div>
+
+        <pre class="api-snippet" id="apiSnippet"></pre>
+        <p class="note" id="apiStatusHint">自检命令需在站点页面的控制台运行。</p>
+      </section>
+
       <!-- 关于 -->
       <section class="card" id="sec-about">
         <div class="card-head">
           <h2>关于</h2>
-          <p>PickScribe 是开源的浏览器扩展，代码与发行版都托管在 GitHub。</p>
         </div>
 
         <div class="about">
           <img class="about-logo" src="../icons/logo.svg" alt="PickScribe 图标" width="56" height="56" />
           <div class="about-meta">
             <p class="about-name">PickScribe <span class="about-ver" id="aboutVersion">v3.4.2</span></p>
-            <p class="about-desc">Pickcat 富文本编辑器与 AI 助手：可视化编辑、帖子总结与 AI 回帖。</p>
           </div>
+        </div>
+
+        <div class="row">
+          <span class="row-label">作者</span>
+          <span class="row-value">Grant</span>
+        </div>
+        <div class="row">
+          <span class="row-label">反馈邮箱</span>
+          <a class="row-value" href="mailto:3803746525@qq.com">3803746525@qq.com</a>
         </div>
 
         <div class="row about-links">
@@ -546,7 +659,7 @@
           </a>
         </div>
 
-        <p class="note">欢迎提交 Issue 或 PR。扩展不收集任何使用数据，配置与密钥只保存在本机。</p>
+        <p class="note">扩展不收集使用数据，配置与密钥只保存在本机。</p>
       </section>
     </main>
   </div>

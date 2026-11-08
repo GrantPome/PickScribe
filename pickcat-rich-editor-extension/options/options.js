@@ -5,7 +5,8 @@
 import {
   PROVIDERS, getProvider, LENGTHS, LANGS, TRIGGERS,
   DEFAULT_CONFIG, DEFAULT_USER_PROMPT, DEFAULT_SYSTEM_PROMPT,
-  NOTIFY_CONFIG_KEY, NOTIFY_DEFAULTS, NOTIFY_INTERVALS
+  NOTIFY_CONFIG_KEY, NOTIFY_DEFAULTS, NOTIFY_INTERVALS,
+  GUIDE_VERSION, GUIDE_KEYS
 } from '../shared/constants.js';
 import { getConfig, setConfig, clearCache, exportAll, importAll, getUsageStats, clearUsageStats } from '../shared/storage.js';
 import { chat, estimateTokens, estimateMessagesTokens } from '../background/llm-client.js';
@@ -63,7 +64,21 @@ async function load() {
   $('trigger').value = c.trigger;
   $('minChars').value = c.minChars;
   $('stream').checked = !!c.stream;
-  $('enabled').checked = !!c.enabled;
+  $('enabled').checked = c.enabled !== false;
+  $('aiEnabled').checked = c.aiEnabled !== false;
+  $('aiAuto').checked = c.aiAuto !== false;
+  $('aiChat').checked = c.aiChat !== false;
+  $('aiReply').checked = c.aiReply !== false;
+  $('aiFormat').checked = c.aiFormat !== false;
+  $('aiWriter').checked = c.aiWriter !== false;
+  syncAiSwitches();
+}
+
+/** 总开关关闭时，所有分项置灰且不可操作 */
+function syncAiSwitches() {
+  const on = $('aiEnabled').checked;
+  $('aiSubSwitches').classList.toggle('is-off', !on);
+  $('aiSubSwitches').querySelectorAll('input').forEach((el) => { el.disabled = !on; });
 }
 
 // ============================ 读写表单 ============================
@@ -83,7 +98,13 @@ function readForm() {
     trigger: $('trigger').value,
     minChars: Number($('minChars').value) || 0,
     stream: $('stream').checked,
-    enabled: $('enabled').checked
+    enabled: $('enabled').checked,
+    aiEnabled: $('aiEnabled').checked,
+    aiAuto: $('aiAuto').checked,
+    aiChat: $('aiChat').checked,
+    aiReply: $('aiReply').checked,
+    aiFormat: $('aiFormat').checked,
+    aiWriter: $('aiWriter').checked
   };
 }
 
@@ -122,8 +143,8 @@ async function renderUsage() {
     : '';
 
   $('usageNote').textContent = s.updated
-    ? '仅统计真实调用，缓存命中不计入；最近更新于 ' + new Date(s.updated).toLocaleString('zh-CN') + '。'
-    : '还没有调用记录。仅统计真实调用，缓存命中不计入；服务商未返回 usage 时按字符估算。';
+    ? '仅统计真实调用；最近更新于 ' + new Date(s.updated).toLocaleString('zh-CN') + '。'
+    : '还没有调用记录。仅统计真实调用，未返回用量时按字符估算。';
 }
 
 // ============================ 测试连接 ============================
@@ -151,6 +172,8 @@ $('sec-ai').addEventListener('change', markAiDirty);
 $('provider').addEventListener('change', (e) => {
   applyProvider(e.target.value, false);
 });
+
+$('aiEnabled').addEventListener('change', syncAiSwitches);
 
 $('toggleKey').addEventListener('click', () => {
   const el = $('apiKey');
@@ -218,6 +241,28 @@ $('clearUsage').addEventListener('click', async () => {
 $('clearCache').addEventListener('click', async () => {
   const n = await clearCache();
   setStatus('已清空 ' + n + ' 条缓存', 'ok');
+});
+
+// 重新开始新手引导：整份记录清空，回到「刚装完」的状态。
+// 设置页没有站点 DOM，不能在这里播放；写入后由站点页的 guide.js 通过 storage 变更即时感知，
+// 回到信息流就会重新显示欢迎卡，之后展开帖子再走完整 Tour；气泡记录也一并清空。
+$('replayGuide').addEventListener('click', async () => {
+  const now = Date.now();
+  await chrome.storage.local.set({
+    [GUIDE_KEYS.state]: {
+      v: GUIDE_VERSION,
+      state: 'pending',      // 等同首装：等待欢迎卡
+      done: [],              // 清空已看步骤
+      welcomeDone: false,    // 欢迎卡重新出现
+      skipped: false,
+      skippedAt: 0,
+      replay: false,
+      resetAt: now,          // 站点页据此区分「外部重置」与自身写入
+      updatedAt: now
+    },
+    [GUIDE_KEYS.hints]: {}   // 清空 4 条气泡的展示记录
+  });
+  setStatus('已重置：回到站点信息流会重新显示欢迎卡，气泡也会重新出现', 'ok');
 });
 
 $('exportBtn').addEventListener('click', async () => {
@@ -609,7 +654,7 @@ loadHomeSetting().catch((e) => setStatus('读取起始页设置失败：' + e.me
  * 模糊与背景缩放默认开启，保存时保留配置里的其他字段。
  */
 const OVERLAY_KEY = 'pco_config';
-const OVERLAY_DEFAULTS = { enabled: true, composerTools: false, blur: true, pageScale: true, animSpeed: 1, cardTilt: true, openTilt: true };
+const OVERLAY_DEFAULTS = { enabled: true, composerTools: false, blur: true, pageScale: true, animSpeed: 1, cardTilt: true, openTilt: true, fullscreen: true };
 
 let overlayCfg = { ...OVERLAY_DEFAULTS };
 
@@ -624,7 +669,9 @@ function normalizeOverlay(raw) {
     pageScale: c.pageScale !== false,
     animSpeed: Number.isFinite(speed) && speed >= 0.5 && speed <= 2 ? speed : 1,
     cardTilt: c.cardTilt !== false,
-    openTilt: c.openTilt !== false
+    openTilt: c.openTilt !== false,
+    // 浮层默认全屏，用户手动退出后由浮层写回 false；这里只负责保留，避免保存设置时丢掉
+    fullscreen: c.fullscreen !== false
   };
 }
 
@@ -1120,6 +1167,19 @@ loadAppearance().catch((e) => setStatus('读取站点外观设置失败：' + e.
 
 $('aboutVersion').textContent = 'v' + chrome.runtime.getManifest().version;
 
+// 侧栏头像：网络不可用时退回首字母，容器尺寸保持不变
+(() => {
+  const img = $('sideAvatar');
+  const wrap = $('sideAvatarWrap');
+  if (!img || !wrap) return;
+  const fallback = () => {
+    img.hidden = true;
+    wrap.classList.add('is-fallback');
+  };
+  if (img.complete && img.naturalWidth === 0) fallback();
+  else img.addEventListener('error', fallback, { once: true });
+})();
+
 // ============================ PICKCAT Plus 联动 ============================
 
 /** 默认开启：读不到设置时按允许处理，与 content.js 的判定保持一致 */
@@ -1132,6 +1192,374 @@ $('plusLinkEnabled').addEventListener('change', async (e) => {
   await chrome.storage.local.set({ [PLUS_LINK_KEY]: e.target.checked });
   setStatus(e.target.checked ? '已允许 PICKCAT Plus 唤起写作助手' : '已禁止 PICKCAT Plus 唤起写作助手', 'ok');
 });
+
+// ============================ 开放接口 v1.0 ============================
+
+const API_PERMS_KEY = 'pcr_api_perms';
+const API_PERMS_DEFAULT = { readPost: true, readEditor: true, writeEditor: false, aiQuota: false };
+const API_PERM_INPUTS = {
+  apiReadPost: 'readPost',
+  apiReadEditor: 'readEditor',
+  apiWriteEditor: 'writeEditor',
+  apiAiQuota: 'aiQuota'
+};
+const API_SITE_PATTERNS = ['https://pickcat.dao3.fun/*', 'https://cdsq.dao3.fun/*'];
+
+// 控制台自检命令：发 ping / state，打印能力与四项权限，并暴露 pcrTest 供手动调用动作
+const API_SELFTEST_COMMAND = `(() => {
+  const S = 'pickcat-client', V = 1, H = location.origin;
+  const send = (action, payload = {}, wait) => new Promise((resolve, reject) => {
+    const id = 'st-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    const timer = setTimeout(() => reject(new Error(action + ' 超时')), wait || 3000);
+    const onMsg = (e) => {
+      if (e.origin !== H || e.source !== window) return;
+      const d = e.data;
+      if (!d || d.source !== 'pickscribe' || !d.payload || d.payload.replyTo !== id) return;
+      clearTimeout(timer);
+      window.removeEventListener('message', onMsg);
+      resolve(d.payload);
+    };
+    window.addEventListener('message', onMsg);
+    window.postMessage({ source: S, v: V, id, action, payload, ts: Date.now() }, H);
+  });
+  // 数据动作首次调用要先等用户确认，超时放宽到 65 秒
+  window.pcrTest = {
+    ping: () => send('ping'),
+    state: () => send('state'),
+    aiOpen: (prompt) => send('ai.open', { mode: 'writer', prompt: prompt || '' }),
+    postOpen: (postId) => send('post.open', { postId }),
+    readPost: (postId, fields) => send('post.context',
+      Object.assign({}, postId ? { postId: postId } : {}, Array.isArray(fields) ? { fields: fields } : {}), 65000),
+    readEditor: (format) => send('editor.read', { format: format === 'text' ? 'text' : 'markdown' }, 65000)
+  };
+  console.log('%cPickScribe 开放接口自检', 'font-weight:bold;color:#fa322d');
+  Promise.all([pcrTest.ping(), pcrTest.state()]).then(([ping, state]) => {
+    console.log('版本', ping.data.version, '协议', ping.data.protocol);
+    console.log('页面', state.data.page);
+    console.log('可用动作', (ping.data.actions || []).join(', ') || '无');
+    console.table(ping.data.perms);
+    const enabled = Object.keys(ping.data.perms || {}).filter((k) => ping.data.perms[k]);
+    console.log('已开启能力', enabled.join(', ') || '无');
+    console.log('手动测试：编辑页 await pcrTest.aiOpen("整理成大纲")；信息流页 await pcrTest.postOpen("帖子ID")');
+    console.log('数据读取：await pcrTest.readPost() / await pcrTest.readEditor()（首次会弹确认窗）');
+  }).catch((e) => console.error('自检失败：', e));
+})();`;
+
+function readApiPermInputs() {
+  const out = {};
+  Object.keys(API_PERM_INPUTS).forEach((id) => {
+    const el = $(id);
+    out[API_PERM_INPUTS[id]] = !!(el && el.checked);
+  });
+  return out;
+}
+
+function writeApiPermInputs(perms) {
+  const p = Object.assign({}, API_PERMS_DEFAULT, perms || {});
+  Object.keys(API_PERM_INPUTS).forEach((id) => {
+    const el = $(id);
+    if (el) el.checked = !!p[API_PERM_INPUTS[id]];
+  });
+}
+
+async function loadApiPerms() {
+  try {
+    const raw = await chrome.storage.local.get({ [API_PERMS_KEY]: API_PERMS_DEFAULT });
+    writeApiPermInputs(raw[API_PERMS_KEY]);
+  } catch (e) {
+    writeApiPermInputs(API_PERMS_DEFAULT);
+  }
+}
+
+function setApiField(id, text) {
+  const el = $(id);
+  if (el) el.textContent = text;
+}
+
+function refreshApiStatus() {
+  setApiField('apiStatusScript', '检测中…');
+  setApiField('apiStatusPage', '—');
+  setApiField('apiStatusActions', '—');
+  setApiField('apiStatusPerms', '—');
+  setApiField('apiStatusHint', '正在查找 Pickcat 站点页面…');
+
+  try {
+    chrome.tabs.query({ url: API_SITE_PATTERNS }, (tabs) => {
+      if (chrome.runtime.lastError) {
+        setApiField('apiStatusScript', '无法查询标签页');
+        setApiField('apiStatusHint', chrome.runtime.lastError.message || '');
+        return;
+      }
+      const list = tabs || [];
+      const tab = list.filter((t) => t.active)[0]
+        || list.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+      if (!tab) {
+        setApiField('apiStatusScript', '未打开站点页面');
+        setApiField('apiStatusHint', '请先在 Pickcat 站点打开任意页面，再回来刷新。');
+        return;
+      }
+
+      chrome.tabs.sendMessage(tab.id, { __pcr_api_status: true }, (res) => {
+        if (chrome.runtime.lastError || !res || !res.ok) {
+          setApiField('apiStatusScript', '内容脚本未就绪');
+          setApiField('apiStatusHint', '刷新站点页面后再试：' + (chrome.runtime.lastError ? chrome.runtime.lastError.message : '无响应'));
+          return;
+        }
+        const page = res.page || {};
+        const perms = res.perms || {};
+        setApiField('apiStatusScript', '已就绪');
+        setApiField('apiStatusPage', (page.type || '—') + (page.postId ? ' · ' + page.postId : ''));
+        setApiField('apiStatusProtocol', 'v' + ((res.protocol && res.protocol.v) || 1));
+        setApiField('apiStatusActions', (res.actions || []).join(' / ') || '—');
+        setApiField('apiStatusPerms', [
+          perms.readPost ? '读正文 ✓' : '读正文 ✕',
+          perms.readEditor ? '读编辑器 ✓' : '读编辑器 ✕',
+          perms.writeEditor ? '写编辑器 ✓' : '写编辑器 ✕',
+          perms.aiQuota ? 'AI 额度 ✓' : 'AI 额度 ✕'
+        ].join(' · '));
+        setApiField('apiStatusHint', '页面：' + (page.href || tab.url || '—'));
+      });
+    });
+  } catch (e) {
+    setApiField('apiStatusScript', '检测失败');
+    setApiField('apiStatusHint', e.message || String(e));
+  }
+}
+
+async function copyApiText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const old = btn.textContent;
+    btn.textContent = '已复制';
+    setTimeout(() => { btn.textContent = old; }, 1200);
+  } catch (e) {
+    setStatus('复制失败，请手动选择文本', 'err');
+  }
+}
+
+const API_EXT_ID = (() => {
+  try { return chrome.runtime.id; } catch (e) { return ''; }
+})();
+
+// ---------------------------- 已授权扩展 ----------------------------
+
+const API_GRANTS_KEY = 'pcr_api_grants';
+const API_GRANT_PERM_LABELS = {
+  readPost: '读取帖子正文',
+  readEditor: '读取编辑器内容',
+  writeEditor: '写入编辑器',
+  aiQuota: '消耗 AI 额度'
+};
+
+function fmtGrantTime(ts) {
+  const n = Number(ts);
+  return n ? new Date(n).toLocaleString('zh-CN') : '—';
+}
+
+function emptyGrants() {
+  return { v: 1, clients: {} };
+}
+
+function normalizeGrants(raw) {
+  if (!raw || typeof raw !== 'object' || !raw.clients || typeof raw.clients !== 'object') {
+    return emptyGrants();
+  }
+  return raw;
+}
+
+function grantClientName(key, rec) {
+  const id = rec && rec.identity && typeof rec.identity.extensionId === 'string' ? rec.identity.extensionId : '';
+  const name = rec && rec.identity && typeof rec.identity.name === 'string' ? rec.identity.name : '';
+  return { id, name: name || id || key };
+}
+
+function buildGrantCard(clientKey, rec) {
+  const card = document.createElement('div');
+  card.className = 'api-grant';
+
+  const head = document.createElement('div');
+  head.className = 'api-grant-head';
+
+  const info = document.createElement('div');
+  info.className = 'api-grant-info';
+  const who = grantClientName(clientKey, rec);
+  const nameEl = document.createElement('strong');
+  nameEl.textContent = who.name;
+  info.appendChild(nameEl);
+  const idEl = document.createElement('span');
+  idEl.className = 'api-grant-id';
+  idEl.textContent = who.id ? 'ID: ' + who.id : 'ID: 未提供';
+  info.appendChild(idEl);
+  head.appendChild(info);
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'btn danger sm';
+  delBtn.textContent = '删除记录';
+  delBtn.addEventListener('click', () => {
+    mutateGrants((g) => {
+      delete g.clients[clientKey];
+    });
+  });
+  head.appendChild(delBtn);
+  card.appendChild(head);
+
+  const meta = document.createElement('p');
+  meta.className = 'api-grant-meta';
+  const mode = rec && rec.identity && rec.identity.mode === 'l1' ? 'L1 自述身份' : '未校验身份';
+  meta.textContent = mode + ' · 首次 ' + fmtGrantTime(rec && rec.firstSeenAt)
+    + ' · 最近 ' + fmtGrantTime(rec && rec.lastSeenAt);
+  card.appendChild(meta);
+
+  const permKeys = rec && rec.perms && typeof rec.perms === 'object' ? Object.keys(rec.perms) : [];
+  if (!permKeys.length) {
+    const empty = document.createElement('p');
+    empty.className = 'note';
+    empty.textContent = '没有权限记录。';
+    card.appendChild(empty);
+    return card;
+  }
+
+  const list = document.createElement('ul');
+  list.className = 'api-perm-list';
+  permKeys.sort().forEach((perm) => {
+    const st = rec.perms[perm] || {};
+    const granted = st.state === 'granted';
+    const li = document.createElement('li');
+    li.className = 'api-perm-row';
+
+    const infoEl = document.createElement('div');
+    infoEl.className = 'api-perm-info';
+    const label = document.createElement('strong');
+    label.textContent = API_GRANT_PERM_LABELS[perm] || perm;
+    infoEl.appendChild(label);
+    const state = document.createElement('span');
+    state.className = 'api-perm-state ' + (granted ? 'is-granted' : 'is-denied');
+    state.textContent = (granted ? '已允许' : '已拒绝') + ' · ' + fmtGrantTime(st.at);
+    infoEl.appendChild(state);
+    li.appendChild(infoEl);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn sm';
+    btn.textContent = granted ? '撤销' : '恢复询问';
+    btn.addEventListener('click', () => {
+      mutateGrants((g) => {
+        const target = g.clients && g.clients[clientKey];
+        if (!target || !target.perms) return;
+        delete target.perms[perm];
+        if (!Object.keys(target.perms).length) delete g.clients[clientKey];
+      });
+    });
+    li.appendChild(btn);
+    list.appendChild(li);
+  });
+  card.appendChild(list);
+  return card;
+}
+
+function renderApiGrants(raw) {
+  const box = $('apiGrants');
+  if (!box) return;
+  const grants = normalizeGrants(raw);
+  box.textContent = '';
+  const entries = Object.keys(grants.clients).map((key) => ({
+    key,
+    rec: grants.clients[key]
+  })).filter((it) => it.rec && typeof it.rec === 'object');
+  if (!entries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'api-grants-empty';
+    empty.textContent = '还没有第三方扩展请求过数据权限。';
+    box.appendChild(empty);
+    return;
+  }
+  entries.sort((a, b) => (b.rec.lastSeenAt || 0) - (a.rec.lastSeenAt || 0));
+  entries.forEach((it) => box.appendChild(buildGrantCard(it.key, it.rec)));
+}
+
+function loadApiGrants() {
+  try {
+    chrome.storage.local.get({ [API_GRANTS_KEY]: emptyGrants() }, (raw) => {
+      if (chrome.runtime.lastError) {
+        renderApiGrants(emptyGrants());
+        return;
+      }
+      renderApiGrants(raw && raw[API_GRANTS_KEY]);
+    });
+  } catch (e) {
+    renderApiGrants(emptyGrants());
+  }
+}
+
+function mutateGrants(mutator) {
+  try {
+    chrome.storage.local.get({ [API_GRANTS_KEY]: emptyGrants() }, (raw) => {
+      const grants = normalizeGrants(raw && raw[API_GRANTS_KEY]);
+      mutator(grants);
+      grants.updatedAt = Date.now();
+      chrome.storage.local.set({ [API_GRANTS_KEY]: grants }, () => {
+        if (chrome.runtime.lastError) {
+          setStatus('更新授权记录失败：' + chrome.runtime.lastError.message, 'err');
+          return;
+        }
+        renderApiGrants(grants);
+        setStatus('已更新授权记录', 'ok');
+      });
+    });
+  } catch (e) {
+    setStatus('更新授权记录失败：' + e.message, 'err');
+  }
+}
+
+// 单行开关用复选框实现，补上 switch 语义；多选组仍是普通复选框
+document.querySelectorAll('.switch-row > input[type="checkbox"]').forEach((el) => {
+  el.setAttribute('role', 'switch');
+});
+
+loadApiGrants();
+
+try {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes[API_GRANTS_KEY]) {
+      renderApiGrants(changes[API_GRANTS_KEY].newValue);
+    }
+  });
+} catch (e) { /* 非扩展环境忽略 */ }
+
+loadApiPerms();
+Object.keys(API_PERM_INPUTS).forEach((id) => {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('change', async () => {
+    try {
+      await chrome.storage.local.set({ [API_PERMS_KEY]: readApiPermInputs() });
+      setStatus('已保存开放接口权限', 'ok');
+      refreshApiStatus();
+    } catch (e) {
+      setStatus('保存开放接口权限失败：' + e.message, 'err');
+    }
+  });
+});
+
+try {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes[API_PERMS_KEY]) {
+      writeApiPermInputs(changes[API_PERMS_KEY].newValue);
+    }
+  });
+} catch (e) { /* 非扩展环境忽略 */ }
+
+setApiField('apiStatusId', API_EXT_ID || '—');
+$('apiSnippet').textContent = API_SELFTEST_COMMAND;
+$('apiRefresh').addEventListener('click', refreshApiStatus);
+$('apiCopyId').addEventListener('click', () => {
+  if (API_EXT_ID) copyApiText(API_EXT_ID, $('apiCopyId'));
+});
+$('apiCopyTest').addEventListener('click', () => copyApiText(API_SELFTEST_COMMAND, $('apiCopyTest')));
+
+// 打开设置页时自动探测一次；站点标签页可能在另一个窗口，按最近访问排序兜底
+refreshApiStatus();
 
 // ============================ 侧栏导航：滚动时高亮当前分区 ============================
 

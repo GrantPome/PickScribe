@@ -1,0 +1,1035 @@
+/**
+ * 新手引导层样式（pcg 前缀）。
+ *
+ * 设计约束：
+ *   1. 独立挂在 #pcg-root 下，不进入 #pco-root，避免被浮层的开合 transform 缩放；
+ *   2. 设计令牌直接镜像 overlay.css 的 --pco-* 一套，值继续指向站点 --ui-*，
+ *      因此亮 / 暗色自动跟随，不新增颜色体系；
+ *   3. 所有时长乘 --pcg-dur（= 1 / 设置里的动画速度倍率），与浮层节奏保持一致；
+ *   4. 动画只动 transform / opacity，不使用 filter / backdrop-filter。
+ */
+
+#pcg-root {
+  /* 与 overlay.css 的 --pco-* 对齐（颜色、圆角、缓动） */
+  --pcg-bg: var(--ui-bg-elevated, var(--ui-bg, #ffffff));
+  --pcg-text: var(--ui-text, #1c1d21);
+  --pcg-muted: var(--ui-text-muted, #65666d);
+  --pcg-dim: var(--ui-text-dimmed, #8a8b92);
+  --pcg-border: var(--ui-border, rgba(23, 24, 28, 0.1));
+  --pcg-soft: var(--ui-bg-accented, rgba(23, 24, 28, 0.045));
+  --pcg-primary: var(--ui-primary, #e5484d);
+  --pcg-success: var(--ui-success, oklch(62.7% 0.194 149.2));
+  --pcg-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pcg-move: cubic-bezier(0.16, 1.02, 0.32, 1);
+  /* 与帖子浮层的 --pco-move-close 同一口径 */
+  --pcg-move-close: cubic-bezier(0.3, 0.88, 0.26, 1);
+  --pcg-shadow: 0 32px 90px -24px rgba(8, 10, 16, 0.5), 0 0 0 1px var(--pcg-border);
+  --pcg-dur: 1;
+
+  /* ---------- 间距刻度：4px 基准，欢迎屏 / Tour / 气泡共用 ---------- */
+  --pcg-s1: 4px;
+  --pcg-s2: 8px;
+  --pcg-s3: 12px;
+  --pcg-s4: 16px;
+  --pcg-s5: 20px;
+  --pcg-s6: 24px;
+  --pcg-s7: 28px;
+  --pcg-s8: 32px;
+  --pcg-s11: 44px;
+  --pcg-s12: 48px;
+  --pcg-s15: 60px;
+
+  /* 层级间距：按「卡片内边距 → 标题 / 总述 / 列表 / 配置 / 底部」固定映射 */
+  --pcg-pad-top: var(--pcg-s15);      /* 卡片上内边距 60 */
+  --pcg-pad-x: var(--pcg-s12);        /* 卡片左右内边距 48 */
+  --pcg-pad-bottom: var(--pcg-s11);   /* 卡片下内边距 44 */
+  --pcg-pad-card-sm: var(--pcg-s5);   /* Tour 卡片内边距 20 */
+  --pcg-gap-icon: var(--pcg-s3);      /* 图标 ↔ 文案 12 */
+  --pcg-gap-title: var(--pcg-s1);     /* 标题 ↔ 正文 4 */
+  --pcg-gap-lead: var(--pcg-s3);      /* 标题 ↔ 总述 12 */
+  --pcg-gap-list: var(--pcg-s7);      /* 标题区 ↔ 列表 28 */
+  --pcg-gap-feat: var(--pcg-s5);      /* 条目之间 20 */
+  --pcg-gap-config: var(--pcg-s6);    /* 列表 ↔ 配置区 24 */
+  --pcg-gap-row: var(--pcg-s3);       /* 配置行内 12 */
+  --pcg-gap-foot: var(--pcg-s8);      /* 内容 ↔ 底部按钮区 32 */
+  --pcg-gap-btn: var(--pcg-s3);       /* 按钮之间 12 */
+
+  color-scheme: light;
+
+  position: fixed;
+  inset: 0;
+  z-index: 2147483640;   /* 高于 #pco-root（2147483600）与编辑页浮层（10005） */
+  pointer-events: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--pcg-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 站点深色：html.dark / data-theme="dark"；system 由下方媒体查询跟随系统偏好。
+   值与 home.css 保持同一套，站点令牌存在时仍以 --ui-* 为准 */
+html.dark #pcg-root,
+html[data-theme="dark"] #pcg-root {
+  --pcg-bg: var(--ui-bg-elevated, #232326);
+  --pcg-text: var(--ui-text, oklch(92.2% 0 none));
+  --pcg-muted: var(--ui-text-muted, oklch(72% 0 none));
+  --pcg-dim: var(--ui-text-dimmed, oklch(60% 0 none));
+  --pcg-border: var(--ui-border, rgba(255, 255, 255, 0.13));
+  --pcg-soft: var(--ui-bg-accented, rgba(255, 255, 255, 0.07));
+  --pcg-primary: var(--ui-primary, #e5484d);
+  --pcg-success: var(--ui-success, oklch(72% 0.17 152));
+  --pcg-shadow: 0 32px 90px -24px rgba(0, 0, 0, 0.82), 0 0 0 1px var(--pcg-border);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] #pcg-root {
+    --pcg-bg: var(--ui-bg-elevated, #232326);
+    --pcg-text: var(--ui-text, oklch(92.2% 0 none));
+    --pcg-muted: var(--ui-text-muted, oklch(72% 0 none));
+    --pcg-dim: var(--ui-text-dimmed, oklch(60% 0 none));
+    --pcg-border: var(--ui-border, rgba(255, 255, 255, 0.13));
+    --pcg-soft: var(--ui-bg-accented, rgba(255, 255, 255, 0.07));
+    --pcg-primary: var(--ui-primary, #e5484d);
+    --pcg-success: var(--ui-success, oklch(72% 0.17 152));
+    --pcg-shadow: 0 32px 90px -24px rgba(0, 0, 0, 0.82), 0 0 0 1px var(--pcg-border);
+    color-scheme: dark;
+  }
+}
+
+/* 深色下遮罩再压暗一档，保证卡片边缘与页面区分得开 */
+html.dark #pcg-root .pcg-scrim,
+html[data-theme="dark"] #pcg-root .pcg-scrim {
+  background: rgba(0, 0, 0, 0.74);
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] #pcg-root .pcg-scrim {
+    background: rgba(0, 0, 0, 0.74);
+  }
+}
+
+#pcg-root *,
+#pcg-root *::before,
+#pcg-root *::after {
+  box-sizing: border-box;
+}
+
+/* ============================ 通用卡片 ============================ */
+
+.pcg-card {
+  pointer-events: auto;
+  background: var(--pcg-bg);
+  border: 1px solid var(--pcg-border);
+  border-radius: 22px;
+  box-shadow: var(--pcg-shadow);
+  color: var(--pcg-text);
+}
+
+/* 左大图标 + 右文案（与 OOBE 的排版习惯一致） */
+.pcg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pcg-gap-icon);
+}
+
+.pcg-ico {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--pcg-primary) 10%, transparent);
+  color: var(--pcg-primary);
+}
+
+/* 只放大图标本身，46px 底块保持在原位 */
+.pcg-ico svg {
+  width: 30px;
+  height: 30px;
+}
+
+.pcg-title {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+}
+
+.pcg-body {
+  margin: var(--pcg-gap-title) 0 0;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--pcg-muted);
+}
+
+/* ============================ 欢迎流程（居中模态） ============================ */
+
+/* 纯黑半透明遮罩：不叠 backdrop-filter；点击遮罩不推进也不关闭 */
+.pcg-scrim {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--pcg-s5);
+  background: rgba(0, 0, 0, 0.62);
+  pointer-events: auto;
+  animation: pcg-scrim-in calc(0.24s * var(--pcg-dur)) ease both;
+}
+
+.pcg-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(600px, calc(100vw - 40px));
+  min-height: min(660px, calc(100vh - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+  padding: var(--pcg-pad-top) var(--pcg-pad-x) var(--pcg-pad-bottom);
+  border-radius: 28px;
+  background: var(--pcg-bg);
+  border: 1px solid var(--pcg-border);
+  box-shadow: var(--pcg-shadow);
+  animation: pcg-modal-in calc(0.52s * var(--pcg-dur)) var(--pcg-move) both;
+}
+
+/* 不显眼的跳过入口：固定在右上角，不参与按钮推进 */
+.pcg-welcome-skip {
+  position: absolute;
+  top: var(--pcg-s2);
+  right: var(--pcg-s2);
+  min-height: 32px;
+  padding: var(--pcg-s2) var(--pcg-s3);
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--pcg-dim);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: color calc(0.2s * var(--pcg-dur)), background calc(0.2s * var(--pcg-dur));
+}
+
+.pcg-welcome-skip:hover {
+  color: var(--pcg-text);
+  background: var(--pcg-soft);
+}
+
+/* 内容区占满卡片剩余高度并整体垂直居中；屏数变多时只让这里滚动，
+   底部进度点与主按钮留在卡片内固定不动。
+   滚动条固定 0 宽（保留滚动能力）：切屏时内容高度变化不会把竖条挤出来闪一下，
+   也不会让卡片可用宽度跟着跳。 */
+.pcg-screens {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.pcg-screens::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* 多屏共用一张卡：只显示当前屏，高度随内容走，不预留空位 */
+.pcg-screen {
+  display: none;
+}
+
+.pcg-screen.is-on {
+  display: flex;
+  flex: none;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.pcg-logo {
+  width: 68px;
+  height: 68px;
+  margin: 0 auto;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--pcg-soft);
+}
+
+.pcg-logo img {
+  display: block;
+  width: 68px;
+  height: 68px;
+  /* LOGO 图形自带 viewBox 留白：在固定 68px 框内等比放大收掉留白，图案仍不触边 */
+  transform: scale(1.18);
+}
+
+.pcg-logo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--pcg-primary);
+}
+
+/* LOGO 位 68px 不变，兜底图标放大到接近边缘 */
+.pcg-logo-fallback svg {
+  width: 44px;
+  height: 44px;
+}
+
+.pcg-welcome-title {
+  margin: var(--pcg-s7) 0 0;
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.pcg-welcome-sub {
+  max-width: 22em;
+  margin: var(--pcg-gap-lead) 0 0;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--pcg-muted);
+}
+
+.pcg-screen-title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+/* 类别屏顶部的类别图标，比欢迎 LOGO 小一号，不抢标题 */
+.pcg-cat-ico {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: var(--pcg-s4);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--pcg-primary) 10%, transparent);
+  color: var(--pcg-primary);
+}
+
+/* 52px 底块不变，图标放大 */
+.pcg-cat-ico svg {
+  width: 34px;
+  height: 34px;
+}
+
+/* 类别屏的一句话总述：居中，行宽与正文对齐 */
+.pcg-screen-lead {
+  max-width: 24em;
+  margin: var(--pcg-gap-lead) 0 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--pcg-muted);
+  text-align: center;
+}
+
+/* 图标在左、文案在右；列表整体在卡内居中，文案区左对齐 */
+.pcg-feats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pcg-gap-feat);
+  width: 100%;
+  max-width: 424px;
+  margin: var(--pcg-gap-list) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pcg-feat {
+  display: flex;
+  align-items: center;
+  gap: var(--pcg-gap-icon);
+  text-align: left;
+}
+
+.pcg-feat .pcg-ico {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+/* 40px 底块不变，图标放大 */
+.pcg-feat .pcg-ico svg {
+  width: 26px;
+  height: 26px;
+}
+
+.pcg-feat-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--pcg-muted);
+  text-align: left;
+}
+
+.pcg-feat-text b {
+  color: var(--pcg-text);
+  font-weight: 600;
+}
+
+/* 彩带画布铺满整张卡片（挂在模态层，不在可滚动内容区里），压在文案上面 */
+.pcg-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pcg-finish {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--pcg-s6) 0 var(--pcg-s2);
+  text-align: center;
+}
+
+/* 收尾勾：主题成功色实心圆底 + 白勾，先弹入再把勾一笔画完；reduced-motion 时直接静止显示 */
+.pcg-finish-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  margin-bottom: var(--pcg-s4);
+  border-radius: 50%;
+  background: var(--pcg-success);
+  color: #fff;
+  box-shadow: 0 10px 26px -12px color-mix(in srgb, var(--pcg-success) 85%, transparent);
+  animation: pcg-check-pop calc(0.42s * var(--pcg-dur)) var(--pcg-move) both;
+}
+
+/* 62px 圆底不变，勾放大但仍在圆内 */
+.pcg-finish-ico svg {
+  display: block;
+  width: 48px;
+  height: 48px;
+}
+
+.pcg-check-path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 5.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: pcg-check-draw calc(0.52s * var(--pcg-dur)) var(--pcg-ease) calc(0.08s * var(--pcg-dur)) both;
+}
+
+/* 引导内的快捷配置：不套灰框，与页面同一底色；条目之间不画分隔线，只用间距区分 */
+.pcg-config {
+  width: 100%;
+  max-width: 424px;
+  margin: var(--pcg-gap-config) 0 0;
+  padding-top: var(--pcg-s3);
+  border-top: 1px solid var(--pcg-border);
+  text-align: left;
+}
+
+.pcg-cfg-row {
+  display: flex;
+  align-items: center;
+  gap: var(--pcg-gap-row);
+  min-height: 36px;
+  padding: var(--pcg-s2) 0;
+  font-size: 12.5px;
+  color: var(--pcg-text);
+}
+
+.pcg-cfg-row + .pcg-cfg-row {
+  border-top: 0;
+}
+
+/* AI 总开关关闭：分项整组置灰且不可操作（与设置页同一联动） */
+.pcg-cfg-group {
+  transition: opacity 0.18s var(--pcg-ease);
+}
+
+.pcg-cfg-group.is-off {
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+/* display:flex 会盖掉 UA 的 [hidden]：条件行必须显式藏起来 */
+.pcg-cfg-row[hidden],
+.pcg-config-note[hidden],
+.pcg-ghost[hidden] {
+  display: none;
+}
+
+.pcg-cfg-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.pcg-cfg-input {
+  flex: none;
+  width: 168px;
+  height: 30px;
+  padding: 0 var(--pcg-s2);
+  border: 1px solid var(--pcg-border);
+  border-radius: 8px;
+  background: var(--pcg-bg);
+  color: var(--pcg-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.pcg-cfg-input::placeholder {
+  color: var(--pcg-dim);
+}
+
+.pcg-cfg-input:focus {
+  outline: 2px solid color-mix(in srgb, var(--pcg-primary) 45%, transparent);
+  outline-offset: 1px;
+}
+
+/* 开关：真 checkbox 藏在轨道下面，键盘仍可切换 */
+.pcg-cfg-row--switch {
+  position: relative;
+  cursor: pointer;
+}
+
+.pcg-cfg-row--switch input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.pcg-cfg-switch {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pcg-text) 18%, transparent);
+  transition: background 0.18s var(--pcg-ease);
+}
+
+.pcg-cfg-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s var(--pcg-ease);
+}
+
+.pcg-cfg-row--switch input:checked + .pcg-cfg-switch {
+  background: var(--pcg-primary);
+}
+
+.pcg-cfg-row--switch input:checked + .pcg-cfg-switch::after {
+  transform: translateX(14px);
+}
+
+.pcg-cfg-row--switch input:focus-visible + .pcg-cfg-switch {
+  outline: 2px solid color-mix(in srgb, var(--pcg-primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.pcg-cfg-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--pcg-gap-btn);
+  padding: var(--pcg-s2) 0 0;
+}
+
+/* 「测试连接」放在扩展内 iframe 里：域名授权必须在扩展页面的点击同步栈发起 */
+.pcg-cfg-testframe {
+  flex: none;
+  width: 104px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color-scheme: normal;
+}
+
+.pcg-cfg-btn {
+  flex: none;
+  height: 30px;
+  padding: 0 var(--pcg-s3);
+  border: 1px solid var(--pcg-border);
+  border-radius: 8px;
+  background: var(--pcg-bg);
+  color: var(--pcg-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pcg-cfg-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--pcg-primary) 45%, var(--pcg-border));
+  color: var(--pcg-primary);
+}
+
+.pcg-cfg-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.pcg-cfg-status {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--pcg-muted);
+}
+
+.pcg-config-note {
+  margin: 0;
+  padding: var(--pcg-s1) 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--pcg-dim);
+}
+
+/* 整块居中：进度点在上、提示居中、主按钮固定在最下 */
+.pcg-welcome-foot {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pcg-s3);
+  margin-top: var(--pcg-gap-foot);
+}
+
+/* 欢迎流程的进度点复用 Tour 那套，但不再占满一行 */
+.pcg-welcome-foot .pcg-dots {
+  flex: none;
+  justify-content: center;
+}
+
+.pcg-welcome-foot .pcg-primary {
+  height: 40px;
+  padding: 0 var(--pcg-s7);
+  font-size: 14px;
+}
+
+/* 「上一步」与「下一步 / 结束」同一行；上一步是次要按钮，不抢主按钮 */
+.pcg-welcome-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--pcg-gap-btn);
+}
+
+.pcg-ghost {
+  flex: none;
+  height: 40px;
+  padding: 0 var(--pcg-s5);
+  border: 1px solid var(--pcg-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pcg-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color calc(0.2s * var(--pcg-dur)),
+              border-color calc(0.2s * var(--pcg-dur)),
+              background calc(0.2s * var(--pcg-dur)),
+              transform calc(0.16s * var(--pcg-dur));
+}
+
+.pcg-ghost:hover {
+  color: var(--pcg-text);
+  border-color: color-mix(in srgb, var(--pcg-text) 26%, var(--pcg-border));
+  background: var(--pcg-soft);
+}
+
+.pcg-ghost:active {
+  transform: scale(0.97);
+}
+
+.pcg-ghost:focus-visible {
+  outline: 2px solid var(--pcg-primary);
+  outline-offset: 3px;
+}
+
+.pcg-welcome-tip {
+  max-width: 26em;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--pcg-dim);
+  text-align: center;
+}
+
+.pcg-primary {
+  flex: none;
+  height: 32px;
+  padding: 0 var(--pcg-s4);
+  border: 0;
+  border-radius: 999px;
+  background: var(--pcg-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter calc(0.2s * var(--pcg-dur)), transform calc(0.16s * var(--pcg-dur));
+}
+
+.pcg-primary:hover {
+  filter: brightness(1.06);
+}
+
+.pcg-primary:active {
+  transform: scale(0.97);
+}
+
+.pcg-primary:focus-visible {
+  outline: 2px solid var(--pcg-primary);
+  outline-offset: 3px;
+}
+
+/* ============================ 分步引导（贴目标） ============================ */
+
+/* 透明拦截层：Tour 期间不让误触浮层，但不额外加暗、不加毛玻璃 */
+.pcg-block {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+  background: transparent;
+}
+
+/* 位置由脚本按目标 rect 写入 left / top，不再铺满屏幕 */
+.pcg-tour-card {
+  position: fixed;
+  pointer-events: auto;
+  width: min(360px, calc(100vw - 32px));
+  padding: var(--pcg-pad-card-sm) var(--pcg-pad-card-sm) var(--pcg-s4);
+  animation: pcg-pop calc(0.3s * var(--pcg-dur)) var(--pcg-move) both;
+  transition: left calc(0.24s * var(--pcg-dur)) var(--pcg-ease),
+              top calc(0.24s * var(--pcg-dur)) var(--pcg-ease);
+}
+
+.pcg-tour-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pcg-s2);
+}
+
+.pcg-tour-head .pcg-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.pcg-skip {
+  flex: none;
+  /* Tour 卡片内边距 20，向外让 12，使按钮距卡片边缘 8，与欢迎卡一致 */
+  margin: calc(var(--pcg-s3) * -1) calc(var(--pcg-s3) * -1) 0 0;
+  min-height: 32px;
+  padding: var(--pcg-s2) var(--pcg-s3);
+  border: 0;
+  background: transparent;
+  color: var(--pcg-dim);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: color calc(0.2s * var(--pcg-dur)), background calc(0.2s * var(--pcg-dur));
+}
+
+.pcg-skip:hover {
+  color: var(--pcg-text);
+  background: var(--pcg-soft);
+}
+
+/* 两处「跳过」共用同一个 focus 态 */
+.pcg-welcome-skip:focus-visible,
+.pcg-skip:focus-visible {
+  outline: 2px solid var(--pcg-primary);
+  outline-offset: 2px;
+}
+
+.pcg-tour-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--pcg-gap-btn);
+  margin-top: var(--pcg-s5);
+}
+
+/* 进度点：当前项由圆点拉长成胶囊 */
+.pcg-dots {
+  display: flex;
+  align-items: center;
+  gap: var(--pcg-s2);
+  flex: 1;
+}
+
+.pcg-dots i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pcg-text) 18%, transparent);
+  transition: width calc(0.26s * var(--pcg-dur)) var(--pcg-ease),
+              background calc(0.26s * var(--pcg-dur));
+}
+
+.pcg-dots i.is-on {
+  width: 18px;
+  background: var(--pcg-primary);
+}
+
+/* 步骤内容切换：轻交叉，不做整页横向滑动 */
+.pcg-step {
+  animation: pcg-step-in calc(0.24s * var(--pcg-dur)) var(--pcg-move) both;
+}
+
+/* ============================ 挖空遮罩 ============================ */
+
+/* 一个元素同时做两件事：目标处透明留白 + 超大扩散阴影压暗其余画面。
+   不叠全屏 DOM、不用 backdrop-filter。 */
+.pcg-spot {
+  position: fixed;
+  pointer-events: none;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6),
+              inset 0 0 0 2px color-mix(in srgb, var(--pcg-primary) 62%, transparent);
+  transition: left calc(0.26s * var(--pcg-dur)) var(--pcg-ease),
+              top calc(0.26s * var(--pcg-dur)) var(--pcg-ease),
+              width calc(0.26s * var(--pcg-dur)) var(--pcg-ease),
+              height calc(0.26s * var(--pcg-dur)) var(--pcg-ease),
+              border-radius calc(0.26s * var(--pcg-dur)) var(--pcg-ease);
+}
+
+/* ============================ 场景气泡 ============================ */
+
+.pcg-bubble {
+  position: fixed;
+  width: min(276px, calc(100vw - 24px));
+  padding: var(--pcg-s3) var(--pcg-s4) var(--pcg-s3);
+  border-radius: 14px;
+  pointer-events: auto;
+  animation: pcg-pop calc(0.2s * var(--pcg-dur)) var(--pcg-move) both;
+}
+
+.pcg-bubble .pcg-title {
+  font-size: 13.5px;
+}
+
+.pcg-bubble .pcg-body {
+  margin-top: var(--pcg-s1);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.pcg-bubble-act {
+  margin-top: var(--pcg-s2);
+}
+
+.pcg-bubble-act .pcg-primary {
+  height: 28px;
+  padding: 0 var(--pcg-s3);
+  font-size: 12.5px;
+}
+
+/* 指向小三角：气泡与 Tour 卡片共用；贴边模式会移除 data-place，此时不画箭头 */
+:is(.pcg-bubble, .pcg-tour-card)::after {
+  content: "";
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: var(--pcg-bg);
+  border: 1px solid var(--pcg-border);
+  transform: rotate(45deg);
+}
+
+:is(.pcg-bubble, .pcg-tour-card):not([data-place])::after {
+  content: none;
+}
+
+/* 箭头位置由脚本按锚点中心写入变量，尽量对准目标 */
+:is(.pcg-bubble, .pcg-tour-card)[data-place="left"]::after {
+  right: -5px;
+  top: var(--pcg-arrow-y, 18px);
+  border-left: 0;
+  border-bottom: 0;
+}
+
+:is(.pcg-bubble, .pcg-tour-card)[data-place="right"]::after {
+  left: -5px;
+  top: var(--pcg-arrow-y, 18px);
+  border-right: 0;
+  border-top: 0;
+}
+
+/* 方块旋转 45° 后：保留「上+左」两条边 → 指向上；保留「下+右」→ 指向下 */
+:is(.pcg-bubble, .pcg-tour-card)[data-place="top"]::after {
+  bottom: -5px;
+  left: var(--pcg-arrow-x, 22px);
+  border-top: 0;
+  border-left: 0;
+}
+
+:is(.pcg-bubble, .pcg-tour-card)[data-place="bottom"]::after {
+  top: -5px;
+  left: var(--pcg-arrow-x, 22px);
+  border-right: 0;
+  border-bottom: 0;
+}
+
+/* ============================ 动画 ============================ */
+
+/* 遮罩入场：只淡入自己的底色，不能让祖先 opacity 把卡片也一起淡进来 */
+@keyframes pcg-scrim-in {
+  from { background-color: transparent; }
+}
+
+@keyframes pcg-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* 入场：整块卡片从屏幕下方滑到中间，全程不透明，先快后慢 */
+@keyframes pcg-modal-in {
+  from {
+    transform: translateY(calc(50vh + 50% + 24px));
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* 退场：只收遮罩自己的底色。
+   不能对 .pcg-scrim 做 opacity 淡出——它是卡片的祖先，opacity 会连同整棵子树
+   在 0.24s 内一起变透明，0.54s 的位移就只剩前一帧，看起来像直接消失。 */
+@keyframes pcg-scrim-out {
+  to { background-color: transparent; }
+}
+
+/* 退场：整卡向下滑出视口。
+   translateY 取 50vh + 50% + 24px：把卡片顶边送到视口底部之外，
+   与入场公式对称，任何卡片高度都能完整离开可视区域。 */
+@keyframes pcg-modal-out {
+  to { transform: translateY(calc(50vh + 50% + 24px)); }
+}
+
+/* 遮罩与帖子浮层同一口径：0.24s 只收掉自己的底色；卡片 0.54s 下滑并保持不透明 */
+.pcg-scrim.is-leaving {
+  animation: pcg-scrim-out calc(0.24s * var(--pcg-dur)) ease both;
+}
+
+.pcg-scrim.is-leaving .pcg-modal {
+  animation: pcg-modal-out calc(0.54s * var(--pcg-dur)) var(--pcg-move-close) both;
+}
+
+/* 落点对齐「分享你的想法」输入框时从顶部排布，具体位置由脚本写入 padding-top */
+.pcg-scrim.is-anchored {
+  align-items: flex-start;
+}
+
+/* 收尾勾：弹入 + 描边一笔画出 */
+@keyframes pcg-check-pop {
+  0% { opacity: 0; transform: scale(0.62); }
+  62% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pcg-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes pcg-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pcg-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pcg-root *,
+  #pcg-root *::before,
+  #pcg-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* 欢迎窗直接出现：遮罩与卡片都不做淡入，避免祖先 opacity 把卡片一起渐显 */
+  #pcg-root .pcg-scrim {
+    animation: none !important;
+  }
+
+  /* 浮层进出都不做位移与淡入：直接出现在最终位置，退场只保留淡出 */
+  #pcg-root .pcg-modal {
+    animation: none !important;
+  }
+
+  #pcg-root .pcg-scrim.is-leaving {
+    animation: pcg-scrim-out calc(0.24s * var(--pcg-dur)) ease both !important;
+  }
+
+  #pcg-root .pcg-scrim.is-leaving .pcg-modal {
+    animation: pcg-fade-out calc(0.3s * var(--pcg-dur)) ease both !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .pcg-scrim {
+    padding: var(--pcg-s3);
+    align-items: flex-end;
+  }
+
+  .pcg-modal {
+    width: 100%;
+    min-height: 0;
+    padding: var(--pcg-s11) var(--pcg-s5) var(--pcg-s7);
+  }
+
+  .pcg-feats {
+    gap: var(--pcg-s4);
+    max-width: 100%;
+  }
+
+  .pcg-config {
+    max-width: 100%;
+  }
+
+  .pcg-cfg-input {
+    width: 132px;
+  }
+}
