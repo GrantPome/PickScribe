@@ -210,6 +210,27 @@ html[data-theme="dark"] #pcr-consent-root .pcc-scrim {
   overflow-wrap: anywhere;
 }
 
+#pcr-consent-root .pcc-detail {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--pcc-border);
+  border-left: 3px solid var(--pcc-primary, #4f7cff);
+  border-radius: 10px;
+  background: var(--pcc-soft);
+  color: var(--pcc-text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+#pcr-consent-root .pcc-detail[hidden] { display: none; }
+
+#pcr-consent-root .pcc-detail p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 #pcr-consent-root .pcc-perms-wrap { margin-top: 18px; }
 
 #pcr-consent-root .pcc-section {

@@ -4292,7 +4292,7 @@
   (function openApiV1() {
     const API_VERSION = 1;
     const API_SOURCES = { 'pickcat-client': true, 'pickcat-plus': true };
-    const API_ACTIONS = ['ai.open', 'post.open', 'post.context', 'editor.read'];
+    const API_ACTIONS = ['ai.open', 'post.open', 'post.context', 'editor.read', 'editor.write', 'post.summarize'];
     // 需要用户首次确认的数据动作：等待确认期间 ACK 不能提前超时
     const API_CONSENT_ACTIONS = {
       'post.context': true,
@@ -4303,6 +4303,9 @@
     const API_TS_WINDOW = 60 * 1000;
     const API_ACK_TIMEOUT = 2500;
     const API_CONSENT_WAIT = 65 * 1000;
+    // post.summarize：确认等待 + 模型生成（后台按 90 秒长耗时处理），
+    // 页面侧必须比后台更宽松，否则会把已受理的请求提前判成 TIMEOUT。
+    const API_LONG_ACTION_WAIT = 160 * 1000;
     const API_PERMS_KEY = 'pcr_api_perms';
     const API_PERMS_DEFAULT = Object.freeze({ readPost: true, readEditor: true, writeEditor: false, aiQuota: false });
 
@@ -4484,6 +4487,113 @@
       };
     }
 
+    // ---- 数据动作：editor.write ----
+
+    const API_EDITOR_WRITE_MAX = 100000;      // 单次写入的 Markdown 上限（字符）
+    const API_WRITE_DEDUPE_TTL = 120 * 1000;
+    // 同一个 requestId 的重放直接复用结果，避免后台重试导致重复写入；
+    // 去重只看 requestId，绝不按正文内容或长度推断「重复」。
+    let apiLastWriteId = '';
+    let apiLastWriteAt = 0;
+    let apiLastWriteRes = null;
+
+    /** 编辑器可写性：区分「非编辑页 / 未挂载 / 只读」三种失败 */
+    function apiEditorState() {
+      if (!isEditorPage()) {
+        return { ok: false, code: 'UNSUPPORTED_CONTEXT', message: '仅编辑页可用' };
+      }
+      if (!root || !editor || !textarea) {
+        return { ok: false, code: 'NOT_READY', message: '编辑器尚未就绪' };
+      }
+      if (textarea.readOnly || textarea.disabled ||
+          editor.getAttribute('contenteditable') === 'false') {
+        return { ok: false, code: 'EDITOR_READONLY', message: '编辑器当前为只读状态' };
+      }
+      return { ok: true };
+    }
+
+    /** 确认弹窗用的只读探测：返回当前正文长度与视图模式，不修改任何内容 */
+    function apiEditorProbe() {
+      const st = apiEditorState();
+      if (!st.ok) {
+        return { ok: false, code: st.code, message: st.message, available: false, length: null, mode: null };
+      }
+      const md = apiCurrentMarkdown();
+      return {
+        ok: true,
+        code: 'OK',
+        message: '',
+        available: true,
+        length: md === null ? null : String(md).length,
+        mode: mode || 'source'
+      };
+    }
+
+    /** 写入编辑器：insert 在光标处插入，replace 整体替换；返回可校验的写入结果 */
+    async function apiWriteEditor(payload) {
+      const st = apiEditorState();
+      if (!st.ok) return st;
+
+      const p = payload && typeof payload === 'object' ? payload : {};
+      if (typeof p.text !== 'string') {
+        return { ok: false, code: 'BAD_REQUEST', message: 'text 必须是 Markdown 字符串' };
+      }
+      const writeMode = p.mode == null || p.mode === '' ? 'insert' : p.mode;
+      if (writeMode !== 'insert' && writeMode !== 'replace') {
+        return { ok: false, code: 'BAD_REQUEST', message: 'mode 只能是 insert 或 replace' };
+      }
+      if (p.text.length > API_EDITOR_WRITE_MAX) {
+        return { ok: false, code: 'BAD_REQUEST', message: 'text 超过 ' + API_EDITOR_WRITE_MAX + ' 字符上限' };
+      }
+      if (writeMode === 'insert' && !p.text) {
+        return { ok: false, code: 'BAD_REQUEST', message: 'insert 模式下 text 不能为空' };
+      }
+
+      const before = apiCurrentMarkdown();
+      if (before === null) {
+        return { ok: false, code: 'NOT_READY', message: '编辑器尚未就绪' };
+      }
+
+      try {
+        if (writeMode === 'replace') {
+          // setTextareaValue 会派发 input，挂载时注册的监听会把内容同步回富文本；
+          // 这里再显式 sourceToRich 一次，保证富文本区与源码一致。
+          setTextareaValue(p.text);
+          sourceToRich();
+        } else if (mode === 'source' && textarea) {
+          // 源码模式：聚焦时插到真实光标处，未聚焦时追加到末尾；
+          // 不复用 AI 面板的 aiCtx（可能是上一次打开面板时的旧位置）。
+          const at = document.activeElement === textarea && textarea.selectionStart != null
+            ? textarea.selectionStart
+            : String(textarea.value || '').length;
+          const v = String(textarea.value || '');
+          setTextareaValue(v.slice(0, at) + p.text + v.slice(at));
+          try { textarea.selectionStart = textarea.selectionEnd = at + p.text.length; } catch (e) { /* noop */ }
+        } else {
+          insertHtml(mdToHtml(p.text));
+          richToSource();
+        }
+      } catch (e) {
+        return { ok: false, code: 'INTERNAL', message: String((e && e.message) || e) };
+      }
+
+      const after = apiCurrentMarkdown();
+      const finalMd = after === null ? '' : String(after);
+      return {
+        ok: true,
+        code: 'OK',
+        data: {
+          mode: writeMode,
+          editorMode: mode,
+          length: finalMd.length,
+          insertedLength: p.text.length,
+          replacedLength: writeMode === 'replace' ? String(before).length : 0,
+          revision: await apiRevision(finalMd),
+          dirty: editorBaselineMd === null ? false : finalMd !== editorBaselineMd
+        }
+      };
+    }
+
     // 接收第三方扩展（或 PICKCAT Plus）的 v1 信封
     window.addEventListener('message', (ev) => {
       if (ev.origin !== location.origin) return;
@@ -4509,7 +4619,9 @@
 
       // 动作交给 background broker：鉴权、限流、去重、转发给目标脚本
       let settled = false;
-      const waitMs = API_CONSENT_ACTIONS[d.action] ? API_CONSENT_WAIT : API_ACK_TIMEOUT;
+      const waitMs = d.action === 'post.summarize'
+        ? API_LONG_ACTION_WAIT
+        : (API_CONSENT_ACTIONS[d.action] ? API_CONSENT_WAIT : API_ACK_TIMEOUT);
       let timer = setTimeout(() => finish({ ok: false, code: 'TIMEOUT', message: '后台未响应' }), waitMs);
       function finish(res) {
         if (settled) return;
@@ -4532,12 +4644,30 @@
       }
     });
 
-    // background broker 转发过来的动作：编辑页的 ai.open 与 editor.read
+    // background broker 转发过来的动作：编辑页的 ai.open / editor.read / editor.write
     try {
       chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (!msg || msg.__pcr_api_dispatch !== true) return;
         if (msg.action === 'editor.read') {
           apiReadEditor(msg.payload).then(sendResponse);
+          return true;
+        }
+        if (msg.action === 'editor.write') {
+          const rid = typeof msg.requestId === 'string' ? msg.requestId : '';
+          // 同一 requestId 的重复投递复用上一次结果，避免重复写入；不同 requestId 一律照写。
+          if (rid && rid === apiLastWriteId && apiLastWriteRes &&
+              Date.now() - apiLastWriteAt < API_WRITE_DEDUPE_TTL) {
+            sendResponse(Object.assign({}, apiLastWriteRes, { duplicate: true }));
+            return;
+          }
+          apiWriteEditor(msg.payload).then((res) => {
+            if (rid && res && res.ok) {
+              apiLastWriteId = rid;
+              apiLastWriteAt = Date.now();
+              apiLastWriteRes = res;
+            }
+            sendResponse(res);
+          });
           return true;
         }
         if (msg.action !== 'ai.open') return;
@@ -4572,6 +4702,14 @@
         }
       });
     } catch (e) { /* 扩展上下文失效时忽略 */ }
+
+    // 后台在弹确认窗前探测编辑器状态（只读，不产生任何写入）
+    try {
+      chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+        if (!msg || msg.__pcr_editor_probe !== true) return;
+        sendResponse(apiEditorProbe());
+      });
+    } catch (e) { /* 忽略 */ }
 
     // 设置页「联动状态」：直接向内容脚本要一份只读状态，不产生任何副作用
     try {

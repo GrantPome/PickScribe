@@ -29,6 +29,7 @@
   let requesterEl = null;
   let actionEl = null;
   let permsEl = null;
+  let detailEl = null;
   let allowBtn = null;
   let onceBtn = null;
   let denyBtn = null;
@@ -57,6 +58,7 @@
       '    <div class="pcc-meta-row"><span>请求方</span><strong data-ref="requester">—</strong></div>',
       '    <div class="pcc-meta-row"><span>本次动作</span><strong data-ref="action">—</strong></div>',
       '  </div>',
+      '  <div class="pcc-detail" data-ref="detail" hidden></div>',
       '  <div class="pcc-perms-wrap">',
       '    <p class="pcc-section">请求的权限</p>',
       '    <ul class="pcc-perms" data-ref="perms"></ul>',
@@ -79,6 +81,7 @@
     requesterEl = root.querySelector('[data-ref="requester"]');
     actionEl = root.querySelector('[data-ref="action"]');
     permsEl = root.querySelector('[data-ref="perms"]');
+    detailEl = root.querySelector('[data-ref="detail"]');
     allowBtn = root.querySelector('[data-act="allow"]');
     onceBtn = root.querySelector('[data-act="once"]');
     denyBtn = root.querySelector('[data-act="deny"]');
@@ -101,6 +104,31 @@
     const msg = entry.msg || {};
     requesterEl.textContent = clientText(msg.client);
     actionEl.textContent = msg.actionLabel || msg.action || '未知动作';
+
+    // 本次动作的实际影响：写入替换多少个字符 / 插入多少字符 / 是否会调用模型
+    const detail = msg.detail && typeof msg.detail === 'object' ? msg.detail : null;
+    const lines = [];
+    if (detail) {
+      if (detail.mode === 'replace') {
+        lines.push(typeof detail.replaceChars === 'number'
+          ? '将整体替换编辑器中的 ' + detail.replaceChars + ' 个字符。'
+          : '将整体替换编辑器中的现有内容。');
+      } else if (detail.mode === 'insert') {
+        lines.push('将在光标处插入 ' + (typeof detail.textLength === 'number' ? detail.textLength : 0) + ' 个字符。');
+      }
+      if (detail.usesModel) {
+        lines.push('命中缓存时直接返回，不调用模型；未命中会使用你的 API Key 调用一次模型。');
+      }
+    }
+    if (detailEl) {
+      detailEl.textContent = '';
+      lines.forEach((text) => {
+        const p = document.createElement('p');
+        p.textContent = text;
+        detailEl.appendChild(p);
+      });
+      detailEl.hidden = !lines.length;
+    }
 
     permsEl.textContent = '';
     const list = Array.isArray(msg.perms) ? msg.perms : [];
