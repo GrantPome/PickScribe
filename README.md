@@ -171,6 +171,26 @@
 
 ---
 
+## 🔌 开发者接入（开放接口 v1.0）
+
+其他扩展可以在 Pickcat 站点页面里通过 `window.postMessage` 调用 PickScribe：读取帖子上下文、读取编辑器内容，或打开写作助手与帖子浮层。接口按「扩展 + 权限项」逐项授权，首次请求会弹确认窗。
+
+- [接入指南](docs/INTEGRATION.md)：动作、参数、错误码与最小示例
+- [协议设计与路线图](docs/pickscribe-open-api-v1.md)：信任模型、能力清单、v1.1 计划
+- [控制台自检脚本](docs/api/selftest.js)：粘贴到站点 DevTools Console，即可检查是否连通
+
+**用测试插件跑一遍完整流程**
+
+1. 下载 [`pickcat-open-api-tester-1.0.0.zip`](https://github.com/GrantPome/PickScribe/releases/download/v3.10.0/pickcat-open-api-tester-1.0.0.zip)
+2. 解压到任意目录，得到包含 `manifest.json` 的文件夹
+3. 打开 `chrome://extensions/`（Edge 为 `edge://extensions/`），右上角开启「**开发者模式**」
+4. 点「**加载已解压的扩展程序**」，选择第 2 步解压出的文件夹
+5. 打开 Pickcat 任意页面，右下角会出现测试面板；首次请求时会弹出授权确认
+
+> 测试插件只是第三方接入示例，独立分发，不包含在 PickScribe 发行包内。
+
+---
+
 ## 📁 文件结构
 
 ```
@@ -178,6 +198,8 @@ pickscribe/
 ├── pickcat-rich-editor-extension/       # Chrome 扩展（安装这个）
 │   ├── manifest.json                    # Manifest V3 清单（当前 3.10.0）
 │   ├── content.js                       # 编辑器主体逻辑（命名空间 pcr）
+│   ├── api/                             # 开放接口：授权确认弹窗、头像菜单设置入口
+│   ├── guide/                           # 新手引导（一屏一个功能大类）
 │   ├── ai/
 │   │   ├── content.js                   # 详情页 AI 总结面板（命名空间 pcai）
 │   │   └── reply.js                     # 回复框旁的 AI 起草助手（前缀 pcrr）
@@ -201,12 +223,14 @@ pickscribe/
 │   ├── popup/                           # 扩展图标弹窗（开关 + 快速切模型）
 │   ├── fonts/                           # 鸿蒙字体（HarmonyOS Sans VF，多语言 woff2，含 LICENSE）
 │   └── icons/                           # 扩展图标
-├── docs/                                # 规划与产品文档
+├── pickcat-open-api-tester/             # 开放接口测试插件（第三方接入示例，独立分发）
+├── docs/                                # 规划与接入文档
+│   ├── INTEGRATION.md                   # 第三方接入指南（动作、错误码、示例）
+│   ├── pickscribe-open-api-v1.md        # 开放接口协议设计与路线图
+│   ├── api/selftest.js                  # 控制台自检脚本
 │   ├── plan.md                          # AI 总结助手项目规划
 │   ├── ai-plugins-plan.md               # AI 插件族（第二辑）规划
-│   ├── Pickcat富文本编辑器-产品说明.md    # 早期产品说明
-│   ├── pickcat-收藏夹Plus-PRD.html      # 收藏夹 Plus 需求文档
-│   └── changelog-post.md                # 发版公告草稿
+│   └── pickcat-收藏夹Plus-PRD.html      # 收藏夹 Plus 需求文档
 ├── releases/                            # 发布产物（ZIP / CRX / 签名私钥，不纳入版本库）
 ├── legacy/
 │   └── pickcat-rich-editor.user.js      # 早期油猴脚本（保留兼容）

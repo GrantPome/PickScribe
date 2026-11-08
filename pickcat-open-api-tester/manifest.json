@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PickScribe 开放接口测试助手",
   "version": "1.0.0",
-  "description": "模拟第三方扩展，用于验证 PickScribe 开放接口的「首次访问确认」弹窗。仅测试用，不随 PickScribe 发行包发布。",
+  "description": "PickScribe 开放接口的接入示例：以第三方扩展身份演示如何读取帖子上下文、读取编辑器内容并发起 AI 请求，包含首次访问授权确认流程。",
   "host_permissions": ["https://pickcat.dao3.fun/*", "https://cdsq.dao3.fun/*"],
   "content_scripts": [
     {
