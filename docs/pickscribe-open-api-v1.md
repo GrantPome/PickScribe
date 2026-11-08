@@ -1,10 +1,10 @@
 # PickScribe 开放接口方案（v1）
 
-> 状态：方案稿，待拍板；本轮不改代码
+> 状态：设计稿 + v1.0 落地记录（本文的命名是设计稿；实际接口以 [INTEGRATION.md](./INTEGRATION.md) 为准）
 > 适用范围：PickScribe（`pickcat-rich-editor-extension`，当前 3.10.0）与第三方 Chromium 扩展
 > 目标站点：`https://pickcat.dao3.fun/`、`https://cdsq.dao3.fun/`
 >
-> **v1.0 落地差异**：实际实现采用统一信封 `{ source, v, id, action, payload, ts }`，动作名为 `ai.open` / `post.open`，与本文正文里的 `type: pickscribe:v1.*` 属于设计稿命名差异；对外接口以 [INTEGRATION.md](./INTEGRATION.md) 为准。L1 之外的配对 / HMAC 尚未实现，接入点预留在 `background/service-worker.js` 的 `apiAuthorize`。
+> **v1.0 落地差异**：实际实现采用统一信封 `{ source, v, id, action, payload, ts }`，已实现 `ping` / `state` / `ai.open` / `post.open` / `post.context` / `editor.read` / `editor.write` / `post.summarize`，与本文正文里的 `type: pickscribe:v1.*` 属于设计稿命名差异。数据动作在当前版本以「L1 + 首次访问确认」落地；L1 之外的配对 / HMAC 尚未实现，接入点预留在 `background/service-worker.js` 的 `apiAuthorize`。
 
 ---
 
@@ -16,7 +16,7 @@
    - L0 探测：版本、能力、页面状态（无需授权，页面可见）；
    - L1 UI 动作：打开 AI 面板、按 id 打开浮层（低风险，需总开关）；
    - L2 数据动作：读帖子上下文、读/写编辑器、触发 AI 总结（必须配对 + 逐项授权 + 限流）。
-4. **v1.0 先做**：协议骨架（ping/hello/ack/state）+ `ai.open` + `post.open` + 文档与自检脚本；**v1.1** 再做配对与 `post.context` / `editor.read`；**v1.2** 才做 `post.summarize` 与 `editor.write`。理由：前两个动作只操作用户可见 UI，失败成本低；后三个涉及正文、编辑内容和用户 AI 额度，必须先有身份与授权。
+4. **v1.0 实际落地**：协议骨架（ping/hello/ack/state）+ `ai.open` + `post.open` + `post.context` + `editor.read` + `editor.write` + `post.summarize` + 文档与自检脚本。数据动作在原计划的 L2 之前提前落地，但补齐了「全局能力开关（`writeEditor` / `aiQuota` 默认关闭）+ 逐扩展首次确认（长期 / 仅本次 / 拒绝）」这条授权链；配对 + HMAC 仍留给 v1.1，届时只替换身份校验，不改信封与动作参数。
 5. **纯扩展环境没有“绝对安全”**：拥有站点 host 权限的恶意扩展本来就能直接抓 DOM，本方案能解决的是页面脚本伪造、跨插件冒用、静默批量取数和审计问题，不能阻止等价于“直接读网页”的抓取。这个边界需要在文档里写明，避免给第三方错误预期。
 
 ---
@@ -238,17 +238,17 @@ ai.summary.post
 
 | 项 | 内容 |
 | --- | --- |
-| 用途 | 对当前帖子（或浮层内当前帖）发起 AI 总结 |
-| 参数 | `{ "target": "auto\|overlay\|page", "postId": "可选，默认当前", "stream": true, "force": false }` |
-| 返回 | 先 ACK `{ "accepted": true, "requestId": "s-1" }`；随后事件流 |
-| 事件 | `pickscribe:v1.event.summary.chunk` `{ requestId, delta }`；`.done` `{ requestId, text, usage, cached }`；`.error` `{ requestId, code, message }` |
-| ACK | 是（`accepted` + 终态事件；终态也要能通过 `state` / `summary.status` 补偿） |
-| 页面 | `post`（页面面板）或 `feed`（浮层面板） |
-| 权限 | `ai.summary` + 配对 + AI 额度开关 |
-| 现状 | **部分支持**：`ai/content.js` 的 `runSummary()` 与 `overlay/content.js` 的 `runAiPanel()` 都已实现，但都在 IIFE 内部，没有对外入口；面板可能被用户收起；两处取正文方式不同（帖子页 `extractPost()`，浮层 `view.topic.firstPost.cookedHtml`） |
-| 代价 | 中。需要：暴露内部 bridge；先 `setPanelHidden(false)` / `setAiHidden(false)`；串接流式 chunk 到 SW → broker → window 事件；处理“同一帖只允许一个 in-flight”；缓存与 usage 回传；AI 未配置 / 未授权 / 超额度的错误码 |
+| 用途 | 对当前帖子（或浮层内当前帖）做 AI 总结 |
+| 参数 | `{ "postId": "可选，默认当前详情页 / 浮层打开的帖子" }` |
+| 返回 | `{ "postId": "...", "summary": "...", "cached": false, "length": 456, "model": "deepseek-chat" }` |
+| ACK | 是（一次 ACK 带完整结果；不做流式事件） |
+| 页面 | `post`（详情页）或 `feed`（浮层打开时）；没有当前帖返回 `UNSUPPORTED_CONTEXT` |
+| 权限 | `aiQuota` 全局开关（默认关闭）+ 逐扩展首次确认；另受 AI 总开关与「帖子总结」分项开关约束 |
+| 现状 | **已实现**：`overlay/content.js` 的 `apiPostSummarize()` 复用 `summaryMessages()` / `summaryCacheKey()` 与 `pcai_cache`，命中缓存直接返回 `cached: true`，未命中才通过独立 `pcai` 端口调用模型 |
+| 错误码 | `UNSUPPORTED_CONTEXT`、`NOT_FOUND`、`EMPTY_POST`、`UNAUTHORIZED`、`AI_DISABLED`、`AI_DISABLED_FEATURE`、`AI_NOT_CONFIGURED`、`AI_TIMEOUT`、`AI_EMPTY`、`FETCH_FAILED`、`PERMISSION_DISABLED`、`DENIED`、`CONSENT_TIMEOUT` |
+| 说明 | 只返回摘要文本、长度、模型与 `cached`，不返回 API Key / 提示词 / 对话原文；后台按长耗时 90 秒处理，超时返回 `AI_TIMEOUT`；`force` / 流式事件 / `summary.status` 留到后续版本 |
 
-> 限制：只支持“当前页 / 当前浮层里的帖子”。跨帖总结需要额外拉取正文，v1 不做（会引入新的网络请求与鉴权面）。
+> 限制：只支持“当前页 / 当前浮层里的帖子”。跨帖总结需要额外拉取正文，v1.0 仍不做（会引入新的网络请求与鉴权面）。
 
 #### D. `pickscribe:v1.post.context`
 
@@ -260,8 +260,8 @@ ai.summary.post
 | ACK | 是 |
 | 页面 | `post` / 浮层打开时的 `feed` |
 | 权限 | `post.context` + 配对；`body` 需“允许一次”或持久授权 |
-| 现状 | **可支持**：帖子页有 `getPostId()`、`extractPost()`（[ai/content.js#L97](../pickcat-rich-editor-extension/ai/content.js#L97)、[L150-L174](../pickcat-rich-editor-extension/ai/content.js#L150-L174)）；浮层内不能复用 `extractPost()`（它找的是站点 `.markdown-body`），要从 `view.topic.firstPost.cookedHtml` 取正文、从 `view.topic.author.username` 取作者（[overlay/content.js#L4535-L4549](../pickcat-rich-editor-extension/overlay/content.js#L4535-L4549)） |
-| 代价 | 低。需加字段白名单、大小上限（建议 200KB）、正文脱敏/截断标记；浮层分支需要单独适配 |
+| 现状 | **已实现**：`overlay/content.js` 的 `apiPostContext()` 统一从 `apiFetchTopic()` / 浮层已加载的 `view.topic` 取数据，正文转 Markdown 后返回；字段白名单与 100000 字符截断已落地 |
+| 说明 | 不返回头像、徽章等站内装饰字段；`bodyTruncated` / `bodyLength` 标记截断；首次调用走全局开关 + 逐扩展确认 |
 
 #### E. `pickscribe:v1.editor.read`
 
@@ -273,21 +273,21 @@ ai.summary.post
 | ACK | 是 |
 | 页面 | `editor` |
 | 权限 | `editor.read` + 配对（红级） |
-| 现状 | **可支持**：`htmlToMd(editor)` / `textarea.value` / `getSelectedText()` 都在 |
-| 代价 | 低。需加 revision 计算、大小上限、面板未挂载时的降级读取 |
+| 现状 | **已实现**：`content.js` 的 `apiReadEditor()` 支持 `markdown` / `text` 两种格式、revision、长度、截断与 `dirty` |
+| 说明 | 只返回正文与元信息，不返回选区；`includeSelection` 未实现 |
 
 #### F. `pickscribe:v1.editor.write`
 
 | 项 | 内容 |
 | --- | --- |
-| 用途 | 替换 / 插入 / 追加编辑器内容 |
-| 参数 | `{ "op": "replace\|insert\|append", "markdown": "...", "position": "caret\|end\|start", "ifRevision": "sha256-8" }` |
-| 返回 | `{ "applied": true, "revision": "sha256-8", "length": 1234 }` |
-| ACK | 是（`done`，必须带新 revision） |
-| 页面 | `editor` |
-| 权限 | `editor.write` + 配对 + 每次 `replace` 二次确认 |
-| 现状 | **原语支持**：`mdToHtml`、`setTextareaValue`、`insertHtml`、`richToSource` / `sourceToRich` |
-| 代价 | 中。需要：revision 冲突检测；`insert` 走 `insertHtml` 保留撤销栈；`replace` 会丢撤销，必须提示；输入法组合态拒绝；source / rich 双模式同步；不做 HTML 写入，只收 Markdown |
+| 用途 | 在光标处插入 / 整体替换编辑器内容 |
+| 参数 | `{ "text": "Markdown", "mode": "insert\|replace" }`；`mode` 可省略，默认 `insert` |
+| 返回 | `{ "mode": "insert", "editorMode": "rich", "length": 1234, "insertedLength": 24, "replacedLength": 0, "revision": "a1b2c3d4e5f60718", "dirty": true }` |
+| ACK | 是（一次 ACK 带写入结果） |
+| 页面 | `editor`；非编辑页返回 `UNSUPPORTED_CONTEXT`，未挂载返回 `NOT_READY`，只读返回 `EDITOR_READONLY` |
+| 权限 | `writeEditor` 全局开关（默认关闭）+ 逐扩展首次确认；`replace` 的确认窗会显示将被替换的字符数 |
+| 现状 | **已实现**：`content.js` 的 `apiWriteEditor()` 走 `insertHtml`（insert）或 `setTextareaValue` + `sourceToRich`（replace），写入后富文本与源码同步，保持当前视图可继续编辑 |
+| 说明 | 默认 `insert` 避免误清空；`insert` 拒绝空文本；只收 Markdown，不接受 HTML；去重只按 requestId，同 id 重试不会重复写入；`ifRevision` 冲突检测与撤销栈保留留到后续版本 |
 
 #### G. 可选：`pickscribe:v1.post.close`
 
@@ -369,7 +369,7 @@ if (!d || typeof d !== 'object' || d.source !== 'pickcat-plus') return;
 | --- | --- | --- | --- |
 | L0 发现级 | `origin` + `ev.source === window` + type 白名单 | `ping` / `hello` / `state` | 所有客户端，无需授权 |
 | L1 会话级 | L0 + `client` + `session.nonce` + 请求 id + 限流 | `ai.open`、`post.open`、`post.close` | 已开总开关的客户端；仍可被页面脚本伪造，只用于低风险 UI |
-| L2 配对级 | L1 + 配对 secret + HMAC + 时间窗 + nonce 去重 | `post.context`、`editor.read`、`editor.write`、`post.summarize` | 第三方扩展的正式接入 |
+| L2 配对级 | L1 + 配对 secret + HMAC + 时间窗 + nonce 去重 | `post.context`、`editor.read`、`editor.write`、`post.summarize` | 第三方扩展的正式接入；v1.0 实际先用 L1 + 首次确认落地，v1.1 再补齐本行 |
 
 **核心判断：`source` 永远不能单独授权任何动作。** L1 的价值只是防误触和跨客户端串话，不是安全边界。
 
@@ -511,14 +511,13 @@ mac       = base64url(HMAC-SHA256(secret, canonical))
 
 ### 7.4 AI 成本
 
-`post.summarize` 消耗的是**用户自己的 API Key 额度**，必须：
+`post.summarize` 消耗的是**用户自己的 API Key 额度**。v1.0 实际落地：
 
-- 单独 scope `ai.summary`，默认关闭；
-- 首次调用弹出一次说明，用户确认后才生效；
-- 每客户端 10 秒冷却 + 每页最多 1 个 in-flight；
-- 命中缓存时在结果里带 `cached: true`；
-- 支持 `force: false` 默认走缓存，第三方不能默认绕过缓存烧 token；
-- 失败不自动重试（避免重复计费）。
+- 权限项为 `aiQuota`，全局开关默认关闭；首次调用按「扩展 + 权限项」弹一次确认，用户确认后才生效；
+- 默认走缓存：命中时结果带 `cached: true` 且不调用模型；未命中才调用一次；
+- 失败不自动重试（避免重复计费）；后台仍受每标签页 30 次/分钟的限流约束；
+- 每次调用使用独立端口，不会覆盖面板里正在进行的流式总结；
+- 每客户端 10 秒冷却、每页 1 个 in-flight、`force` 参数与流式事件尚未实现，留到 v1.1 / v1.2。
 
 ---
 
@@ -659,8 +658,10 @@ ping();
 
 ### v1.2 — 写与 AI
 
-- `editor.write`（replace 二次确认 + revision 冲突）。
-- `post.summarize`（流式事件 + AI 额度授权 + 缓存策略）。
+> `editor.write` 与 `post.summarize` 已在 v1.0 以「L1 + 全局开关 + 首次确认」提前落地；v1.2 的重点是把它们迁到配对身份上，并补齐下面的增强项。
+
+- `editor.write` 增强：`ifRevision` 冲突检测、撤销栈保留策略（v1.0 已实现 insert / replace + 确认窗字符数）。
+- `post.summarize` 增强：流式事件、`summary.status` 补偿、`force` 参数（v1.0 已实现缓存优先 + AI 额度授权 + 90 秒长超时）。
 - `post.close`。
 - 公开 `docs/api/pickscribe-v1.json`，补第三方示例仓库。
 

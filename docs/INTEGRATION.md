@@ -79,7 +79,7 @@ ACK 的 `data` 即能力声明：
   "protocol": { "v": 1, "min": 1, "max": 1 },
   "auth": { "mode": "l1", "pairing": false },
   "page": { "type": "editor", "href": "...", "postId": "" },
-  "actions": ["ai.open", "post.open", "post.context", "editor.read"],
+  "actions": ["ai.open", "post.open", "post.context", "editor.read", "editor.write", "post.summarize"],
   "perms": {
     "readPost": true,
     "readEditor": true,
@@ -147,6 +147,39 @@ ACK 的 `data` 即能力声明：
 - `revision` 是完整内容的摘要，后续 `editor.write` 用它做冲突校验。
 - `dirty` 表示当前内容是否与编辑器挂载时的快照不同（不是与服务器已保存版本比较）。
 
+### editor.write
+
+| 项 | 内容 |
+| --- | --- |
+| 页面 | 编辑页 |
+| 参数 | `{ "text": "Markdown", "mode": "insert" \| "replace" }`；`mode` 可省略，默认 `insert` |
+| 成功返回 | `{ "mode": "insert", "editorMode": "rich", "length": 1234, "insertedLength": 24, "replacedLength": 0, "revision": "a1b2c3d4e5f60718", "dirty": true }` |
+| 失败码 | `BAD_REQUEST`（`text` 非字符串 / `mode` 非法 / `insert` 空文本 / 超过 100000 字符）、`UNSUPPORTED_CONTEXT`（非编辑页）、`NOT_READY`（编辑器未挂载）、`EDITOR_READONLY`（编辑器只读）、`PERMISSION_DISABLED`、`DENIED`、`CONSENT_TIMEOUT`、`INTERNAL` |
+
+- `mode` 缺省为 `insert`，避免调用方漏传参数时误清空用户内容；只有显式传 `replace` 才会整体替换。
+- `insert` 在富文本光标处插入（编辑区未聚焦时追加到末尾）；`replace` 用 `text` 整体替换当前正文，`text` 允许为空字符串（等价于清空）。
+- `insert` 拒绝空文本，避免产生一次没有实际写入的确认。
+- `length` 是写入后的完整 Markdown 长度；`insertedLength` 是本次 `text` 的长度；`replace` 的 `replacedLength` 是写入前正文长度，`insert` 固定为 0。
+- 写入后富文本区与源码区会同步刷新，当前视图模式保持不变（`rich` / `split` / `source`），用户可继续编辑；返回的 `editorMode` 即写入后的视图。
+- `revision` 可与 `editor.read` 的返回值比较，确认写入结果。
+- 写入是副作用动作：后台只在 `tabId + action + id` 维度去重，绝不以正文内容 / 长度判断重复；同一条请求重试请复用同一个 `id`，命中去重时 ACK 带 `duplicate: true` 且不会重复写入。
+- 首次调用会走「全局开关 → 逐扩展授权」；`replace` 的确认窗会明确展示将被替换的字符数。
+
+### post.summarize
+
+| 项 | 内容 |
+| --- | --- |
+| 页面 | 任意允许的站点页面；省略 `postId` 时取当前详情页或浮层打开的帖子 |
+| 参数 | `{ "postId": "可选" }` |
+| 成功返回 | `{ "postId": "...", "summary": "...", "cached": false, "length": 456, "model": "deepseek-chat" }` |
+| 失败码 | `UNSUPPORTED_CONTEXT`、`NOT_FOUND`、`EMPTY_POST`、`UNAUTHORIZED`、`AI_DISABLED`、`AI_DISABLED_FEATURE`、`AI_NOT_CONFIGURED`、`AI_TIMEOUT`、`AI_EMPTY`、`FETCH_FAILED`、`PERMISSION_DISABLED`、`DENIED`、`CONSENT_TIMEOUT`、`INTERNAL` |
+
+- 复用浮层面板同一套提示词与 `pcai_cache`：命中缓存直接返回，`cached: true`，不会调用模型；未命中才发一次模型请求，并由后台在成功后写入缓存。
+- 首次调用会走「全局开关 → 逐扩展授权」；`aiQuota` 默认关闭，关闭时返回 `PERMISSION_DISABLED`，不会弹窗。
+- AI 总开关关闭返回 `AI_DISABLED`；帖子总结分项关闭返回 `AI_DISABLED_FEATURE`；未配置模型 / API Key 返回 `AI_NOT_CONFIGURED`。
+- 返回只包含 `postId`、`summary`、`cached`、`length`、`model`，不返回 API Key、请求消息或其他内部字段。
+- 这是长耗时动作：后台等待上限 90 秒，超时返回 `AI_TIMEOUT`；页面侧 ACK 上限 160 秒（含首次确认等待）。
+
 ## 5. 首次访问确认
 
 需要读取数据或消耗 AI 额度的动作（`post.context`、`editor.read`、`editor.write`、`post.summarize`）第一次被某个扩展请求时，PickScribe 会在当前页面弹确认窗：
@@ -161,7 +194,7 @@ ACK 的 `data` 即能力声明：
 
 授权记录预留了 `identity` 结构（`mode` / `extensionId` / `name` / `version` / `pairingId`）。v1.0 只有 `mode: "l1"` 的自述身份；v1.1 配对完成后写入 `pairingId`，记录结构不变。
 
-> 当前已实现 `post.context` / `editor.read`，两者第一次被请求时会触发确认弹窗；`editor.write` / `post.summarize` 尚未实现，会返回 `UNSUPPORTED`。
+> v1.0 已实现 `post.context` / `editor.read` / `editor.write` / `post.summarize` 四个数据动作，第一次被请求时都会按「扩展 + 权限项」触发确认弹窗。`editor.write` 的确认窗会显示本次插入 / 替换的字符数；`post.summarize` 会显示是否可能调用模型。撤销授权后，下一次请求会重新弹窗。
 
 ## 6. 错误码
 
@@ -169,16 +202,22 @@ ACK 的 `data` 即能力声明：
 | --- | --- |
 | `OK` | 成功 |
 | `BAD_REQUEST` | 信封 / 参数不合法、时间戳过期、体积超限 |
-| `UNSUPPORTED` | 未知 action，或该能力尚未在 v1.0 实现 |
+| `UNSUPPORTED` | 未知 action，或协议版本不支持 |
 | `UNAUTHORIZED` | source 不在白名单，或不在允许的站点页面 |
 | `UNSUPPORTED_CONTEXT` | 当前页面不支持该动作 |
 | `NOT_READY` | 内容脚本 / 后台尚未就绪 |
-| `TIMEOUT` | 内容脚本未在时限内响应（普通动作 1.5 秒，需读接口的数据动作 15 秒） |
+| `TIMEOUT` | 内容脚本未在时限内响应（普通动作 1.5 秒，读接口的数据动作 15 秒，`post.summarize` 90 秒） |
+| `EDITOR_READONLY` | 编辑器存在但当前只读，无法写入 |
+| `AI_TIMEOUT` | `post.summarize` 在 90 秒内没有拿到模型结果 |
+| `AI_EMPTY` | 模型返回了空内容 |
+| `AI_NOT_CONFIGURED` | 未配置模型或 API Key，且缓存未命中 |
+| `EMPTY_POST` | `post.summarize` 的目标帖子没有正文 |
+| `FETCH_FAILED` | `post.summarize` 读取帖子失败（非 404 / 401 / 403） |
 | `RATE_LIMITED` | 超过每标签页 30 次/分钟，`payload.retryAfter` 为建议等待秒数 |
 | `OVERLAY_DISABLED` | 用户关闭了浮窗模式 |
 | `PERMISSION_DISABLED` | 用户已在设置页关闭对应的全局能力开关 |
 | `AI_DISABLED` | 用户已在设置页关闭「AI 功能」总开关；不会打开 AI 面板或发模型请求 |
-| `AI_DISABLED_FEATURE` | AI 总开关开启，但 `ai.open` 对应的分项（排版 / 写作助手）被关闭 |
+| `AI_DISABLED_FEATURE` | AI 总开关开启，但对应分项（`ai.open` 的排版 / 写作助手，或 `post.summarize` 的帖子总结）被关闭 |
 | `DENIED` | 用户拒绝过该扩展的对应权限；需到设置页撤销拒绝记录 |
 | `CONSENT_TIMEOUT` | 确认弹窗被关闭，或等待用户确认超时 |
 | `NOT_FOUND` | 指定帖子不存在或已被删除 |
@@ -188,7 +227,8 @@ ACK 的 `data` 即能力声明：
 
 - 发现：建议 300ms 超时，按 0 / 500 / 1500 / 4000 / 8000ms 重试。
 - 动作：建议 3000ms 超时。`ai.open`、`post.open` 可安全重试，但必须复用同一个 `id`。
-- `post.context` / `editor.read` 首次调用要先等用户确认，ACK 最长 65 秒；确认后 `editor.read` 通常 <1 秒，`post.context` 需要读接口，最多 15 秒。
+- `post.context` / `editor.read` / `editor.write` 首次调用要先等用户确认，ACK 最长 65 秒；确认后 `editor.read` / `editor.write` 通常 <1 秒，`post.context` 需要读接口，最多 15 秒。
+- `post.summarize` 首次调用同样要等确认；确认后未命中缓存时需要调用模型，ACK 最长 160 秒（确认等待 + 后台 90 秒）。超时返回 `AI_TIMEOUT`，此时不要用新的 `id` 盲目重试，避免重复消耗额度。
 - 需要首次确认的数据动作，确认未决时不要重复发起，复用同一个 `id` 重试即可命中后台去重或复用同一次确认。
 - 后台会缓存最近 200 个 `tabId + action + id` 的结果 120 秒；重复请求返回同一 ACK，并带 `duplicate: true`。
 - 收到 `RATE_LIMITED` 时按 `retryAfter` 等待，不要立即重试。
@@ -201,8 +241,8 @@ ACK 的 `data` 即能力声明：
 | --- | --- | --- |
 | 读正文 | 开 | `post.context`（已实现） |
 | 读编辑器 | 开 | `editor.read`（已实现） |
-| 写编辑器 | 关 | `editor.write`（未实现） |
-| 消耗 AI 额度 | 关 | `post.summarize`（未实现） |
+| 写编辑器 | 关 | `editor.write` |
+| 消耗 AI 额度 | 关 | `post.summarize` |
 
 `ai.open` / `post.open` 属于用户可见的 UI 动作，不受这四项限制；数据与 AI 动作会先检查「全局开关」，再检查「逐扩展授权」，任一不过即回 `PERMISSION_DISABLED` / `DENIED`。
 
@@ -216,8 +256,9 @@ ACK 的 `data` 即能力声明：
 2. 暴露 `window.pcrTest`：
    - `await pcrTest.aiOpen('整理成大纲')`
    - `await pcrTest.postOpen('帖子ID')`
-   - `await pcrTest.readPost()` / `readEditor()`（v1.0 预期 `UNSUPPORTED`）
-   - `writeEditor()` / `summarize()` 有副作用，默认不自动执行。
+   - `await pcrTest.readPost()` / `readEditor()`
+   - `await pcrTest.writeEditor('**测试**', 'insert')` / `await pcrTest.summarize()`
+   - `writeEditor()` / `summarize()` 有副作用（写入正文 / 消耗 AI 额度），自检默认不自动执行，需手动调用。
 
 设置页「联动状态」会显示内容脚本是否就绪、当前页面、协议版本、可用动作、能力开关与扩展 ID。
 

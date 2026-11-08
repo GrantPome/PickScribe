@@ -52,6 +52,22 @@
       wait: 70000
     },
     {
+      key: 'write',
+      label: '写入编辑器 · editor.write',
+      hint: '需在编辑页；首次会因「写入编辑器」弹窗，确认前显示插入字符数',
+      action: 'editor.write',
+      payload: { text: '**PickScribe 测试**\n\n- 来自测试助手的插入内容', mode: 'insert' },
+      wait: 70000
+    },
+    {
+      key: 'summarize',
+      label: 'AI 总结 · post.summarize',
+      hint: '需在帖子详情页或浮层已打开；首次弹「消耗 AI 额度」，命中缓存会标注',
+      action: 'post.summarize',
+      payload: {},
+      wait: 165000
+    },
+    {
       key: 'ai',
       label: '打开 AI 面板 · ai.open',
       hint: '需在编辑页；预期 OK，不弹确认窗',
@@ -76,7 +92,8 @@
     '再点一次「post.context」：不应再弹窗，直接返回帖子数据。',
     '在设置页「已授权扩展」里撤销（或删除）本扩展的记录后，点任意需要确认的动作，在弹窗里点「仅本次允许」：请求应正常完成，日志显示「仅本次放行」，设置页「已授权扩展」里不应出现这条记录；再点同一按钮会重新弹窗。',
     '在弹窗里点拒绝 → 返回 DENIED；再点一次仍是 DENIED，不会写授权。',
-    '设置页 → 开放接口 → 已授权扩展 → 对应权限点「撤销」，再请求同一动作会重新弹窗。',
+    '设置页 → 开放接口 → 已授权扩展 → 对应权限点「撤销」，再请求同一动作会重新弹窗。取消授权后应重新弹窗：撤销「写入编辑器」或「消耗 AI 额度」后，再点对应按钮必须再次出现确认窗，不能沿用旧授权。',
+    '「写入编辑器」在弹窗里会显示本次将插入（或整体替换）的字符数；允许后正文立即刷新，富文本与源码保持一致，仍可继续编辑。',
     '点一个需要确认的动作后不操作弹窗：约 60 秒后弹窗自动关闭，请求返回 CONSENT_TIMEOUT。',
     '设置页关闭「允许第三方读取编辑器内容」后点最后一个按钮：直接返回 PERMISSION_DISABLED，不弹窗。'
   ];
@@ -294,6 +311,18 @@
           parts.push((d.mode || 'source') + ' · ' + d.length + ' 字符 · ' + (d.isEmpty ? '空' : '非空'));
         }
         if (d.revision) parts.push('revision ' + d.revision);
+      } else if (def.action === 'editor.write' && d && typeof d === 'object') {
+        parts.push('mode=' + (d.mode || '—'));
+        if (typeof d.insertedLength === 'number') parts.push('写入 ' + d.insertedLength + ' 字符');
+        if (typeof d.length === 'number') parts.push('结果 ' + d.length + ' 字符');
+        if (typeof d.replacedLength === 'number' && d.replacedLength > 0) parts.push('替换 ' + d.replacedLength + ' 字符');
+        if (d.revision) parts.push('revision ' + d.revision);
+        if (d.editorMode) parts.push('视图 ' + d.editorMode);
+      } else if (def.action === 'post.summarize' && d && typeof d === 'object') {
+        parts.push(d.cached ? '命中缓存' : '模型生成');
+        if (typeof d.length === 'number') parts.push(d.length + ' 字符');
+        if (d.model) parts.push('模型 ' + d.model);
+        if (d.summary) parts.push('摘要：' + String(d.summary).replace(/\s+/g, ' ').slice(0, 120));
       } else if (def.action === 'ai.open' && d && typeof d === 'object') {
         parts.push('opened=' + !!d.opened + ' · mode=' + (d.mode || '—'));
       } else if (def.action === 'ping' && d && typeof d === 'object') {
