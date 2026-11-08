@@ -179,14 +179,16 @@ function safePost(port, payload) {
 
 const API_VERSION = 1;
 const API_SOURCES = new Set(['pickcat-client', 'pickcat-plus']);
-const API_ACTIONS = new Set(['ai.open', 'post.open', 'post.context', 'editor.read']);
+const API_ACTIONS = new Set(['ai.open', 'post.open', 'post.context', 'editor.read', 'editor.write', 'post.summarize']);
 const API_RATE_LIMIT = 30;                 // 每 tab 每分钟最多 30 次动作请求
 const API_RATE_WINDOW = 60 * 1000;
 const API_TS_WINDOW = 60 * 1000;           // 信封时间戳允许的偏差
 const API_DEDUPE_TTL = 120 * 1000;         // 同一 requestId 的结果缓存时长
 const API_DISPATCH_TIMEOUT = 1500;         // 等内容脚本响应的上限
-const API_DISPATCH_TIMEOUT_SLOW = 15000;   // 需要读接口 / 消耗额度的数据动作
-const API_DISPATCH_SLOW_ACTIONS = new Set(['post.context', 'post.summarize']);
+const API_DISPATCH_TIMEOUT_SLOW = 15000;   // 需要读接口的数据动作
+const API_DISPATCH_TIMEOUT_LONG = 90000;   // 需要调用模型的耗时动作
+const API_DISPATCH_SLOW_ACTIONS = new Set(['post.context']);
+const API_DISPATCH_LONG_ACTIONS = new Set(['post.summarize']);
 const API_MAX_PAYLOAD = 64 * 1024;         // 信封大小上限，避免页面脚本灌大消息
 const API_HOSTS = new Set(['pickcat.dao3.fun', 'cdsq.dao3.fun']);
 
@@ -423,8 +425,34 @@ function apiConsentLabel(perms) {
   return perms.map((p) => (API_CONSENT_PERMS[p] && API_CONSENT_PERMS[p].label) || p).join('、');
 }
 
+/**
+ * 编辑器只读探测：replace 前要在确认弹窗里展示「将被替换的字符数」，
+ * 同时提前拦掉非编辑页 / 未挂载 / 只读，避免弹出一个注定失败的确认窗。
+ * 这是扩展内部消息，不经过页面，也不产生任何写入。
+ */
+function apiProbeEditor(tabId) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (res) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(res && typeof res === 'object' ? res : null);
+    };
+    const timer = setTimeout(() => finish(null), 1500);
+    try {
+      chrome.tabs.sendMessage(tabId, { __pcr_editor_probe: true }, (res) => {
+        if (chrome.runtime.lastError) { finish(null); return; }
+        finish(res);
+      });
+    } catch (e) {
+      finish(null);
+    }
+  });
+}
+
 /** 让页面里的内容脚本弹确认窗；页面没就绪时明确返回 NOT_READY，不挂死调用方 */
-function apiAskPageConsent(tabId, req, client, perms) {
+function apiAskPageConsent(tabId, req, client, perms, detail) {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (res) => {
@@ -448,6 +476,8 @@ function apiAskPageConsent(tabId, req, client, perms) {
           label: (API_CONSENT_PERMS[p] && API_CONSENT_PERMS[p].label) || p,
           desc: (API_CONSENT_PERMS[p] && API_CONSENT_PERMS[p].desc) || ''
         })),
+        // 本次写入 / 总结的具体影响，供弹窗展示（不做静默覆盖）
+        detail: detail || null,
         timeout: API_CONSENT_WAIT
       }, (res) => {
         if (chrome.runtime.lastError) {
@@ -521,7 +551,28 @@ async function apiEnsureConsent(tabId, req) {
   const running = apiConsentInflight.get(inflightKey);
   if (running) return running;
 
-  const task = apiAskPageConsent(tabId, req, client, missing)
+  // 确认窗前拿到本次动作的实际影响：replace 的字符数、insert 的长度、是否会用模型。
+  let detail = null;
+  if (req.action === 'editor.write') {
+    const p = req.payload && typeof req.payload === 'object' ? req.payload : {};
+    const writeMode = p.mode === 'replace' ? 'replace' : 'insert';
+    detail = {
+      mode: writeMode,
+      textLength: typeof p.text === 'string' ? p.text.length : 0
+    };
+    // 编辑器不可用时直接返回明确错误，不弹一个注定失败的确认窗。
+    const probe = await apiProbeEditor(tabId);
+    if (probe && probe.ok === false) {
+      return { ok: false, code: probe.code || 'NOT_READY', message: probe.message || '编辑器不可用' };
+    }
+    if (probe && writeMode === 'replace' && typeof probe.length === 'number') {
+      detail.replaceChars = probe.length;
+    }
+  } else if (req.action === 'post.summarize') {
+    detail = { usesModel: true };
+  }
+
+  const task = apiAskPageConsent(tabId, req, client, missing, detail)
     .then(async (res) => {
       const decision = res && res.decision;
       if (decision === 'allow') {
@@ -573,7 +624,8 @@ async function apiEnsureConsent(tabId, req) {
 
 /** 把动作转发给同 tab 的内容脚本；未就绪时 200ms 后重试一次（open 类动作幂等） */
 function apiDispatch(tabId, action, payload, requestId) {
-  const waitMs = API_DISPATCH_SLOW_ACTIONS.has(action) ? API_DISPATCH_TIMEOUT_SLOW : API_DISPATCH_TIMEOUT;
+  const waitMs = API_DISPATCH_LONG_ACTIONS.has(action) ? API_DISPATCH_TIMEOUT_LONG
+    : (API_DISPATCH_SLOW_ACTIONS.has(action) ? API_DISPATCH_TIMEOUT_SLOW : API_DISPATCH_TIMEOUT);
   const send = () => new Promise((resolve) => {
     let settled = false;
     const finish = (res) => { if (settled) return; settled = true; resolve(apiNormalize(res)); };
@@ -600,15 +652,21 @@ function apiDispatch(tabId, action, payload, requestId) {
 }
 
 /**
- * 开放接口 ai.open 的 AI 开关检查：
+ * 开放接口的 AI 开关检查：
  * - 总开关关闭 → AI_DISABLED
- * - 对应分项关闭（format / writer）→ AI_DISABLED_FEATURE
+ * - 对应分项关闭（ai.open 的 format / writer，post.summarize 的总结开关）→ AI_DISABLED_FEATURE
  */
 async function apiEnsureAiFeature(req) {
-  if (!req || req.action !== 'ai.open') return { ok: true };
+  if (!req || (req.action !== 'ai.open' && req.action !== 'post.summarize')) return { ok: true };
   const cfg = await getConfig();
   if (cfg.aiEnabled === false) {
     return { ok: false, code: 'AI_DISABLED', message: 'AI 功能已在设置中关闭' };
+  }
+  if (req.action === 'post.summarize') {
+    if (cfg.enabled === false) {
+      return { ok: false, code: 'AI_DISABLED_FEATURE', message: '帖子总结已在设置中关闭' };
+    }
+    return { ok: true };
   }
   const mode = req.payload && req.payload.mode;
   const key = mode === 'format' ? 'aiFormat' : 'aiWriter';
@@ -626,6 +684,13 @@ function apiHandle(msg, sender, sendResponse) {
   const tabId = sender.tab.id;
   const limited = apiCheckRate(tabId);
   if (limited) { sendResponse(limited); return; }
+
+  // 写编辑器只可能在编辑页生效：先按内容脚本上报的页面类型拦一次，
+  // 避免在信息流 / 详情页弹出一次注定失败的「写入编辑器」确认窗。
+  if (req.action === 'editor.write' && msg.page !== 'editor') {
+    sendResponse({ ok: false, code: 'UNSUPPORTED_CONTEXT', message: '仅编辑页可用' });
+    return;
+  }
 
   // 全局权限开关在去重缓存之前检查：用户改完开关后重试应立即生效，
   // 而不是命中上一次的拒绝结果。

@@ -4930,17 +4930,18 @@
   }
 
   /** 总结缓存键：帖子 + 模型 + 实际发出的提示词；正文或模型变化时自动失效 */
-  function summaryCacheKey(messages, topic) {
+  function summaryCacheKey(messages, topic, cfgOpt) {
     const t = topic || (view && view.topic) || null;
-    const model = (aiConfig && aiConfig.model) || '';
+    const cfg = cfgOpt || aiConfig || {};
+    const model = cfg.model || '';
     const payload = model + '|' + messages.map((m) => m.content).join('\n');
     const postId = (t && t.id) || '';
     return 'sum:' + postId + ':' + aiHash(payload);
   }
 
   /** 总结用的提示词：与 ai/content.js 的默认模板一致，优先使用设置里自定义的版本 */
-  function summaryMessages(topic) {
-    const cfg = aiConfig || {};
+  function summaryMessages(topic, cfgOpt) {
+    const cfg = cfgOpt || aiConfig || {};
     const body = plainText(topic.firstPost && topic.firstPost.cookedHtml)
       .replace(/\n{3,}/g, '\n\n').trim();
     const content = body.length > SUM_MAX_CHARS
@@ -4959,6 +4960,175 @@
       { role: 'system', content: (cfg.systemPrompt || '').trim() || SUM_SYSTEM },
       { role: 'user', content: user }
     ];
+  }
+
+  // ---------------- 开放接口 v1.0：post.summarize ----------------
+
+  const API_SUMMARY_TIMEOUT = 90000;   // 比 post.context 宽松，后台按长耗时 90 秒处理
+
+  /** 接口调用时实时读取 AI 配置，不依赖页面初始化时的快照 */
+  function apiLoadAiConfig() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get('pcai_config', (raw) => {
+          void chrome.runtime.lastError;
+          const saved = raw && raw.pcai_config;
+          resolve(Object.assign(
+            { aiEnabled: true, enabled: true, aiReply: true, provider: 'deepseek', model: 'deepseek-chat', apiKey: '' },
+            saved || {}
+          ));
+        });
+      } catch (e) {
+        resolve(Object.assign({}, aiConfig || {}));
+      }
+    });
+  }
+
+  /** 只读缓存：写入仍由后台在模型返回后统一完成 */
+  function apiCachedSummary(key) {
+    return new Promise((resolve) => {
+      if (!key) { resolve(null); return; }
+      try {
+        chrome.storage.local.get(AI_CACHE_KEY, (raw) => {
+          if (chrome.runtime.lastError) { resolve(null); return; }
+          const box = raw && raw[AI_CACHE_KEY];
+          const item = box && box[key];
+          resolve(item && item.text ? item : null);
+        });
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  }
+
+  /**
+   * 独立端口调用一次模型：不复用 aiPending，避免和面板里正在流式生成的请求互相覆盖。
+   * 超时 / 断开 / 错误都返回明确错误码，避免调用方无限等待。
+   */
+  function apiAiOnce(messages, cacheKey, timeoutMs) {
+    return new Promise((resolve) => {
+      let port = null;
+      let settled = false;
+      const id = 'api' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      const finish = (res) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        try { if (port) port.disconnect(); } catch (e) { /* 忽略 */ }
+        resolve(res);
+      };
+      const timer = setTimeout(() => {
+        finish({ ok: false, code: 'AI_TIMEOUT', message: 'AI 总结超时，请稍后重试' });
+      }, timeoutMs);
+      try {
+        port = chrome.runtime.connect({ name: 'pcai' });
+      } catch (e) {
+        finish({ ok: false, code: 'NOT_READY', message: '扩展后台不可用' });
+        return;
+      }
+      port.onMessage.addListener((msg) => {
+        if (!msg || msg.id !== id) return;
+        if (msg.type === 'chunk') return;
+        if (msg.type === 'done') {
+          const text = String(msg.text || '').trim();
+          if (!text) {
+            finish({ ok: false, code: 'AI_EMPTY', message: '模型返回了空内容' });
+            return;
+          }
+          finish({ ok: true, text, cached: !!msg.cached, usage: msg.usage || null });
+          return;
+        }
+        if (msg.type === 'error') {
+          finish({ ok: false, code: msg.code || 'AI_ERROR', message: msg.message || 'AI 请求失败' });
+        }
+      });
+      port.onDisconnect.addListener(() => {
+        void chrome.runtime.lastError;
+        finish({ ok: false, code: 'NOT_READY', message: 'AI 后台连接已断开' });
+      });
+      try {
+        port.postMessage({ type: 'start', id, messages, cacheKey, bypass: false });
+      } catch (e) {
+        finish({ ok: false, code: 'NOT_READY', message: String((e && e.message) || e) });
+      }
+    });
+  }
+
+  /** 对当前帖子做 AI 总结：命中缓存直接返回，未命中才调用模型 */
+  async function apiPostSummarize(payload) {
+    const p = payload && typeof payload === 'object' ? payload : {};
+    let postId = typeof p.postId === 'string' ? p.postId.trim().slice(0, 128) : '';
+    if (!postId) postId = apiPostIdFromLocation();
+    if (!postId && view && view.topic && view.topic.id) postId = String(view.topic.id);
+    if (!postId && current && current.id) postId = String(current.id);
+    if (!postId) {
+      return { ok: false, code: 'UNSUPPORTED_CONTEXT', message: '当前页面没有可总结的帖子' };
+    }
+
+    const cfg = await apiLoadAiConfig();
+    if (cfg.aiEnabled === false) {
+      return { ok: false, code: 'AI_DISABLED', message: 'AI 功能已在设置中关闭' };
+    }
+    if (cfg.enabled === false) {
+      return { ok: false, code: 'AI_DISABLED_FEATURE', message: '帖子总结已在设置中关闭' };
+    }
+
+    let topic = null;
+    try {
+      const openTopic = view && view.topic && String(view.topic.id) === String(postId) ? view.topic : null;
+      topic = openTopic || await apiFetchTopic(postId);
+    } catch (err) {
+      const msg = String((err && err.message) || err);
+      if (/HTTP 404/.test(msg)) {
+        return { ok: false, code: 'NOT_FOUND', message: '没有找到该帖子' };
+      }
+      if (/HTTP 401|HTTP 403/.test(msg)) {
+        return { ok: false, code: 'UNAUTHORIZED', message: '没有权限读取该帖子' };
+      }
+      return { ok: false, code: 'FETCH_FAILED', message: '读取帖子失败：' + msg };
+    }
+    if (!topic || !topic.id) {
+      return { ok: false, code: 'NOT_FOUND', message: '没有找到该帖子' };
+    }
+    if (!topic.firstPost || !topic.firstPost.cookedHtml) {
+      return { ok: false, code: 'EMPTY_POST', message: '该帖子没有可总结的正文' };
+    }
+
+    const messages = summaryMessages(topic, cfg);
+    const key = summaryCacheKey(messages, topic, cfg);
+    const hit = await apiCachedSummary(key);
+    if (hit) {
+      const text = String(hit.text || '');
+      return {
+        ok: true,
+        code: 'OK',
+        data: {
+          postId: String(topic.id),
+          summary: text,
+          cached: true,
+          length: text.length,
+          model: hit.model || cfg.model || ''
+        }
+      };
+    }
+
+    if (!cfg.apiKey && cfg.provider !== 'ollama' && cfg.provider !== 'custom') {
+      return { ok: false, code: 'AI_NOT_CONFIGURED', message: '还没有配置 AI 模型与 API Key' };
+    }
+
+    const res = await apiAiOnce(messages, key, API_SUMMARY_TIMEOUT);
+    if (!res.ok) return res;
+    return {
+      ok: true,
+      code: 'OK',
+      data: {
+        postId: String(topic.id),
+        summary: res.text,
+        cached: !!res.cached,
+        length: res.text.length,
+        model: cfg.model || ''
+      }
+    };
   }
 
   /** 在 AI 面板里流式生成帖子总结，结果只展示、不写入回复框 */
@@ -5454,6 +5624,10 @@
       if (!msg || msg.__pcr_api_dispatch !== true) return;
       if (msg.action === 'post.context') {
         apiPostContext(msg.payload).then(sendResponse);
+        return true;
+      }
+      if (msg.action === 'post.summarize') {
+        apiPostSummarize(msg.payload).then(sendResponse);
         return true;
       }
       if (msg.action !== 'post.open') return;
