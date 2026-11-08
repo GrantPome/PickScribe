@@ -161,6 +161,7 @@
   let tocActiveIdx = -1;          // 上次高亮的标题序号，用于判断是否需要滚动目录
   let tocScrollLock = 0;          // 目录平滑滚动期间的上锁时间，避免逐帧打断动画
   let tocOn = false;              // 文章目录的展开状态（chrome.storage.local 记忆）
+  let tocOpenAnim = false;        // 浮层刚打开：首次恢复展开时播放宽度过渡（换帖时不重复播）
 
   /** 当前浮层的数据与交互状态；关闭时整体丢弃 */
   let view = null;
@@ -1098,7 +1099,9 @@
     // 全屏与加宽都是会话级偏好，重开浮层时恢复
     if (fullOn) root.classList.add('is-full');
     // 目录不再在挂载时提前展开：此时标题还没扫，展开只会露出一个空侧栏。
-    // 统一等 buildToc 确认标题数量足够后，再恢复上次的展开状态。
+    // 统一等 buildToc 确认标题数量足够后，再恢复上次的展开状态；
+    // 但这一次恢复要走宽度过渡（tocOpenAnim），不能直接落位，否则有目录的帖子会瞬变。
+    tocOpenAnim = true;
     document.body.appendChild(root);
     lockScroll();
     initComposerEditor();
@@ -1571,15 +1574,39 @@
   }
 
   /**
+   * 恢复「上次是展开的」目录。
+   * 浮层刚打开时（tocOpenAnim）走正常类切换，让侧栏从 0 过渡到 288px；
+   * 之后换帖只做瞬时落位，避免一次切换里收起、展开连播两段动画。
+   */
+  function restoreTocOpen() {
+    if (!root) return;
+    if (!tocOpenAnim) {
+      setTocInstant(true);
+      return;
+    }
+    tocOpenAnim = false;     // 只认第一次恢复；之后的换帖一律瞬时
+    root.classList.remove('pco-toc-instant');
+    root.classList.add('is-toc');
+    const btn = root.querySelector('[data-act="toc"]');
+    if (btn) {
+      btn.setAttribute('aria-expanded', 'true');
+      btn.classList.add('is-on');
+    }
+  }
+
+  /**
    * 切帖 / 重新渲染前先把目录「归零」：清空条目、收起侧栏、隐藏入口。
-   * 这里只改类和 DOM，不读布局、不强制回流；是否重新展开由 buildToc 落定后决定，
-   * 保证「没有目录」的帖子在开门动画里一帧都不会露出空侧栏。
+   * 收起必须瞬时完成：从有目录的帖子切到没目录的帖子时，不能让竖栏边收边被看到；
+   * 是否重新展开由 buildToc 落定后决定。
    */
   function resetToc() {
     if (!root) return;
     tocHeads = [];
     tocActiveIdx = -1;
+    root.classList.add('pco-toc-instant');
     root.classList.remove('is-toc');
+    void root.offsetWidth;   // 先按 0 宽完成布局，再放开过渡，不会补播收起动画
+    root.classList.remove('pco-toc-instant');
     const btn = root.querySelector('[data-act="toc"]');
     if (btn) {
       btn.hidden = true;
@@ -1625,8 +1652,8 @@
 
     tocHeads = heads;
     btn.hidden = false;
-    // 沿用上次的展开状态（直接落位，避免开浮层时重复播放展开动画）
-    if (tocOn) setTocInstant(true);
+    // 沿用上次的展开状态：浮层刚打开时播放展开过渡，换帖时直接落位
+    if (tocOn) restoreTocOpen();
     paintTocFlow();
     paintTocActive();
   }
@@ -1658,7 +1685,7 @@
         if (!tocOn || !root || !tocHeads.length) return;
         const btn = root.querySelector('[data-act="toc"]');
         if (!btn || btn.hidden) return;
-        setTocInstant(true);
+        restoreTocOpen();
         paintTocActive();
       });
     } catch (e) { /* 扩展上下文失效时保持收起 */ }
