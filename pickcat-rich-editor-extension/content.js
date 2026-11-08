@@ -764,6 +764,8 @@
     code: svg('<path d="m9 8-5 4 5 4"/><path d="m15 8 5 4-5 4"/>'),
     link: svg('<path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.3-2.3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.3 2.3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>'),
     image: svg('<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 16.5-5-5L5 20"/>'),
+    // 作品分享：立方体（项目 / 作品集），刻意与图片的相框、视频的播放框区分开
+    work: svg('<path d="M12 3.4 20.1 7.7v8.6L12 20.6 3.9 16.3V7.7z"/><path d="M3.9 7.7 12 12l8.1-4.3"/><path d="M12 12v8.6"/>'),
     video: svg('<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M10.4 9.2 14.9 12l-4.5 2.8z" fill="currentColor" stroke="none"/>'),
     hr: svg('<path d="M3 12h18"/><path d="M6.5 8.5v7M12 8.5v7M17.5 8.5v7" stroke-dasharray="1 2.5"/>'),
     alignLeft: svg('<path d="M3 6h18M3 10h12M3 14h18M3 18h12"/>'),
@@ -991,7 +993,8 @@
 
   /** 站点令牌 + 兜底色，注入到 <head> 一次即可 */
   function injectStyle() {
-    if (document.getElementById(NS + '-style')) return;
+    // 用独立 id：PICKCAT Plus 等同类扩展也用 `pcr-style`，共用 id 会互相跳过注入 / 互相删除
+    if (document.getElementById(NS + '-style-pcs')) return;
     const css = `
 /* CSS 变量定义在 :root 上：帮助浮层 / 提示条等是挂到 body 的，
    不在 .pcr-root 内部，只有定义在 :root 才能取到这些变量，
@@ -1016,6 +1019,10 @@
   --pcr-font: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
   /* 写作区纸面底色：跟随站点页面底色（浅色纯白、深色深底），与卡片背景一致，避免深浅色下与周边色块割裂 */
   --pcr-paper: var(--ui-bg, #ffffff);
+  /* 全屏开合的补间令牌：沿用浮层 overlay.css 的口径（--pco-dur = 1 / 动画速度） */
+  --pco-dur: 1;
+  --pco-move: cubic-bezier(.16, 1.02, .32, 1);
+  --pco-move-close: cubic-bezier(.3, .88, .26, 1);
 }
 .${NS}-root{
   font-family: var(--pcr-font);
@@ -1181,10 +1188,21 @@
 .${NS}-editor .${NS}-math-block{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px;
   background:var(--pcr-canvas);border:1px dashed var(--pcr-border);border-radius:var(--pcr-r-control);
   padding:10px 12px;margin:.6em 0;text-align:center;color:var(--pcr-accent);white-space:pre-wrap;}
+/* 全屏开合：FLIP 补间只动 transform，不对宽高做动画，避免逐帧重排；
+   时长 / 缓动沿用浮层的 --pco-dur 与同名 easing，退出用收尾更稳的曲线。
+   will-change 只在补间期间挂，落定后移除，避免整层长期占显存。 */
+.${NS}-root.${NS}-fs-anim{will-change:transform;transform-origin:0 0;
+  transition:transform calc(.52s * var(--pco-dur)) var(--pco-move);}
+.${NS}-root.${NS}-fs-anim.${NS}-fs-out{transition:transform calc(.54s * var(--pco-dur)) var(--pco-move-close);}
+@media (prefers-reduced-motion:reduce){
+  .${NS}-root.${NS}-fs-anim{transition:none;}
+}
 /* 全屏编辑 */
-.${NS}-root.is-fullscreen{position:fixed;inset:0;z-index:9999;margin:0;padding:14px 16px;
-  background:var(--pcr-canvas);display:flex;flex-direction:column;overflow:auto;box-sizing:border-box;
-  max-width:100vw;overflow-x:hidden;}
+/* 只让正文区滚动：全屏根节点自身不出滚动条，避免与编辑区形成两条滚动条。
+   带上 data-pcs-root 提高优先级，防止同类扩展的 overflow:auto 覆盖回来 */
+.${NS}-root[data-pcs-root].is-fullscreen{position:fixed;inset:0;z-index:9999;margin:0;padding:14px 16px;
+  background:var(--pcr-canvas);display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;
+  max-width:100vw;}
 .${NS}-root.is-fullscreen .${NS}-editor-wrap{flex:1;display:flex;flex-direction:column;min-height:0;}
 .${NS}-root.is-fullscreen .${NS}-editor{max-height:none;flex:1;min-height:0;}
 
@@ -1407,7 +1425,7 @@
 .${NS}-af .${NS}-ai-result{flex:1;min-height:120px;}
 `;
     const style = document.createElement('style');
-    style.id = NS + '-style';
+    style.id = NS + '-style-pcs';
     style.textContent = css;
     document.head.appendChild(style);
   }
@@ -1422,8 +1440,9 @@
   let nativeHiddenEls = [];  // 可视化模式下被隐藏的原生工具行 / 全屏 / 预览按钮
   let mode = 'rich';       // rich | split | source
   let lock = false;        // 同步锁，防止双向同步互相触发形成死循环
-  let pendingBack = null;  // 站点弹窗完成后「自动切回可视化」的一次性监听，切视图时需清理
+  let pendingBack = null;  // 站点弹窗「插入完成后自动返回可视化」的取消函数，切视图时需清理
   let lastTaValue = null;  // 最近一次「脚本自己写入」的 textarea 值，用于识别外部（框架）改写
+  let editorBaselineMd = null; // 编辑器挂载时的正文快照，供开放接口判断是否有未保存改动
   let lastRichRange = null; // 最后一次落在富文本编辑区内的选区，供切到源码视图时映射光标
 
   /** 工具按钮工厂 */
@@ -2167,7 +2186,7 @@
    *
    * 站点弹窗（作品分享 / 表情 / 图片）都挂在原生编辑器容器内、按原生按钮坐标定位，
    * 可视化模式下容器被隐藏，弹窗会定位错误 / 不可见。因此统一切到源码视图后再点击，
-   * 让原生编辑器完整显示、弹窗定位正确；插入内容后（textarea 触发 input）自动切回。
+   * 让原生编辑器完整显示、弹窗定位正确；插入完成后自动切回可视化并回到插入位置。
    *
    * 两个关键点（之前「跳过去不弹窗 / 回来后再点没反应」就是这里出的问题）：
    *  1. 切换视图会让 Vue 重渲染原生工具栏，之前抓到的按钮节点已失效 —— 所以必须
@@ -2201,14 +2220,145 @@
     toast('已切到源码视图以显示「' + friendlyName + '」窗口，选择完成后会自动返回可视化');
     // 等 setMode 的异步 focus 执行完再点击，避免弹窗刚打开就被焦点变化打断
     setTimeout(() => clickNative(caret), 80);
-    // 站点把内容写回 textarea 后会触发 input，捕获到就自动切回可视化（一次性）
-    const back = () => {
-      textarea.removeEventListener('input', back);
-      if (pendingBack === back) pendingBack = null;
-      setTimeout(() => { if (mode === 'source') setMode('rich'); }, 500);
+    // 站点把图片 / 表情写回 textarea 时不一定派发 input（多数是直接改写 value），
+    // 只监听 input 会一直停在源码视图，要再手动敲一下才会切回 —— 这里改为轮询值变化。
+    watchSiteInsert(caret);
+  }
+
+  // —— 站点弹窗插入完成的检测与回位 ——
+  let siteWatchTimer = 0;    // 轮询 textarea 值变化的定时器
+  let siteWatchSettle = 0;   // 「值已变化、等待稳定」的防抖定时器
+
+  /** 停止站点弹窗的插入监听（幂等） */
+  function stopSiteInsertWatch() {
+    clearInterval(siteWatchTimer);
+    clearTimeout(siteWatchSettle);
+    siteWatchTimer = 0;
+    siteWatchSettle = 0;
+  }
+
+  /**
+   * 监听站点弹窗把内容写回 textarea。
+   * 站点是直接改写 textarea.value，可能不派发 input，所以以「值变化后稳定」为准：
+   * 一次插入可能分多次写入（先占位、再换成真实图片 ID），稳定后才切回可视化。
+   * caret 是点击弹窗按钮前的富文本光标在 Markdown 里的偏移，作为兜底定位点。
+   */
+  function watchSiteInsert(caret) {
+    if (!textarea) return;
+    stopSiteInsertWatch();
+    const base = textarea.value;
+    const startedAt = Date.now();
+    let last = base;
+    const commit = () => {
+      stopSiteInsertWatch();
+      if (!textarea || mode !== 'source') return;
+      const diff = insertedMarkdownRange(base, textarea.value);
+      setMode('rich');
+      revealRichMarkdownOffset(diff ? diff.start : caret, diff ? diff.text : '');
     };
-    pendingBack = back;
-    textarea.addEventListener('input', back);
+    siteWatchTimer = setInterval(() => {
+      if (!textarea || !document.body.contains(textarea) || mode !== 'source') {
+        stopSiteInsertWatch();
+        return;
+      }
+      if (textarea.value !== last) {
+        last = textarea.value;
+        // 站点重写 value 后浏览器常把源码区滚到最底；先把视口拉回插入位置附近，
+        // 让「切回可视化」之前的短暂停留也不跳到底部（不动选区，避免干扰站点后续写入）
+        const at = insertedMarkdownRange(base, last);
+        const pos = at ? at.start : caret;
+        if (pos != null && pos >= 0) {
+          const line = last.slice(0, pos).split('\n').length - 1;
+          const lh = parseFloat(getComputedStyle(textarea).lineHeight) || 22;
+          textarea.scrollTop = Math.max(0, line * lh - textarea.clientHeight / 2);
+        }
+        clearTimeout(siteWatchSettle);
+        siteWatchSettle = setTimeout(commit, 350);
+      } else if (Date.now() - startedAt > 5 * 60 * 1000) {
+        stopSiteInsertWatch();   // 长时间没有写入（用户取消弹窗），停止监听
+      }
+    }, 200);
+    pendingBack = stopSiteInsertWatch;
+  }
+
+  /** 对比插入前后的 Markdown，返回新增片段（start / end / text）；无变化返回 null */
+  function insertedMarkdownRange(before, after) {
+    if (typeof before !== 'string' || typeof after !== 'string' || before === after) return null;
+    const max = Math.min(before.length, after.length);
+    let s = 0;
+    while (s < max && before.charCodeAt(s) === after.charCodeAt(s)) s++;
+    let e = 0;
+    while (e < max - s && before.charCodeAt(before.length - 1 - e) === after.charCodeAt(after.length - 1 - e)) e++;
+    return { start: s, end: after.length - e, text: after.slice(s, after.length - e) };
+  }
+
+  /**
+   * 把视口和光标定位到 Markdown 偏移处（站点插入完成后回到可视化时用）。
+   * 先尝试精确命中刚插入的图片 / 视频占位块；命中不了就按「块」累加偏移定位，
+   * 只滚动到对应段落，不改动正文内容。
+   */
+  function revealRichMarkdownOffset(offset, insertedSnippet) {
+    if (!editor || offset == null || offset < 0) return;
+    const snippet = String(insertedSnippet || '');
+    let host = null;
+
+    // 1) 站点自定义图片引用 ![<id>]：富文本里渲染成 .pcr-img-ref[data-ref]
+    const ref = (snippet.match(/!\[([0-9A-Za-z_-]{8,})\]/) || [])[1];
+    if (ref) {
+      const esc = (window.CSS && CSS.escape) ? CSS.escape(ref) : ref.replace(/"/g, '\\"');
+      const el = editor.querySelector('.' + NS + '-img-ref[data-ref="' + esc + '"]');
+      if (el) host = el;
+    }
+    // 2) 标准图片 ![说明](网址)
+    if (!host) {
+      const src = (snippet.match(/!\[[^\]]*\]\(\s*([^)\s]+)/) || [])[1];
+      if (src) {
+        for (const img of editor.querySelectorAll('img')) {
+          if (img.getAttribute('src') === src) { host = img; break; }
+        }
+      }
+    }
+    // 3) 哔哩哔哩视频占位块
+    if (!host) {
+      const url = (snippet.match(/https?:\/\/player\.bilibili\.com\/[^\s)]*/i) || [])[0];
+      if (url) {
+        for (const el of editor.querySelectorAll('.' + NS + '-video-ref')) {
+          if (el.dataset.url === url) { host = el; break; }
+        }
+      }
+    }
+    // 4) 兜底：按块的 Markdown 长度累加，找到偏移所在段落
+    if (!host) {
+      let consumed = 0;
+      const kids = Array.from(editor.childNodes);
+      for (let i = 0; i < kids.length; i++) {
+        const node = kids[i];
+        if (node.nodeType === 3 && !node.nodeValue.trim()) continue;
+        const md = (node.nodeType === 1 && isBlockNode(node) ? blockToMd(node) : inlineToMd(node)) || '';
+        const len = md.trim().length;
+        if (consumed + len >= offset || i === kids.length - 1) {
+          host = node.nodeType === 1 ? node : node.parentElement;
+          break;
+        }
+        consumed += len + 2;
+      }
+    }
+    if (!host) return;
+
+    // 光标落在占位块之后（占位块不可编辑），其它情况落在块首
+    try {
+      const range = document.createRange();
+      const isRef = host.nodeType === 1 && (host.tagName === 'IMG' ||
+        host.classList.contains(NS + '-img-ref') || host.classList.contains(NS + '-video-ref'));
+      if (isRef) range.setStartAfter(host);
+      else { range.selectNodeContents(host); range.collapse(true); }
+      const sel = window.getSelection();
+      if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+      lastRichRange = range.cloneRange();
+    } catch (e) { /* noop */ }
+
+    try { host.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* noop */ }
+    try { editor.focus({ preventScroll: true }); } catch (e) { /* noop */ }
   }
 
   // ============================ 5.2 插入类命令 ============================
@@ -2295,16 +2445,144 @@
     root.classList.toggle(NS + '-no-tabs', root.classList.contains('is-fullscreen') || siteFullscreenOn());
   }
 
+  // —— 全屏开合：FLIP 补间 ——
+  // 首帧量卡片里的位置与尺寸，切到全屏后再量末帧（铺满视口），
+  // 用 transform 把末帧反推回首帧再过渡回终态；全程只动 transform，不逐帧重排。
+  let fsAnimating = false;   // 补间进行中：忽略连点，避免两段动画叠加
+  let fsAnimTimer = 0;
+  let fsSpeed = 1;           // 动画速度倍率（pco_config.animSpeed，与浮层同一口径）
+  let fsScrollLock = null;   // 锁滚动前的 html 行内样式，退出时原样还原
+  const FS_ENTER_MS = 520;   // 与 --pco-move 的 0.52s 对齐
+  const FS_EXIT_MS = 540;    // 与 --pco-move-close 的 0.54s 对齐
+
+  /** 把动画速度同步成 --pco-dur（= 1 / 速度），与 overlay.css 保持一致 */
+  function applyFsTiming() {
+    if (root) root.style.setProperty('--pco-dur', String(1 / fsSpeed));
+  }
+
+  /** 读取浮层设置里的动画速度；设置页改动后由 storage 监听再次同步 */
+  function loadFsTiming() {
+    try {
+      chrome.storage.local.get('pco_config', (raw) => {
+        if (chrome.runtime.lastError) return;
+        const n = Number(raw && raw.pco_config && raw.pco_config.animSpeed);
+        fsSpeed = Number.isFinite(n) && n >= 0.5 && n <= 2 ? n : 1;
+        applyFsTiming();
+      });
+    } catch (e) { /* 非扩展环境忽略 */ }
+  }
+
+  /** 全屏时锁住页面滚动，并补偿滚动条宽度，避免开合瞬间整页横向抖动 */
+  function fsLockScroll(lock) {
+    const html = document.documentElement;
+    if (lock) {
+      if (fsScrollLock) return;
+      fsScrollLock = { overflow: html.style.overflow, paddingRight: html.style.paddingRight };
+      const sbw = Math.max(0, window.innerWidth - html.clientWidth);
+      html.style.overflow = 'hidden';
+      if (sbw) html.style.paddingRight = sbw + 'px';
+    } else if (fsScrollLock) {
+      html.style.overflow = fsScrollLock.overflow;
+      html.style.paddingRight = fsScrollLock.paddingRight;
+      fsScrollLock = null;
+    }
+  }
+
+  /** 计算「把 toRect 的布局反推回 fromRect 位置」的 transform（origin 必须是 0 0） */
+  function fsFlipStyle(fromRect, toRect) {
+    const sx = fromRect.width / Math.max(1, toRect.width);
+    const sy = fromRect.height / Math.max(1, toRect.height);
+    const dx = fromRect.left - toRect.left;
+    const dy = fromRect.top - toRect.top;
+    return 'translate3d(' + dx.toFixed(2) + 'px,' + dy.toFixed(2) + 'px,0) scale(' +
+      sx.toFixed(5) + ',' + sy.toFixed(5) + ')';
+  }
+
+  function fsToggleBtn(on) {
+    const b = root && root.querySelector('.' + NS + '-btn[data-key="fullscreen"]');
+    if (b) b.classList.toggle('is-on', on);
+  }
+
+  /** 补间结束：清掉临时内联样式与合成层提示 */
+  function fsEndAnim() {
+    if (!fsAnimating) return;
+    fsAnimating = false;
+    clearTimeout(fsAnimTimer);
+    fsAnimTimer = 0;
+    if (!root) return;
+    const leaving = root.classList.contains(NS + '-fs-out');
+    root.classList.remove(NS + '-fs-anim', NS + '-fs-out');
+    root.style.transition = '';
+    root.style.transform = '';
+    root.style.transformOrigin = '';
+    if (leaving) {
+      // 退出的补间末帧已经和原位置重合，这里同一帧摘类 + 清 transform，视觉不跳
+      root.classList.remove('is-fullscreen');
+      layoutSplitFullscreen(false);
+      syncTabsVisibility();
+      fsLockScroll(false);
+      fitEditorViewport();
+    }
+  }
+
+  /** 进入全屏：从卡片当前的位置尺寸连续放大到铺满视口 */
+  function fsEnter(animate) {
+    fsLockScroll(true);
+    const first = root.getBoundingClientRect();
+    root.classList.add('is-fullscreen');
+    // 全屏由 flex 自适应高度，清掉普通视图下算出的内联 max-height，否则会压住 CSS 的 max-height:none
+    if (editor) editor.style.maxHeight = '';
+    layoutSplitFullscreen(true);
+    syncTabsVisibility();
+    fsToggleBtn(true);
+    if (!animate || !first.width || !first.height) return;
+    const last = root.getBoundingClientRect();
+    if (!last.width || !last.height) return;
+    fsAnimating = true;
+    root.classList.add(NS + '-fs-anim');
+    root.style.transition = 'none';
+    root.style.transformOrigin = '0 0';
+    root.style.transform = fsFlipStyle(first, last);   // 视觉先留在原位
+    void root.offsetWidth;                             // 提交首帧，再放开过渡
+    root.style.transition = '';
+    root.style.transform = '';
+    fsAnimTimer = setTimeout(fsEndAnim, Math.round(FS_ENTER_MS / fsSpeed) + 60);
+  }
+
+  /** 退出全屏：反向缩回原位置原尺寸 */
+  function fsExit(animate) {
+    const first = root.getBoundingClientRect();        // 全屏末帧
+    // 临时摘掉全屏类量出原位置；整段同步执行，不会上屏
+    root.classList.remove('is-fullscreen');
+    layoutSplitFullscreen(false);
+    syncTabsVisibility();
+    fsToggleBtn(false);
+    if (!animate) { fsLockScroll(false); fitEditorViewport(); return; }
+    const last = root.getBoundingClientRect();
+    if (!last.width || !last.height) { fsLockScroll(false); fitEditorViewport(); return; }
+    // 先恢复全屏布局，让补间从当前画面出发，而不是先跳回原位
+    root.classList.add('is-fullscreen');
+    layoutSplitFullscreen(true);
+    syncTabsVisibility();
+    fsAnimating = true;
+    root.classList.add(NS + '-fs-anim', NS + '-fs-out');
+    root.style.transition = 'none';
+    root.style.transformOrigin = '0 0';
+    root.style.transform = 'none';
+    void root.offsetWidth;
+    root.style.transition = '';
+    root.style.transform = fsFlipStyle(last, first);   // 全屏框 → 原位置原尺寸
+    fsAnimTimer = setTimeout(fsEndAnim, Math.round(FS_EXIT_MS / fsSpeed) + 60);
+  }
+
   /** 全屏编辑开关（再次点击退出） */
   function toggleFullscreen() {
     if (!root) return;
-    const on = root.classList.toggle('is-fullscreen');
-    const b = root.querySelector('.' + NS + '-btn[data-key="fullscreen"]');
-    if (b) b.classList.toggle('is-on', on);
-    document.documentElement.style.overflow = on ? 'hidden' : '';
-    // 分屏对照下进入全屏时自动切成左右对照
-    layoutSplitFullscreen(on);
-    syncTabsVisibility();
+    // 补间未结束时忽略连点，避免叠加两段动画
+    if (fsAnimating) return;
+    const animate = !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (root.classList.contains('is-fullscreen')) fsExit(animate);
+    else fsEnter(animate);
   }
 
   /** 构建整个面板 DOM */
@@ -2427,6 +2705,8 @@
   function buildPanel() {
     root = document.createElement('div');
     root.className = NS + '-root';
+    // 自家面板标记：同类扩展（PICKCAT Plus）用的是同一套 pcr-* 类名，只能靠这个标记区分彼此
+    root.dataset.pcsRoot = '1';
     setToolbarStyle(readToolbarStyle(), false);   // 恢复上次选择的工具栏布局
 
     // —— 顶部：模式切换 + 同步状态 + 帮助 ——
@@ -2540,7 +2820,8 @@
 
     // —— 插入（作品 / 表情 / 图片 / 视频 / 链接 / 表格 / 公式 / 分割线）：媒体项复用站点原生选择器，保证上传与图盘逻辑一致 ——
     group('插入');
-    add(makeBtn({ key: 'work', html: I(SITE_LABELS.work, ICONS.image), tip: 'Kitten 作品分享', onClick: () => delegateSiteAction(SITE_LABELS.work, 'Kitten 作品分享') }));
+    // 图标固定用内置的作品图标：不能跟着站点按钮图标走，否则容易和「插入图片」撞脸
+    add(makeBtn({ key: 'work', html: ICONS.work, tip: '插入作品（Kitten 作品分享）', onClick: () => delegateSiteAction(SITE_LABELS.work, '插入作品') }));
     add(makeBtn({ key: 'emoji', html: I(SITE_LABELS.emoji, ICONS.text('☺')), tip: '添加表情', onClick: () => delegateSiteAction(SITE_LABELS.emoji, '添加表情') }));
     add(makeBtn({ key: 'image', html: I(SITE_LABELS.image, ICONS.image), tip: '插入图片', onClick: () => delegateSiteAction(SITE_LABELS.image, '插入图片') }));
     add(makeBtn({ key: 'video', html: I(SITE_LABELS.video, ICONS.video), tip: '插入哔哩哔哩视频', onClick: () => delegateSiteAction(SITE_LABELS.video, '插入哔哩哔哩视频') }));
@@ -2591,6 +2872,7 @@
     bar.appendChild(fsBtn);
 
     root.appendChild(bar);
+    syncAiToolbar();
 
     // —— 编辑区 ——
     const wrap = document.createElement('div');
@@ -2623,6 +2905,9 @@
     }
 
     bindEditorEvents();
+    // 全屏补间沿用浮层的动画速度（--pco-dur）：先用当前值，再异步刷新设置
+    applyFsTiming();
+    loadFsTiming();
     return root;
   }
 
@@ -2804,9 +3089,9 @@
    * 其它情况返回 null。
    */
   function setMode(next) {
-    // 任何视图切换都先清掉上一轮遗留的「自动切回」监听，避免之后被意外触发
+    // 任何视图切换都先清掉上一轮遗留的「插入完成自动返回」监听，避免之后被意外触发
     if (pendingBack) {
-      textarea && textarea.removeEventListener('input', pendingBack);
+      pendingBack();
       pendingBack = null;
     }
     const prevMode = mode;
@@ -2866,6 +3151,7 @@
     }
     // 查找浮层开着时，视图切换会改变查找目标（富文本 ↔ 原生输入框），重新扫描一次
     if (findPop) runFind(false, { quiet: true });
+    fitEditorViewport();
     return caretOut;
   }
 
@@ -3021,6 +3307,76 @@
     syncNativeToolbar(false);
   }
 
+  let yieldedOnce = false;
+
+  /** 页面上是否已有「别的扩展」挂载的同款富文本面板（PICKCAT Plus 等）。
+      两边类名 / 结构 / 样式 id 都相同，只能靠自家面板上的 data-pcs-root 标记区分。 */
+  function foreignEditorRoot() {
+    const list = document.querySelectorAll('.' + NS + '-root');
+    for (const el of list) {
+      if (el === root || el.dataset.pcsRoot === '1') continue;
+      return el;
+    }
+    return null;
+  }
+
+  /** 让位：拆掉自己的面板，把同一个 textarea 交给对方的编辑器，避免两套编辑器互相抢写。
+      只清理自己创建的节点与动画状态；站点元素上的隐藏类保持原样（对方可视化模式同样需要），
+      反正对方会按自己的视图状态持续维护它们。 */
+  function yieldToForeignEditor() {
+    if (root) {
+      closeFind();
+      if (root.parentElement) root.parentElement.removeChild(root);
+    }
+    // AI 模块的变量声明在文件更靠后的位置，首次挂载即让位时会命中暂时性死区，这里兜一下
+    try { closeAIWriter(); } catch (e) { /* AI 模块尚未初始化 */ }
+    try { closeAIFormatter(); } catch (e) { /* 同上 */ }
+    root = null;
+    editor = null;
+    nativeHiddenEls = [];
+    nativeToolbar = null;
+    origWrapper = null;
+    fsAnimating = false;
+    clearTimeout(fsAnimTimer);
+    fsAnimTimer = 0;
+    fsLockScroll(false);
+    if (!yieldedOnce) {
+      yieldedOnce = true;
+      try { console.info('[PickScribe] 检测到另一套富文本编辑器（如 PICKCAT Plus），编辑页已交由对方接管'); } catch (e) { /* noop */ }
+    }
+  }
+
+  /** 普通视图下把编辑区高度收进视口：切换条 / 工具栏固定，只让正文区滚动，
+      避免「页面滚动 + 编辑区滚动」两条滚动条同时出现。全屏由 flex 布局自适应。
+      让位后页面上是对方的同款面板（类名一致），这里按 DOM 统一处理，不再依赖自己的 editor 引用。 */
+  function fitEditorViewport() {
+    const own = root && editor && document.body.contains(root);
+    const panel = own ? root : document.querySelector('.' + NS + '-root');
+    if (!panel) return;
+    const body = own ? editor : panel.querySelector('.' + NS + '-editor');
+    if (!body) return;
+    const wrap = body.closest('.' + NS + '-editor-wrap');
+    // 全屏走 flex 自适应；源码视图没有正文滚动区；分屏要留出下半屏的原生源码区
+    const skip = panel.classList.contains('is-fullscreen') ||
+      panel.classList.contains(NS + '-is-split') ||
+      !!(wrap && wrap.classList.contains(NS + '-hidden'));
+    if (skip) {
+      if (body.style.maxHeight) body.style.maxHeight = '';
+      return;
+    }
+    const rect = panel.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      if (body.style.maxHeight) body.style.maxHeight = '';
+      return;
+    }
+    // 面板里除编辑区以外的固定高度（切换条 + 工具栏 + 内边距），编辑区要扣掉这部分才算得准
+    const chrome = Math.max(0, rect.height - body.offsetHeight);
+    // 面板顶部到视口底部的剩余高度（扣掉固定高度与底部留白）；窗口太矮时保留最小可用高度
+    const avail = Math.max(320, window.innerHeight - rect.top - chrome - 24);
+    const next = Math.round(avail) + 'px';
+    if (body.style.maxHeight !== next) body.style.maxHeight = next;
+  }
+
   function mount() {
     if (!isEditorPage()) return;
     const ta = findTextarea();
@@ -3028,6 +3384,16 @@
     // 节点还没进文档说明尚未渲染；已经进文档的即使暂时不可见也照常挂载，
     // 避免站点容器折叠 / 隐藏时偶发「不注入」。
     if (!document.body.contains(ta)) return;
+
+    // 页面上已有别人的同款富文本面板：直接让位，不再注入第二套
+    if (foreignEditorRoot()) {
+      // 记下站点输入框，让开放接口的 editor.read 仍能读到对方编辑器写回的内容
+      textarea = ta;
+      lastTaValue = ta.value;
+      yieldToForeignEditor();
+      fitEditorViewport();
+      return;
+    }
 
     const wired = ta.dataset[MOUNT_FLAG] === '1';
     const panelAlive = root && document.body.contains(root);
@@ -3062,6 +3428,11 @@
       // 清掉旧节点，下面重建一个新的，否则会表现为「脚本完全不生效」。
       if (root && root.parentElement) root.parentElement.removeChild(root);
       root = null;
+      // 面板被移除时顺带解除全屏留下的滚动锁与补间状态，避免页面卡在不可滚动
+      fsAnimating = false;
+      clearTimeout(fsAnimTimer);
+      fsAnimTimer = 0;
+      fsLockScroll(false);
     }
 
     // 定位站点原生编辑器容器（工具栏 + 输入框 的公共父级）
@@ -3079,6 +3450,7 @@
     // 用当前 textarea 内容渲染富文本（编辑页会带出已有帖子内容）
     editor.innerHTML = ta.value && ta.value.trim() ? mdToHtml(ta.value) : '';
     lastTaValue = ta.value;
+    editorBaselineMd = ta.value;
 
     // 默认进入可视化模式
     setMode('rich');
@@ -3107,6 +3479,13 @@
     if (!document.getElementById(FONT_STYLE_ID)) injectFontStyle(customFaces.length > 0);
     // 离开编辑页：把独立窗口一并收起，避免它跟着 SPA 路由飘到别的页面上
     if (!isEditorPage()) { if (aiPop) closeAIWriter(); return; }
+    // 对方的富文本编辑器可能比我们晚注入：一旦出现，立刻拆掉自己的面板让位
+    if (foreignEditorRoot()) {
+      if (root) yieldToForeignEditor();
+      if (!textarea) textarea = findTextarea();   // 让 open API 的 editor.read 仍可读到正文
+      fitEditorViewport();   // 对方的编辑器同样收进视口，保证整页只剩编辑区一条滚动条
+      return;
+    }
     const routeChanged = location.href !== lastHref;
     lastHref = location.href;
     if (routeChanged) closeAIWriter();   // 编辑页内切换路由（如 新建 / 编辑）时，同样收起
@@ -3134,8 +3513,12 @@
   // 悬浮提示用全局事件委托，启动时绑定一次即可（面板会被站点重渲染重建，不需要重复绑定）
   initTips();
 
-  // 初始尝试
-  mount();
+  // 视口变化后重新把编辑区收进视口（只影响可视化模式，源码 / 分屏走默认高度）
+  let fitTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(fitEditorViewport, 120);
+  });
 
   // ============================ 9. AI 写作助手 ============================
 
@@ -3151,7 +3534,10 @@
   const AI_POS_KEY = 'pcrAiPos';         // 浮动模式的窗口坐标（拖动后记忆）
 
   // 兜底默认值（字段与 shared/constants.js 的 DEFAULT_CONFIG 一致，这里只取本功能用得到的几项）
-  const AI_DEFAULTS = { provider: 'deepseek', apiKey: '', model: 'deepseek-chat', stream: true };
+  const AI_DEFAULTS = {
+    aiEnabled: true, aiFormat: true, aiWriter: true,
+    provider: 'deepseek', apiKey: '', model: 'deepseek-chat', stream: true
+  };
 
   // 快捷指令按用途分组：左列固定标签、右侧胶囊，多行时也能整齐对齐（原先把 8 个按钮挤成一片）
   const AI_QUICK_GROUPS = [
@@ -3212,6 +3598,23 @@
   const aiPending = new Map();
   let aiSeq = 0;
 
+  /** 某项 AI 能力是否开启（总开关优先） */
+  function aiOn(name) {
+    if (aiConfig.aiEnabled === false) return false;
+    return aiConfig[name] !== false;
+  }
+
+  /** 按设置显示 / 隐藏工具栏里的 AI 排版与写作助手；整组都关掉时连组标题一起隐藏 */
+  function syncAiToolbar() {
+    const host = root || document;
+    const f = host.querySelector('.' + NS + '-btn[data-key="aiformat"]');
+    const w = host.querySelector('.' + NS + '-btn[data-key="ai"]');
+    if (f) f.style.display = aiOn('aiFormat') ? '' : 'none';
+    if (w) w.style.display = aiOn('aiWriter') ? '' : 'none';
+    const box = f && f.closest('.' + NS + '-group');
+    if (box) box.style.display = aiOn('aiFormat') || aiOn('aiWriter') ? '' : 'none';
+  }
+
   /** AI 图标：与站点一致的单色图标，继承当前文字颜色 */
   function aiIcon() {
     return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">' +
@@ -3228,6 +3631,7 @@
     try {
       chrome.storage.local.get([AI_CONFIG_KEY], (raw) => {
         aiConfig = { ...AI_DEFAULTS, ...((raw && raw[AI_CONFIG_KEY]) || {}) };
+        syncAiToolbar();
         if (aiRefs) syncAIBtns();
       });
     } catch (e) { /* 非扩展环境忽略 */ }
@@ -3817,6 +4221,7 @@
   /** 打开写作助手窗口；已打开时再点一次即收起（独立窗口不受空白点击影响）。
       keepOpen 为真时只保证「打开」，已打开则不收起（供跨扩展联动调用）。 */
   function openAIWriter(keepOpen) {
+    if (!aiOn('aiWriter')) return;
     if (aiPop) { if (!keepOpen) closeAIWriter(); return; }
     if (afPop) closeAIFormatter();   // 两个 AI 窗口同一时间只保留一个
     closePopups();          // 先收起其它浮层（AI 窗口自身已被 closePopups 排除在外）
@@ -3864,8 +4269,8 @@
       }
 
       // 对方请我们打开 AI 助手：写作助手只在编辑页可用，其它页面直接忽略；
-      // 联动开关关闭时不弹窗（默认开启，读不到设置时按开启处理）
-      if (d.type === 'pickcat:open-ai' && isEditorPage()) {
+      // 编辑页已被对方编辑器接管时也没有可插入的富文本区，同样忽略，避免打开一个无法回填的面板
+      if (d.type === 'pickcat:open-ai' && isEditorPage() && root && editor) {
         try {
           chrome.storage.local.get({ [PLUS_LINK_KEY]: true }, (raw) => {
             if (raw[PLUS_LINK_KEY] !== false) openAIWriter(true);
@@ -3876,6 +4281,326 @@
 
     // 我们先喊一声（对方可能比我们晚加载）
     [0, 1500, 4000].forEach((ms) => setTimeout(() => send({ source: 'pickscribe', type: 'pickscribe:link-ping' }), ms));
+  })();
+
+  // ============================ 9.6.2 开放接口 v1.0 ============================
+
+  /* 统一信封：{ source, v, id, action, payload, ts }，所有动作都回一条 ack。
+     v1.0 只做 L1：这里校验 origin / ev.source / source / 时间戳，
+     真正的鉴权、限流、requestId 去重放在 background 的 broker 里。
+     v1.1 的 runtime 配对 + HMAC 会在 background 的 apiAuthorize 接入，本文件协议不变。 */
+  (function openApiV1() {
+    const API_VERSION = 1;
+    const API_SOURCES = { 'pickcat-client': true, 'pickcat-plus': true };
+    const API_ACTIONS = ['ai.open', 'post.open', 'post.context', 'editor.read'];
+    // 需要用户首次确认的数据动作：等待确认期间 ACK 不能提前超时
+    const API_CONSENT_ACTIONS = {
+      'post.context': true,
+      'editor.read': true,
+      'editor.write': true,
+      'post.summarize': true
+    };
+    const API_TS_WINDOW = 60 * 1000;
+    const API_ACK_TIMEOUT = 2500;
+    const API_CONSENT_WAIT = 65 * 1000;
+    const API_PERMS_KEY = 'pcr_api_perms';
+    const API_PERMS_DEFAULT = Object.freeze({ readPost: true, readEditor: true, writeEditor: false, aiQuota: false });
+
+    const version = (() => {
+      try { return chrome.runtime.getManifest().version; } catch (e) { return ''; }
+    })();
+
+    const send = (o) => { try { window.postMessage(o, location.origin); } catch (e) { /* 忽略 */ } };
+
+    // 发现类请求本地限速，避免页面脚本高频 ping 拖慢主线程
+    const localRate = { start: 0, count: 0 };
+    function locallyLimited() {
+      const now = Date.now();
+      if (now - localRate.start >= 1000) {
+        localRate.start = now;
+        localRate.count = 0;
+      }
+      localRate.count += 1;
+      return localRate.count > 40;
+    }
+
+    function postIdFromPath() {
+      const m = location.pathname.match(/\/forum\/post\/([^/?#]+)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+
+    function pageType() {
+      if (isEditorPage()) return 'editor';
+      if (postIdFromPath()) return 'post';
+      // 与浮层脚本的 FEED_PATH 对齐，但搜索页不纳入 post.open 的信息流范围
+      const path = (location.pathname || '/').replace(/\/+$/, '') || '/';
+      if (/^\/$|^\/forum(?:\/category\/[^/?#]+)?$/.test(path)) return 'feed';
+      return 'other';
+    }
+
+    function loadPerms(cb) {
+      try {
+        chrome.storage.local.get({ [API_PERMS_KEY]: API_PERMS_DEFAULT }, (raw) => {
+          if (chrome.runtime.lastError) { cb(Object.assign({}, API_PERMS_DEFAULT)); return; }
+          const saved = raw && raw[API_PERMS_KEY];
+          cb(Object.assign({}, API_PERMS_DEFAULT, saved && typeof saved === 'object' ? saved : {}));
+        });
+      } catch (e) {
+        cb(Object.assign({}, API_PERMS_DEFAULT));
+      }
+    }
+
+    function loadOverlayEnabled(cb) {
+      try {
+        chrome.storage.local.get('pco_config', (raw) => {
+          if (chrome.runtime.lastError) { cb(true); return; }
+          const cfg = raw && raw.pco_config;
+          cb(!(cfg && cfg.enabled === false));
+        });
+      } catch (e) { cb(true); }
+    }
+
+    /** 能力 + 页面状态：ping / state / hello 共用 */
+    function buildStatus(cb) {
+      loadPerms((perms) => {
+        loadOverlayEnabled((overlayEnabled) => {
+          cb({
+            version,
+            protocol: { v: API_VERSION, min: API_VERSION, max: API_VERSION },
+            auth: { mode: 'l1', pairing: false },
+            page: { type: pageType(), href: location.href, postId: postIdFromPath() },
+            actions: API_ACTIONS.slice(),
+            perms,
+            features: ['ai', 'editor', 'overlay'],
+            limits: { actionsPerMinute: 30 },
+            editor: { available: isEditorPage(), mode: isEditorPage() ? mode : null },
+            overlay: { open: !!document.getElementById('pco-root'), enabled: overlayEnabled }
+          });
+        });
+      });
+    }
+
+    function sendAck(req, res) {
+      const r = res && typeof res === 'object' ? res : {};
+      const payload = {
+        replyTo: req.id,
+        ok: !!r.ok,
+        code: r.code || (r.ok ? 'OK' : 'INTERNAL'),
+        message: r.message || '',
+        data: r.data === undefined ? null : r.data,
+        duplicate: !!r.duplicate
+      };
+      if (typeof r.retryAfter === 'number') payload.retryAfter = r.retryAfter;
+      // 仅本次允许：让调用方知道这一次是单次放行，而不是长期授权
+      if (r.once === true) payload.once = true;
+      send({
+        source: 'pickscribe',
+        v: API_VERSION,
+        id: 'ack-' + req.id,
+        action: 'ack',
+        payload,
+        ts: Date.now()
+      });
+    }
+
+    function broadcastHello() {
+      buildStatus((status) => {
+        send({
+          source: 'pickscribe',
+          v: API_VERSION,
+          id: 'hello-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+          action: 'hello',
+          payload: status,
+          ts: Date.now()
+        });
+      });
+    }
+
+    // ---- 数据动作：editor.read ----
+
+    const API_EDITOR_MAX = 100000;   // 单次返回的正文上限（字符），超出截断并标记
+
+    /** 当前编辑器 Markdown：按视图模式取，插件尚未挂载时降级读站点 textarea */
+    function apiCurrentMarkdown() {
+      if (mode === 'source' && textarea) return String(textarea.value || '');
+      if (editor) return String(htmlToMd(editor) || '');
+      return textarea ? String(textarea.value || '') : null;
+    }
+
+    /** 正文 revision：优先 SHA-256（取前 16 位十六进制），不可用时降级 FNV-1a */
+    async function apiRevision(text) {
+      const s = String(text || '');
+      try {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+        return Array.from(new Uint8Array(buf)).slice(0, 8)
+          .map((b) => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) {
+        let h = 0x811c9dc5;
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 0x01000193) >>> 0;
+        }
+        return h.toString(16).padStart(8, '0');
+      }
+    }
+
+    /** Markdown → 纯文本：复用富文本渲染后取 textContent，作为 text 格式的降级 */
+    function apiMarkdownToText(md) {
+      try {
+        const div = document.createElement('div');
+        div.innerHTML = mdToHtml(String(md || ''));
+        return String(div.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+      } catch (e) {
+        return String(md || '');
+      }
+    }
+
+    async function apiReadEditor(payload) {
+      if (!isEditorPage()) {
+        return { ok: false, code: 'UNSUPPORTED_CONTEXT', message: '仅编辑页可用' };
+      }
+      const full = apiCurrentMarkdown();
+      if (full === null) {
+        return { ok: false, code: 'NOT_READY', message: '编辑器尚未就绪' };
+      }
+      const p = payload && typeof payload === 'object' ? payload : {};
+      const format = p.format === 'text' ? 'text' : 'markdown';
+      const truncated = full.length > API_EDITOR_MAX;
+      const sliced = truncated ? full.slice(0, API_EDITOR_MAX) : full;
+      return {
+        ok: true,
+        code: 'OK',
+        data: {
+          format,
+          mode: editor ? mode : 'source',
+          content: format === 'text' ? apiMarkdownToText(sliced) : sliced,
+          revision: await apiRevision(full),
+          length: full.length,
+          truncated,
+          isEmpty: !full.trim(),
+          // 与编辑器挂载时的正文快照比较；站点在本插件之前改写的内容也算已修改
+          dirty: editorBaselineMd === null ? false : full !== editorBaselineMd
+        }
+      };
+    }
+
+    // 接收第三方扩展（或 PICKCAT Plus）的 v1 信封
+    window.addEventListener('message', (ev) => {
+      if (ev.origin !== location.origin) return;
+      if (ev.source !== window) return;              // 过滤同源 iframe 转发
+      const d = ev.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.v !== API_VERSION || typeof d.action !== 'string') return;
+      if (!API_SOURCES[d.source]) return;
+      if (typeof d.id !== 'string' || !d.id || d.id.length > 128) return;
+      if (typeof d.ts !== 'number' || Math.abs(Date.now() - d.ts) > API_TS_WINDOW) return;
+      if (locallyLimited()) return;                  // 静默丢弃，避免放大攻击
+
+      // 发现 / 状态查询：不经过后台，返回当前页面能力
+      if (d.action === 'ping' || d.action === 'state') {
+        buildStatus((status) => sendAck(d, { ok: true, code: 'OK', data: status }));
+        return;
+      }
+
+      if (API_ACTIONS.indexOf(d.action) < 0) {
+        sendAck(d, { ok: false, code: 'UNSUPPORTED', message: '动作未实现' });
+        return;
+      }
+
+      // 动作交给 background broker：鉴权、限流、去重、转发给目标脚本
+      let settled = false;
+      const waitMs = API_CONSENT_ACTIONS[d.action] ? API_CONSENT_WAIT : API_ACK_TIMEOUT;
+      let timer = setTimeout(() => finish({ ok: false, code: 'TIMEOUT', message: '后台未响应' }), waitMs);
+      function finish(res) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        sendAck(d, res);
+      }
+
+      try {
+        chrome.runtime.sendMessage({ __pcr_api: true, req: d, page: pageType() }, (res) => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            finish({ ok: false, code: 'NOT_READY', message: lastError.message || '后台未就绪' });
+            return;
+          }
+          finish(res);
+        });
+      } catch (e) {
+        finish({ ok: false, code: 'NOT_READY', message: String((e && e.message) || e) });
+      }
+    });
+
+    // background broker 转发过来的动作：编辑页的 ai.open 与 editor.read
+    try {
+      chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+        if (!msg || msg.__pcr_api_dispatch !== true) return;
+        if (msg.action === 'editor.read') {
+          apiReadEditor(msg.payload).then(sendResponse);
+          return true;
+        }
+        if (msg.action !== 'ai.open') return;
+        if (!isEditorPage()) {
+          sendResponse({ ok: false, code: 'UNSUPPORTED_CONTEXT', message: '仅编辑页可用' });
+          return;
+        }
+        // 编辑页被其它扩展的编辑器接管（已让位）时没有可回填的富文本区，AI 面板不可用
+        if (!root || !editor) {
+          sendResponse({ ok: false, code: 'NOT_READY', message: '编辑器未就绪' });
+          return;
+        }
+        const p = msg.payload && typeof msg.payload === 'object' ? msg.payload : {};
+        const target = p.mode === 'format' ? 'format' : 'writer';
+        if (!aiOn(target === 'format' ? 'aiFormat' : 'aiWriter')) {
+          sendResponse({ ok: false, code: 'AI_DISABLED', message: '该 AI 功能已在设置中关闭' });
+          return;
+        }
+        try {
+          if (target === 'format') openAIFormatter();
+          else openAIWriter(true);
+          // 写作助手支持预填指令；排版窗口只接收正文，不预填 prompt
+          const prompt = typeof p.prompt === 'string' ? p.prompt.trim().slice(0, 4000) : '';
+          if (prompt && target === 'writer' && aiRefs && aiRefs.input) {
+            aiRefs.input.value = prompt;
+            aiRefs.input.dispatchEvent(new Event('input', { bubbles: true }));
+            aiRefs.input.focus();
+          }
+          sendResponse({ ok: true, code: 'OK', data: { opened: true, mode: target } });
+        } catch (e) {
+          sendResponse({ ok: false, code: 'INTERNAL', message: String((e && e.message) || e) });
+        }
+      });
+    } catch (e) { /* 扩展上下文失效时忽略 */ }
+
+    // 设置页「联动状态」：直接向内容脚本要一份只读状态，不产生任何副作用
+    try {
+      chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+        if (!msg || msg.__pcr_api_status !== true) return;
+        buildStatus((status) => {
+          sendResponse(Object.assign({ ok: true, reachable: true }, status));
+        });
+        return true;
+      });
+    } catch (e) { /* 忽略 */ }
+
+    // 设置变更 / SPA 路由切换后重新声明能力
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if (changes[API_PERMS_KEY] || changes.pco_config) broadcastHello();
+      });
+    } catch (e) { /* 忽略 */ }
+
+    let lastHref = location.href;
+    setInterval(() => {
+      if (location.href === lastHref) return;
+      lastHref = location.href;
+      broadcastHello();
+    }, 1000);
+
+    // 对方可能比我们晚加载：沿用旧协议的节奏主动喊三次
+    [0, 1500, 4000].forEach((ms) => setTimeout(broadcastHello, ms));
   })();
 
   // ============================ 9.7 AI 排版 ============================
@@ -4167,6 +4892,7 @@
   }
 
   function openAIFormatter() {
+    if (!aiOn('aiFormat')) return;
     if (afPop) { closeAIFormatter(); return; }
     if (aiPop) closeAIWriter();     // 两个窗口同一时间只保留一个
     closePopups();
@@ -4297,12 +5023,25 @@
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== 'local' || !changes[AI_CONFIG_KEY]) return;
       aiConfig = { ...AI_DEFAULTS, ...(changes[AI_CONFIG_KEY].newValue || {}) };
+      syncAiToolbar();
+      // 关闭某项时立刻收起对应窗口，并中断进行中的生成
+      if (aiPop && !aiOn('aiWriter')) closeAIWriter();
+      if (afPop && !aiOn('aiFormat')) closeAIFormatter();
       if (aiRefs) syncAIBtns();
       if (afRefs) afSyncBtns();
     });
   } catch (e) { /* 非扩展环境忽略 */ }
 
-  // 独立窗口：空白点击不会关闭它，只有 Esc / 右上角 × / 面板内「关闭」/ 工具栏再次点击才收起
+  // 浮层动画速度是全局设置：编辑页的全屏开合同样按它缩放时长（--pco-dur）
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !changes.pco_config) return;
+      const n = Number(changes.pco_config.newValue && changes.pco_config.newValue.animSpeed);
+      fsSpeed = Number.isFinite(n) && n >= 0.5 && n <= 2 ? n : 1;
+      applyFsTiming();
+    });
+  } catch (e) { /* 非扩展环境忽略 */ }
+
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (aiPop) closeAIWriter();
@@ -4321,4 +5060,8 @@
     get editor() { return editor; },
     get textarea() { return textarea; }
   };
+
+  // 初始挂载放在文件末尾：mount() 会构建工具栏并触达 AI 模块状态，
+  // 必须等所有模块级声明（aiConfig 等）初始化完成，否则会命中暂时性死区
+  mount();
 })();

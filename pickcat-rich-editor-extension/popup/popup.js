@@ -33,7 +33,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
 function render() {
   const preset = getProvider(config.provider);
   $('provider').textContent = preset.name;
-  $('enabled').checked = !!config.enabled;
+  $('enabled').checked = config.aiEnabled !== false && !!config.enabled;
+  $('enabled').disabled = config.aiEnabled === false;
 
   const models = (preset.models || []).slice();
   if (config.model && !models.includes(config.model)) models.unshift(config.model);
@@ -42,9 +43,11 @@ function render() {
     : '<option value="">（在设置页填写）</option>';
   $('model').value = config.model || '';
 
-  $('tip').textContent = config.enabled
-    ? '在 Pickcat 帖子详情页的分隔线下方会显示 AI 总结面板。'
-    : '已在帖子详情页关闭 AI 总结面板。';
+  $('tip').textContent = config.aiEnabled === false
+    ? 'AI 功能总开关已关闭，可在设置页重新开启。'
+    : (config.enabled
+      ? '在 Pickcat 帖子详情页的分隔线下方会显示 AI 总结面板。'
+      : '已在帖子详情页关闭 AI 总结面板。');
 }
 
 (async () => {
@@ -54,6 +57,7 @@ function render() {
 })();
 
 $('enabled').addEventListener('change', async (e) => {
+  if (config.aiEnabled === false) return;
   config = await patchConfig({ enabled: e.target.checked });
   render();
 });
