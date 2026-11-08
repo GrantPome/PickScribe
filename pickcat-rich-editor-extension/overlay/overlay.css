@@ -2986,10 +2986,12 @@ html.pco-lock body {
   opacity: 1;
 }
 
-/* 全屏时按钮浮在浮层内侧，左侧会被导航栏压住，导航栏展开期间先收起 */
-#pco-root.is-full.is-toc .pco-nav {
-  opacity: 0;
-  pointer-events: none;
+/* 全屏时按钮浮在浮层内侧，左侧会被目录栏压住。
+   这里只把「上一个」向右让出目录宽度（288px + 10px 间距），按钮本身保持可见可点：
+   此前整组 opacity:0 / pointer-events:none 会让「默认全屏 + 目录展开」时
+   左右切换按钮彻底消失，且与目录恢复时机相关，看起来就像首次打开没有按钮。 */
+#pco-root.is-full.is-toc .pco-nav-btn[data-act="prev"] {
+  left: calc(var(--pco-nav-left, 12px) + 288px + 10px);
 }
 
 #pco-root .pco-nav-btn {
@@ -3012,7 +3014,10 @@ html.pco-lock body {
   backdrop-filter: blur(14px) saturate(1.08);
   transform: translateY(-50%);
   transition: background 0.18s ease, color 0.18s ease,
-    transform 0.18s var(--pco-ease), opacity 0.2s ease;
+    transform 0.18s var(--pco-ease), opacity 0.2s ease,
+    /* 目录展开 / 全屏切换 / 窗口缩放时，位置跟着侧栏与舞台的宽度过渡一起走 */
+    left calc(0.26s * var(--pco-dur)) var(--pco-ease),
+    right calc(0.26s * var(--pco-dur)) var(--pco-ease);
 }
 
 #pco-root .pco-nav-btn[data-act="next"] {

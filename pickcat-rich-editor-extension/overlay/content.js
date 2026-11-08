@@ -1022,6 +1022,12 @@
     root.classList.remove('is-animating');
     root.classList.add('is-settled');
     flushSettleTasks();
+    // 落定时统一重算两侧切换按钮：禁用态（首帖 / 末帖）与贴边位置都按「此刻」的
+    // 相邻列表和最终尺寸决定。build() 里那次 paintNav / paintNavOffset 发生在
+    // 动画开始前，首次打开时相邻列表与舞台尺寸都可能还没稳定，只算一次会让
+    // 首开停在错误状态；放到落定点后每次打开（含重开）走的是同一条路径。
+    paintNav();
+    paintNavOffset();
     // 落定后才通知引导层：引导只在该状态之后挂载 DOM，避免参与开合动画
     guideNotify('overlay-settled', { composerTools: composerToolsEnabled });
   }
