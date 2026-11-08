@@ -25,7 +25,7 @@
   const MAX_COMMENTS = 1800;      // 已有评论截断上限
   const MAX_DRAFT = 4000;         // 草稿截断上限
 
-  const DEFAULTS = { enabled: true, provider: 'deepseek', model: 'deepseek-chat', apiKey: '' };
+  const DEFAULTS = { aiEnabled: true, aiReply: true, enabled: true, provider: 'deepseek', model: 'deepseek-chat', apiKey: '' };
 
   // 回复输入框候选选择器：站点主选择器 → 文案兜底（textarea 与 contenteditable 两种情况都兼容）
   const INPUT_SELECTORS = [
@@ -184,6 +184,9 @@
   let streamText = '';
   let lastRun = null;       // { kind, payload } 用于「再生成」
 
+  /** 回帖助手是否开启（总开关优先） */
+  const replyOn = () => config.aiEnabled !== false && config.aiReply !== false;
+
   function loadConfig() {
     if (!extAlive()) return;
     try {
@@ -219,6 +222,10 @@
 
   function request(messages, onChunk, onDone, onError) {
     const id = 'r' + (++seq);
+    if (!replyOn()) {
+      onError({ code: 'AI_DISABLED', message: 'AI 功能已在设置中关闭' });
+      return id;
+    }
     const p = ensurePort();
     if (!p) { onError({ message: '扩展已更新或已停用，请刷新页面后再试' }); return id; }
     pending.set(id, { onChunk, onDone, onError });
@@ -992,6 +999,13 @@
   function tick() {
     if (!document.body) return;
 
+    if (!replyOn()) {
+      abort();
+      removeInlineTools();
+      if (open) closePanel();
+      return;
+    }
+
     if (location.href !== lastHref) {
       lastHref = location.href;
       if (open) closePanel();
@@ -1023,6 +1037,15 @@
     document.documentElement.dataset.pcrr = '1';
     try { console.info('[Pickcat AI] 回帖助手已加载'); } catch (e) { /* 忽略 */ }
     loadConfig();
+    // 设置页改动后立即生效：关闭时收起入口与面板，停止进行中的请求
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local' || !changes[CFG_KEY]) return;
+        config = { ...DEFAULTS, ...(changes[CFG_KEY].newValue || {}) };
+        if (ui && ui.model) ui.model.textContent = config.model || '未选择模型';
+        tick();
+      });
+    } catch (e) { /* 上下文失效忽略 */ }
     // 先挂一次，之后交给看护轮询（站点评论区往往异步渲染）
     tick();
     setInterval(tick, 900);

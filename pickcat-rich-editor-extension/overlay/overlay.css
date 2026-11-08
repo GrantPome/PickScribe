@@ -598,15 +598,149 @@ html.pco-lock body {
   background: transparent;
 }
 
+/* 视频 / 嵌入：铺满正文栏宽度，按 16:9 自适应；列宽不足时用最小高度兜底，
+   避免窄屏被压成一条细缝。门面占位层与注入后的真实媒体共用同一尺寸。 */
 #pco-root .pco-md video,
-#pco-root .pco-md iframe,
+#pco-root .pco-md iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 220px;
+  height: auto;
+  margin: 1em 0;
+  border: 0;
+  border-radius: 10px;
+  background: #0e1014;
+}
+
 #pco-root .pco-md audio {
   display: block;
+  width: 100%;
   max-width: 100%;
   height: auto;
   margin: 1em 0;
   border: 0;
   border-radius: 10px;
+}
+
+/* ---------------------- 视频门面：点击后才加载真实媒体 ---------------------- */
+
+#pco-root .pco-media-host {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 220px;
+  margin: 1em 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--pco-text) 16%, transparent);
+  border-radius: 12px;
+  /* 暗底 + 顶部微光：深色模式下靠边框与渐变保持层次，不依赖固定色 */
+  background:
+    radial-gradient(120% 120% at 50% 0%,
+      color-mix(in oklab, var(--pco-text) 12%, transparent), transparent 60%),
+    #0e1014;
+}
+
+#pco-root .pco-media-facade {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  animation: pco-media-in 0.22s ease both;
+}
+
+#pco-root .pco-media-facade:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.82);
+  outline-offset: -3px;
+}
+
+#pco-root .pco-media-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  padding-left: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+
+#pco-root .pco-media-facade:hover .pco-media-play {
+  background: rgba(255, 255, 255, 0.26);
+  transform: scale(1.06);
+}
+
+#pco-root .pco-media-label {
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#pco-root .pco-media-facade.is-loading {
+  cursor: progress;
+}
+
+#pco-root .pco-media-facade.is-loading .pco-media-play {
+  opacity: 0.35;
+}
+
+#pco-root .pco-media-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: pco-media-spin 0.8s linear infinite;
+}
+
+#pco-root .pco-media-host .pco-media-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+  object-fit: contain;
+}
+
+@keyframes pco-media-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pco-media-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* 作品预览卡：站点的 .codemao-work-box 依赖 Vue 的 data-v 作用域样式，
@@ -615,6 +749,11 @@ html.pco-lock body {
   width: 100%;
   max-width: 100%;
   margin: 1em 0;
+}
+
+/* 作品卡里的播放器已经由门面接管，内边距交给门面自己收口 */
+#pco-root .pco-md .codemao-work-box .pco-media-host {
+  margin: 0;
 }
 
 #pco-root .pco-md .codemao-work-box iframe {
@@ -3304,6 +3443,13 @@ html.pco-lock body {
   #pco-root .pco-image-pop {
     width: min(392px, calc(100vw - 16px));
   }
+
+  /* 窄屏仍按 16:9 收缩，但不低于可用的最小高度 */
+  #pco-root .pco-md video,
+  #pco-root .pco-md iframe,
+  #pco-root .pco-media-host {
+    min-height: 180px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3333,5 +3479,14 @@ html.pco-lock body {
   #pco-root .pco-content,
   #pco-root .pco-comments-inner {
     animation: none !important;
+  }
+
+  /* 门面不做入场淡入；加载转圈保留（它是状态反馈，不是装饰动效） */
+  #pco-root .pco-media-facade {
+    animation: none !important;
+  }
+
+  #pco-root .pco-media-play {
+    transition: none !important;
   }
 }

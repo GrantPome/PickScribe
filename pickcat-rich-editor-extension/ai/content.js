@@ -27,6 +27,12 @@
   // ============================ 0. 配置默认值（与 shared/constants.js 保持一致） ============================
   // 内容脚本是经典脚本、无法 import，这里内联一份只读默认值用于兜底合并。
   const DEFAULTS = {
+    aiEnabled: true,
+    aiAuto: true,
+    aiChat: true,
+    aiReply: true,
+    aiFormat: true,
+    aiWriter: true,
     enabled: true,
     provider: 'deepseek',
     baseUrl: '',
@@ -327,6 +333,8 @@
   --pcai-subtle: var(--ui-text-muted, var(--ui-muted, ${FALLBACK.subtle}));
   --pcai-error: var(--ui-error, ${FALLBACK.error});
   --pcai-hover: color-mix(in oklab, var(--pcai-text) 7%, transparent);
+  /* 与浮层 --pco-soft 对齐：优先取站点的 accented 底色 */
+  --pcai-soft: var(--ui-bg-accented, color-mix(in oklab, var(--pcai-text) 7%, transparent));
   --pcai-r: var(--ui-radius, .5rem);
   --pcai-rc: var(--ui-radius-sm, .375rem);
   --pcai-font: var(--font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif);
@@ -340,6 +348,7 @@ html.dark, html[data-theme="dark"]{
   --pcai-text: var(--ui-text, var(--ui-foreground, ${DARK.text}));
   --pcai-subtle: var(--ui-text-muted, var(--ui-muted, ${DARK.subtle}));
   --pcai-error: var(--ui-error, ${DARK.error});
+  --pcai-soft: var(--ui-bg-accented, color-mix(in oklab, var(--pcai-text) 9%, transparent));
 }
 @media (prefers-color-scheme: dark){
   html[data-theme="system"]{
@@ -351,6 +360,7 @@ html.dark, html[data-theme="dark"]{
     --pcai-text: var(--ui-text, var(--ui-foreground, ${DARK.text}));
     --pcai-subtle: var(--ui-text-muted, var(--ui-muted, ${DARK.subtle}));
     --pcai-error: var(--ui-error, ${DARK.error});
+    --pcai-soft: var(--ui-bg-accented, color-mix(in oklab, var(--pcai-text) 9%, transparent));
   }
 }
 .${NS}-root{
@@ -366,15 +376,19 @@ html.dark, html[data-theme="dark"]{
 .${NS}-root.${NS}-is-wide{max-width:min(920px,100%);}
 @media (max-width:820px){ .${NS}-root{max-width:100%;} }
 
-/* 操作栏入口按钮：只切换面板显示，不在这里弹结果 */
+/* 操作栏入口按钮：只切换面板显示，不在这里弹结果。
+   取值对齐浮层 .pco-rail-btn：透明底 / 10px 圆角 / 34px 宽 / 18px 图标 */
 .${NS}-entry{
   display:inline-flex; align-items:center; justify-content:center;
-  width:34px; height:34px; padding:0; flex:none; margin:2px 0;
-  border:1px solid var(--pcai-border); border-radius:10px;
-  background:var(--pcai-surface); color:var(--pcai-text);
-  cursor:pointer; transition:border-color .15s, color .15s;
+  width:34px; padding:5px 0 4px; flex:none; margin:2px 0;
+  border:0; border-radius:10px; background:transparent; color:var(--pcai-subtle);
+  font:inherit; cursor:pointer;
+  transition:background .18s ease, color .18s ease, transform .18s ease;
 }
-.${NS}-entry:hover{border-color:var(--pcai-primary); color:var(--pcai-primary);}
+.${NS}-entry svg{width:18px; height:18px;}
+.${NS}-entry:hover{background:var(--pcai-soft); color:var(--pcai-text); transform:translateY(-1px);}
+.${NS}-entry:active{transform:scale(.95);}
+.${NS}-entry:focus-visible{outline:2px solid color-mix(in oklab, var(--pcai-primary) 55%, transparent); outline-offset:2px;}
 
 /* 全屏：脱离正文流，居中浮层展示 */
 .${NS}-root.${NS}-is-full{
@@ -424,7 +438,7 @@ html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px 
 }
 .${NS}-head.is-plain{border-bottom:0;}
 .${NS}-title{display:inline-flex;align-items:center;gap:6px;font-weight:750;font-size:14px;min-width:0;}
-.${NS}-title svg{flex:none;width:16px;height:16px;color:var(--pcai-primary);}
+.${NS}-title svg{flex:none;width:15px;height:15px;color:var(--pcai-primary);}
 .${NS}-model{
   min-width:0;max-width:120px;overflow:hidden;text-overflow:ellipsis;
   font-weight:650;font-size:11px;color:color-mix(in oklab, var(--pcai-primary) 72%, var(--pcai-text));
@@ -433,15 +447,17 @@ html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px 
 }
 .${NS}-model:empty{display:none;}
 .${NS}-actions{display:flex;align-items:center;gap:2px;}
+/* 图标操作按钮：取值对齐浮层 .pco-tool */
 .${NS}-act{
   display:inline-flex;align-items:center;justify-content:center;
-  width:26px;height:26px;border:0;background:transparent;color:var(--pcai-subtle);
-  border-radius:8px;cursor:pointer;
-  transition:background .26s cubic-bezier(.22,1,.36,1),color .26s;
+  width:27px;height:26px;padding:0;border:0;background:transparent;color:var(--pcai-subtle);
+  border-radius:7px;font:inherit;cursor:pointer;
+  transition:background .16s ease,color .16s ease;
 }
 .${NS}-act svg{width:15px;height:15px;}
-.${NS}-act:hover{background:var(--pcai-hover);color:var(--pcai-text);}
-.${NS}-act.is-on{background:var(--pcai-primary-soft);color:var(--pcai-primary);}
+.${NS}-act:hover{background:var(--pcai-soft);color:var(--pcai-text);}
+.${NS}-act.is-on{background:color-mix(in oklab, var(--pcai-primary) 14%, transparent);color:var(--pcai-primary);}
+.${NS}-act:focus-visible{outline:2px solid color-mix(in oklab, var(--pcai-primary) 55%, transparent);outline-offset:2px;}
 .${NS}-act:disabled{opacity:.4;cursor:default;}
 .${NS}-stop{color:var(--pcai-primary);}
 
@@ -501,27 +517,31 @@ html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px 
 .${NS}-btn.is-primary:hover{filter:brightness(.94);}
 .${NS}-btn:disabled{opacity:.55;cursor:default;}
 
-/* 主操作按钮：与浮层 AI 助手同款的整行主题色按钮 */
+/* 主操作按钮：对齐浮层「总结本帖」胶囊按钮 .pco-sum-btn */
 .${NS}-run-row{display:flex;flex:none;padding:0 14px 10px;}
 .${NS}-run{
-  display:inline-flex;flex:1;align-items:center;justify-content:center;gap:6px;
-  height:38px;padding:0 14px;border:0;border-radius:10px;
-  background:var(--pcai-primary);color:var(--ui-text-inverted, #fff);
-  font:inherit;font-size:13px;font-weight:700;cursor:pointer;
-  box-shadow:0 12px 26px -16px color-mix(in oklab, var(--pcai-primary) 85%, transparent);
-  transition:background .16s ease,box-shadow .16s ease,transform .16s ease;
+  display:inline-flex;flex:none;align-items:baseline;gap:5px;
+  padding:4px 10px;
+  border:1px solid color-mix(in oklab, var(--pcai-primary) 26%, var(--pcai-border));
+  border-radius:999px;background:color-mix(in oklab, var(--pcai-primary) 8%, var(--pcai-surface));
+  color:var(--pcai-text);font:inherit;font-size:12px;font-weight:650;line-height:1;
+  white-space:nowrap;cursor:pointer;
+  transition:border-color .16s ease,background .16s ease;
 }
-.${NS}-run svg{width:14px;height:14px;}
-.${NS}-run:hover{filter:brightness(.94);box-shadow:0 14px 30px -15px color-mix(in oklab, var(--pcai-primary) 90%, transparent);}
-.${NS}-run:active{transform:translateY(1px);}
-.${NS}-run:disabled{opacity:.6;cursor:default;transform:none;}
+.${NS}-run svg{align-self:center;width:13px;height:13px;color:var(--pcai-primary);}
+.${NS}-run:hover{
+  border-color:var(--pcai-primary);
+  background:color-mix(in oklab, var(--pcai-primary) 14%, var(--pcai-surface));
+}
+.${NS}-run:focus-visible{outline:2px solid color-mix(in oklab, var(--pcai-primary) 60%, #fff);outline-offset:2px;}
+.${NS}-run:disabled{opacity:.55;cursor:default;}
 .${NS}-status{flex:none;padding:0 14px 10px;font-size:11.5px;line-height:1.5;color:var(--pcai-subtle);}
 /* 结果区：与浮层一致的浅底描边框，空态用虚线弱化 */
 .${NS}-out{
   flex:none;min-height:46px;max-height:320px;margin:0 12px 12px;padding:12px 14px;
   overflow-y:auto;overscroll-behavior:contain;
   border:1px solid var(--pcai-border);border-radius:12px;
-  background:color-mix(in oklab, var(--pcai-canvas) 40%, var(--pcai-surface));
+  background:color-mix(in oklab, var(--pcai-soft) 40%, var(--pcai-surface));
   font-size:13.5px;line-height:1.75;color:var(--pcai-text);
   overflow-wrap:anywhere;
 }
@@ -545,14 +565,14 @@ html.dark .${NS}-card, html[data-theme="dark"] .${NS}-card{box-shadow:0 1px 2px 
 .${NS}-foot-right{display:inline-flex;align-items:center;gap:6px;min-width:0;}
 .${NS}-foot-btn{
   display:inline-flex;align-items:center;justify-content:center;
-  padding:5px 11px;border:1px solid var(--pcai-border);border-radius:9px;
+  padding:6px 12px;border:1px solid var(--pcai-border);border-radius:9px;
   background:var(--pcai-surface);color:var(--pcai-subtle);
-  font:inherit;font-size:12px;cursor:pointer;
+  font:inherit;font-size:12.5px;cursor:pointer;
   transition:background .16s ease,color .16s ease,border-color .16s ease;
 }
 .${NS}-foot-btn:hover{
   border-color:color-mix(in oklab, var(--pcai-primary) 40%, var(--pcai-border));
-  background:var(--pcai-primary-soft);color:var(--pcai-primary);
+  background:var(--pcai-soft);color:var(--pcai-primary);
 }
 .${NS}-foot-btn:disabled{opacity:.45;cursor:default;background:var(--pcai-surface);color:var(--pcai-subtle);border-color:var(--pcai-border);}
 .${NS}-usage{
@@ -672,6 +692,14 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
   let closedFor = '';       // 用户手动关闭的帖子 id（本页会话内不再显示）
   let reqId = null;         // 当前进行中的【总结】请求
   let streamText = '';      // 总结的流式累积文本
+
+  /** 某项 AI 能力是否开启（总开关优先；summary 复用已有的 enabled 键） */
+  function aiOn(name) {
+    if (config.aiEnabled === false) return false;
+    if (name === 'summary') return config.enabled !== false;
+    return config[name] !== false;
+  }
+  const chatOn = () => aiOn('chat');
 
   // 展示尺寸：标准宽度（限宽）/ 加宽 / 全屏
   let isFull = false;                       // 全屏状态（仅本页会话，不持久化）
@@ -809,6 +837,7 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
     };
 
     syncPanelInfo();
+    applyChatFeature();
 
     // 折叠状态回填（折叠时把 Tab 行、内容区、底栏一起收起）
     refs.body.classList.toggle(NS + '-hide', collapsed());
@@ -1198,8 +1227,24 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
 
   // ============================ 9.5 提问（对话） ============================
 
+  /** 提问开关：关闭时隐藏「提问」标签；正在提问则退回总结页 */
+  function applyChatFeature() {
+    if (!refs) return;
+    const on = chatOn();
+    const tab = refs.tabs.find((b) => b.getAttribute('data-tab') === 'chat');
+    if (tab) tab.classList.toggle(NS + '-hide', !on);
+    if (!on) {
+      refs.paneChat.classList.add(NS + '-hide');
+      if (activeTab === 'chat') {
+        activeTab = 'sum';
+        applyTab();
+      }
+    }
+  }
+
   /** 切换 Tab：总结 / 提问 */
   function switchTab(tab) {
+    if (tab === 'chat' && !chatOn()) return;
     activeTab = tab === 'chat' ? 'chat' : 'sum';
     applyTab();
     moveInk(true);
@@ -1402,6 +1447,7 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
 
   /** 向模型提问（不写缓存，每次都是新问题） */
   function askQuestion(q) {
+    if (!chatOn()) return;
     if (!refs) return;
     if (collapsed()) toggleFold();
 
@@ -1465,6 +1511,7 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
   // ============================ 10. 主流程 ============================
 
   async function runSummary({ bypass = false } = {}) {
+    if (!aiOn('summary')) return;
     if (!refs) return;
     if (collapsed()) toggleFold();
     const post = extractPost();
@@ -1564,7 +1611,7 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
   }
 
   function mount() {
-    if (!isPostPage() || !config.enabled) return;
+    if (!isPostPage() || !aiOn('summary')) return;
     const pid = getPostId();
     if (!pid || pid === closedFor) return;
     if (!contentReady()) return;
@@ -1616,7 +1663,7 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
     if (activeTab === 'chat') { ensureChatDom(); renderChatMsgs(); }
 
     // 自动模式：面板被关掉时不自动跑（用户明确不想看）
-    if (config.trigger === 'auto' && autoRanFor !== pid && !panel.hidden) {
+    if (aiOn('auto') && config.trigger === 'auto' && autoRanFor !== pid && !panel.hidden) {
       autoRanFor = pid;
       // 自动总结前先做本地质检（不调用模型）：正文过短视为低质量内容，直接跳过，省 token
       const chars = countChars(extractPost().content);
@@ -1651,8 +1698,26 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
         if (area !== 'local' || !changes.pcai_config) return;
         config = { ...DEFAULTS, ...(changes.pcai_config.newValue || {}) };
         syncPanelInfo();
-        if (config.enabled) mount();
-        else unmountIfNeeded();
+        if (aiOn('summary')) {
+          mount();
+          applyChatFeature();
+          // 提问被关闭时立刻中断进行中的对话，并清掉已生成内容
+          if (!chatOn()) {
+            abortChat();
+            chatMessages = [];
+          }
+        } else {
+          // 关闭后立即隐藏面板与入口，并中断请求 / 不再读取缓存
+          abortCurrent();
+          abortChat();
+          removePanel();
+          const entry = entryBtn();
+          if (entry) entry.remove();
+          currentPostId = '';
+          autoRanFor = '';
+          streamText = '';
+          chatMessages = [];
+        }
       });
     } catch (e) { /* 上下文失效忽略 */ }
 
@@ -1670,7 +1735,7 @@ html.dark .${NS}-ink, html[data-theme="dark"] .${NS}-ink{box-shadow:0 1px 3px rg
     }, 600);
 
     // 配置就绪后首次尝试（避免用默认值先渲染出错的服务商名）
-    if (config.enabled) mount();
+    if (aiOn('summary')) mount();
   })();
 
   // 调试句柄（不影响站点）

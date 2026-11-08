@@ -154,8 +154,9 @@
   let originCard = null;          // 当前帖子在信息流里的原始卡片，全程与浮层同步移动缩放
   let stage = null;               // 只做位移的舞台层，尺寸缩放交给浮层自身
   let wideOn = false;             // 加宽窗口（同一次会话内记忆）
-  let fullOn = false;             // 全屏显示（同一次会话内记忆）
+  let fullOn = true;              // 全屏显示：默认全屏，用户手动退出后由 pco_config.fullscreen 记住
   let selectOn = false;           // 文本选中模式：默认关闭，禁止鼠标划选（同一次会话内记忆）
+  let selectProbe = null;         // 正文拖选探测起点：用于在划选被拦截时给出一次提示
   let tocHeads = [];              // 当前正文里的标题节点，用于文章导航
   let tocFrame = 0;               // 滚动同步目录高亮的 rAF 句柄
   let tocActiveIdx = -1;          // 上次高亮的标题序号，用于判断是否需要滚动目录
@@ -185,7 +186,10 @@
   let aiCommitFrame = 0;
   let aiPanelText = '';           // AI 助手面板里的流式文本
   let aiPanelBusy = false;        // 面板里的请求是否进行中
-  let aiConfig = { provider: 'deepseek', model: 'deepseek-chat', apiKey: '' };
+  let aiConfig = {
+    aiEnabled: true, enabled: true, aiReply: true,
+    provider: 'deepseek', model: 'deepseek-chat', apiKey: ''
+  };
 
   /** 详情缓存（按帖子 id）与回复缓存（按「帖子 id + 排序」） */
   const cache = new Map();
@@ -270,6 +274,12 @@
   function isFeedPage() {
     const path = (location.pathname || '/').replace(/\/+$/, '') || '/';
     return FEED_PATH.test(path);
+  }
+
+  /** 开放接口 post.open 的页面范围：只认首页 / 站点信息流，不包含搜索页与个人主页 */
+  function isApiFeedPage() {
+    const path = (location.pathname || '/').replace(/\/+$/, '') || '/';
+    return /^\/$|^\/forum(?:\/category\/[^/?#]+)?$/.test(path);
   }
 
   function postIdOf(href) {
@@ -601,6 +611,16 @@
     return null;
   }
 
+  /** 按 id 在整页找卡片链接：开放接口打开时 current 还不存在，不能复用 findFeedLink */
+  function findFeedLinkAnywhere(topicId) {
+    if (!topicId) return null;
+    const links = document.querySelectorAll('a[href*="/forum/post/"]');
+    for (let i = 0; i < links.length; i++) {
+      if (postIdOf(links[i].href) === topicId) return links[i];
+    }
+    return null;
+  }
+
   /** 预取相邻帖子的正文与最热回复；命中缓存时切换瞬时完成 */
   async function prefetchTopic(topicId) {
     if (!topicId) return;
@@ -911,6 +931,7 @@
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-detail">在详情页打开</button>' +
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-newtab">在新标签页打开</button>' +
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-copy">复制帖子链接</button>' +
+              '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-guide">功能引导</button>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -1001,6 +1022,15 @@
     root.classList.remove('is-animating');
     root.classList.add('is-settled');
     flushSettleTasks();
+    // 落定后才通知引导层：引导只在该状态之后挂载 DOM，避免参与开合动画
+    guideNotify('overlay-settled', { composerTools: composerToolsEnabled });
+  }
+
+  /** 与新手引导（guide/guide.js）的唯一通信方式：自定义事件，不互相引用内部变量 */
+  function guideNotify(name, detail) {
+    try {
+      window.dispatchEvent(new CustomEvent('pco-guide:' + name, { detail: detail || {} }));
+    } catch (e) { /* noop */ }
   }
 
   function scheduleSettle() {
@@ -1093,6 +1123,7 @@
       if (pop) root.appendChild(pop);
     });
     mountRailAi();
+    applyAiAvailability();
     root.style.setProperty('--pco-dur', String(1 / animSpeed));
     if (!blurOn) root.classList.add('pco-no-blur');
     if (!imageZoomOn) root.classList.add('pco-no-zoom');
@@ -1229,6 +1260,18 @@
     }, 140);
   }
 
+  /** 没有卡片可量时，从视口中央给一个合理起始矩形，保证开合动画仍有空间感 */
+  function centerOpenRect() {
+    const width = Math.max(280, Math.min(520, window.innerWidth * 0.36));
+    const height = Math.max(200, Math.min(340, window.innerHeight * 0.34));
+    return {
+      top: (window.innerHeight - height) / 2,
+      left: (window.innerWidth - width) / 2,
+      width,
+      height
+    };
+  }
+
   function openPost(topicId, link) {
     if (!topicId) return;
     // 上一条浮层还在退场时又点了卡片：直接接管，沿用它占用的那条历史记录，
@@ -1240,9 +1283,10 @@
     }
     if (root) cleanup();
 
-    const card = link.closest('article') || link;
-    clearCardTilt(card);            // 摘掉悬停倾斜，保证量到未变形的矩形
-    const rect = card.getBoundingClientRect();
+    // 开放接口按 id 打开时没有卡片链接：用视口中央矩形兜底，不能依赖 link 非空
+    const card = link ? (link.closest('article') || link) : null;
+    if (card) clearCardTilt(card);  // 摘掉悬停倾斜，保证量到未变形的矩形
+    const rect = card ? card.getBoundingClientRect() : centerOpenRect();
 
     restoreFocus = document.activeElement;
     view = {
@@ -1295,6 +1339,19 @@
     routeTimer = setInterval(() => {
       if (root && !isFeedPage()) cleanup();
     }, 800);
+  }
+
+  /** 开放接口：按 id 打开浮层；非信息流页静默失败（只回 ACK，不弹提示） */
+  function openPostById(topicId) {
+    if (!topicId) return { ok: false, code: 'BAD_REQUEST', message: '缺少 postId' };
+    if (!isApiFeedPage()) return { ok: false, code: 'UNSUPPORTED_CONTEXT', message: '仅信息流页可用' };
+    if (!overlayEnabled) return { ok: false, code: 'OVERLAY_DISABLED', message: '浮窗模式已关闭' };
+    try {
+      openPost(topicId, findFeedLinkAnywhere(topicId));
+      return { ok: true, code: 'OK', data: { opened: true, postId: topicId } };
+    } catch (e) {
+      return { ok: false, code: 'INTERNAL', message: String((e && e.message) || e) };
+    }
   }
 
   // ============================ 6. 渲染 ============================
@@ -1397,6 +1454,209 @@
     });
   }
 
+  // ---------- 视频门面：先渲染等尺寸占位层，点击后才注入真实媒体 ----------
+
+  const MEDIA_LABEL_RULES = [
+    { test: /bilibili\.com|b23\.tv/i, label: '哔哩哔哩视频' },
+    { test: /youtube\.com|youtu\.be/i, label: 'YouTube 视频' },
+    { test: /codemao/i, label: '作品演示' }
+  ];
+
+  function mediaLabelFor(src) {
+    const s = String(src || '');
+    for (let i = 0; i < MEDIA_LABEL_RULES.length; i++) {
+      if (MEDIA_LABEL_RULES[i].test.test(s)) return MEDIA_LABEL_RULES[i].label;
+    }
+    return '视频';
+  }
+
+  /** 记下真实媒体的地址与属性，但不留在 DOM 里，避免提前发起请求 */
+  function captureMediaMeta(el) {
+    const attr = (name) => el.getAttribute(name) || '';
+    if (el.tagName === 'IFRAME') {
+      const src = attr('src') || attr('data-src');
+      return {
+        kind: 'iframe',
+        src: src,
+        label: attr('title') || mediaLabelFor(src),
+        title: attr('title'),
+        allow: attr('allow')
+      };
+    }
+    if (el.tagName === 'VIDEO') {
+      const src = attr('src') || attr('data-src');
+      const sources = Array.prototype.map.call(el.querySelectorAll('source'), (source) => ({
+        src: source.getAttribute('src') || source.getAttribute('data-src') || '',
+        type: source.getAttribute('type') || ''
+      })).filter((item) => item.src);
+      return {
+        kind: 'video',
+        src: src,
+        sources: sources,
+        label: attr('title') || mediaLabelFor(src || (sources[0] && sources[0].src)),
+        poster: attr('poster') || attr('data-poster'),
+        loop: el.hasAttribute('loop'),
+        muted: el.hasAttribute('muted')
+      };
+    }
+    return null;
+  }
+
+  /**
+   * 解析 HTML 前就把 iframe / video / source 的地址挪到 data-src、poster 挪到 data-poster。
+   * 离屏容器里的媒体虽然还没插入文档，但 video 一旦带 src 仍可能开始预取，
+   * 这里从字符串层面保证占位阶段一个媒体请求都不会发出。
+   */
+  function stripMediaSources(html) {
+    return String(html || '').replace(/<(?:iframe|video|source)\b[^>]*>/gi, (tag) => {
+      let out = tag
+        .replace(/\sposter\s*=\s*"([\s\S]*?)"/i, ' data-poster="$1"')
+        .replace(/\sposter\s*=\s*'([\s\S]*?)'/i, " data-poster='$1'")
+        .replace(/\sposter\s*=\s*([^\s>"']+)/i, ' data-poster=$1');
+
+      // 已有 data-src 时只摘掉 src，避免覆盖已记录的地址
+      if (/\sdata-src\s*=/i.test(out)) {
+        return out
+          .replace(/\ssrc\s*=\s*"[^"]*"/i, '')
+          .replace(/\ssrc\s*=\s*'[^']*'/i, '')
+          .replace(/\ssrc\s*=\s*[^\s>"']+/i, '');
+      }
+      return out
+        .replace(/\ssrc\s*=\s*"([\s\S]*?)"/i, ' data-src="$1"')
+        .replace(/\ssrc\s*=\s*'([\s\S]*?)'/i, " data-src='$1'")
+        .replace(/\ssrc\s*=\s*([^\s>"']+)/i, ' data-src=$1');
+    });
+  }
+
+  function buildMediaHost(meta) {
+    const host = document.createElement('div');
+    host.className = 'pco-media-host';
+    host.setAttribute('data-pco-media', '1');
+    host.__pcoMeta = meta;
+    const facade = document.createElement('button');
+    facade.type = 'button';
+    facade.className = 'pco-media-facade';
+    facade.setAttribute('aria-label', '播放' + (meta.label || '视频'));
+    facade.innerHTML =
+      '<span class="pco-media-play">' +
+        '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">' +
+          '<path fill="currentColor" d="M8.5 5.2v13.6L19 12z"/>' +
+        '</svg>' +
+      '</span>' +
+      '<span class="pco-media-label"></span>' +
+      '<span class="pco-media-spinner" hidden></span>';
+    facade.querySelector('.pco-media-label').textContent = meta.label || '视频';
+    facade.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      armMedia(host);
+    });
+    host.appendChild(facade);
+    return host;
+  }
+
+  /** 点击占位层：注入真实 iframe / video 并自动播放，加载中显示转圈 */
+  function armMedia(host) {
+    if (!host || host.classList.contains('is-armed')) return;
+    const meta = host.__pcoMeta;
+    if (!meta) return;
+    host.classList.add('is-armed');
+
+    const facade = host.querySelector('.pco-media-facade');
+    if (facade) {
+      facade.disabled = true;
+      facade.classList.add('is-loading');
+      const spinner = facade.querySelector('.pco-media-spinner');
+      if (spinner) spinner.hidden = false;
+    }
+    const ready = () => {
+      if (!host.isConnected) return;
+      host.classList.add('is-ready');
+      if (facade && facade.parentNode) facade.parentNode.removeChild(facade);
+      host.__pcoMeta = null;
+    };
+
+    if (meta.kind === 'iframe') {
+      const frame = document.createElement('iframe');
+      frame.className = 'pco-media-frame';
+      frame.setAttribute('data-pco-injected', '1');
+      // allow 里已含 fullscreen 时不再重复写 allowfullscreen，避免 Chrome 告警
+      if (meta.allow) frame.setAttribute('allow', meta.allow);
+      else frame.setAttribute('allowfullscreen', '');
+      frame.setAttribute('scrolling', 'no');
+      frame.setAttribute('frameborder', '0');
+      frame.setAttribute('title', meta.title || meta.label || '视频');
+      frame.addEventListener('load', ready, { once: true });
+      frame.src = meta.src;
+      host.appendChild(frame);
+      return;
+    }
+
+    const video = document.createElement('video');
+    video.className = 'pco-media-frame';
+    video.setAttribute('data-pco-injected', '1');
+    video.controls = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    if (meta.loop) video.loop = true;
+    if (meta.muted) video.muted = true;
+    if (meta.poster) video.setAttribute('poster', meta.poster);
+    if (meta.src) video.src = meta.src;
+    (meta.sources || []).forEach((item) => {
+      const source = document.createElement('source');
+      source.src = item.src;
+      if (item.type) source.type = item.type;
+      video.appendChild(source);
+    });
+    video.addEventListener('loadeddata', ready, { once: true });
+    video.addEventListener('error', ready, { once: true });
+    host.appendChild(video);
+    try {
+      const p = video.play();
+      if (p && typeof p.catch === 'function') p.catch(() => { /* 自动播放被拦截时保留控件 */ });
+    } catch (e) { /* noop */ }
+  }
+
+  /** 在离屏容器里把 iframe / video 换成等尺寸占位层，再插入页面，全程不触发媒体请求 */
+  function prepareVideoFacades(container) {
+    if (!container || !container.querySelectorAll) return;
+    container.querySelectorAll('iframe, video').forEach((el) => {
+      const meta = captureMediaMeta(el);
+      if (!meta || (!meta.src && !(meta.sources && meta.sources.length))) return;
+      el.replaceWith(buildMediaHost(meta));
+    });
+  }
+
+  /** 音频不做门面：搬入文档后再把地址放回去，保持原有的播放能力 */
+  function restoreAudioSources(container) {
+    if (!container || !container.querySelectorAll) return;
+    container.querySelectorAll('audio').forEach((audio) => {
+      const src = audio.getAttribute('data-src');
+      if (src && !audio.hasAttribute('src')) audio.setAttribute('src', src);
+      audio.querySelectorAll('source[data-src]').forEach((source) => {
+        if (!source.hasAttribute('src')) source.setAttribute('src', source.getAttribute('data-src'));
+        source.removeAttribute('data-src');
+      });
+    });
+  }
+
+  /** 关闭浮层 / 切帖：暂停并移除已注入的媒体，避免后台继续播放 */
+  function teardownMedia(scope) {
+    const box = scope || root;
+    if (!box || !box.querySelectorAll) return;
+    box.querySelectorAll('video[data-pco-injected]').forEach((video) => {
+      try { video.pause(); } catch (e) { /* noop */ }
+      video.removeAttribute('src');
+      video.querySelectorAll('source').forEach((source) => source.removeAttribute('src'));
+      try { video.load(); } catch (e) { /* noop */ }
+      video.remove();
+    });
+    box.querySelectorAll('iframe[data-pco-injected]').forEach((frame) => {
+      frame.removeAttribute('src');
+      frame.remove();
+    });
+  }
+
   function renderTopic(topic) {
     if (!root || !contentEl || !topic) return;
     const author = topic.author || {};
@@ -1408,7 +1668,10 @@
         esc(tag.name) + '</a>'
     ).join('');
 
-    contentEl.innerHTML =
+    // 先在离屏容器里解析：视频 / 嵌入在插入页面前就换成占位层，
+    // 保证真实媒体地址不会在用户点击前发起任何请求
+    const holder = document.createElement('div');
+    holder.innerHTML = stripMediaSources(
       // 标题行：标题文字与「总结本帖」排在同一行，按钮紧跟标题文字之后
       '<div class="pco-title-row">' +
         '<h1 class="pco-title">' + esc(topic.title || '无标题帖子') + '</h1>' +
@@ -1431,7 +1694,8 @@
         '</div>' +
       '</div>' +
       // AI 助手：回到正文流原位（分割线下方、正文之前），宽度由 CSS 收口
-      '<div class="pco-ai-panel" data-role="ai-panel"' + (aiHidden() ? ' hidden' : '') + '>' +
+      '<div class="pco-ai-panel" data-role="ai-panel"' +
+          (aiHidden() || (!aiPanelText && !aiPanelBusy) ? ' hidden' : '') + '>' +
         '<div class="pco-ai-panel-head">' +
           '<span class="pco-ai-panel-title">' + icon('sparkles', 15) + 'AI 助手</span>' +
           '<span class="pco-ai-panel-hint">AI 总结</span>' +
@@ -1439,6 +1703,10 @@
         '<div class="pco-ai-panel-status" data-role="ai-panel-status">' +
           '使用设置里的模型与密钥生成</div>' +
         '<div class="pco-ai-panel-out" data-role="ai-panel-out"></div>' +
+        // AI 生成说明：只在有总结内容时出现，复制正文时不包含这句
+        '<p data-role="ai-note" hidden ' +
+          'style="flex:none;margin:0;padding:8px 14px 0;font-size:11.5px;line-height:1.5;color:var(--pco-muted);">' +
+          '内容由 AI 生成</p>' +
         '<div class="pco-ai-panel-foot">' +
           '<button type="button" class="pco-ai-foot-btn" data-act="ai-stop" hidden>停止</button>' +
           '<button type="button" class="pco-ai-foot-btn" data-act="ai-copy" hidden>复制</button>' +
@@ -1457,7 +1725,15 @@
       '</div>' +
       '<div class="pco-md pco-post-body">' +
         (first.cookedHtml || '<p class="pco-empty">正文为空</p>') +
-      '</div>';
+      '</div>'
+    );
+
+    // 离屏把 iframe / video 换成等尺寸占位层；随后再清理旧媒体、搬入正式容器
+    prepareVideoFacades(holder);
+    teardownMedia(contentEl);
+    contentEl.innerHTML = '';
+    while (holder.firstChild) contentEl.appendChild(holder.firstChild);
+    restoreAudioSources(contentEl);
 
     localizeMentions(contentEl, map);
     contentEl.querySelectorAll('iframe').forEach((frame) => {
@@ -1473,6 +1749,11 @@
     });
     // 视频 / 作品嵌入在动画期间不初始化，落定后再恢复 src
     deferHeavyMedia(contentEl);
+
+    // 新内容挂上后重新按 AI 开关隐藏入口（标题「总结本帖」、面板等）
+    applyAiAvailability();
+    // 该帖已经生成过总结：按同一缓存键直接恢复展示，不重新请求
+    restoreAiSummary(topic);
 
     // 内容与骨架交叉淡出，避免出现闪白或跳版
     root.classList.add('is-loaded');
@@ -1532,10 +1813,25 @@
 
   function toggleFull(force) {
     if (!root) return;
-    fullOn = typeof force === 'boolean' ? force : !fullOn;
+    const next = typeof force === 'boolean' ? force : !fullOn;
+    if (next === fullOn) { paintViewControls(); return; }
+    fullOn = next;
     root.classList.toggle('is-full', fullOn);
     paintViewControls();
     scheduleNavOffset();
+    // 记住用户的选择：复用 pco_config 这个键里的 fullscreen 字段，不单独新建存储键
+    saveFullPreference(fullOn);
+  }
+
+  /** 全屏偏好写回 pco_config（保留配置里的其他字段） */
+  function saveFullPreference(on) {
+    try {
+      chrome.storage.local.get(SETTINGS_KEY, (raw) => {
+        if (chrome.runtime.lastError) return;
+        const cfg = Object.assign({}, raw && raw[SETTINGS_KEY], { fullscreen: on });
+        chrome.storage.local.set({ [SETTINGS_KEY]: cfg });
+      });
+    } catch (e) { /* 扩展上下文失效时忽略 */ }
   }
 
   /** 两侧切换按钮贴住浮层边缘；窗口太宽或全屏时退到视口内侧 */
@@ -1656,6 +1952,12 @@
     if (tocOn) restoreTocOpen();
     paintTocFlow();
     paintTocActive();
+    // 目录建好后才知道章节数：用于「这篇有点长」气泡的触发条件
+    guideNotify('topic-rendered', {
+      headingCount: tocHeads.length,
+      hasToc: !btn.hidden,
+      tocOpen: root.classList.contains('is-toc')
+    });
   }
 
   function toggleToc() {
@@ -1936,6 +2238,8 @@
   function resetPanel() {
     if (!root) return;
     closeLightbox();
+    // 切帖前停掉已注入的媒体，避免上一篇的视频在后台继续播放
+    teardownMedia(root);
     root.classList.remove('is-loaded', 'is-side-loaded', 'is-side-error', 'is-error');
     if (countEl) countEl.textContent = '…';
     if (contentEl) contentEl.innerHTML = '';
@@ -2408,11 +2712,21 @@
       return html + (depth < 3 ? '<div class="pco-comment-children">' + inner2 + '</div>' : inner2);
     };
 
-    inner.innerHTML = (keyword ? items : roots).map((post) => renderBranch(post, 0)).join('');
+    // 回复里的视频同样先离屏换成占位层，再连同「查看所有评论」一起搬入
+    const holder = document.createElement('div');
+    holder.innerHTML = stripMediaSources(
+      (keyword ? items : roots).map((post) => renderBranch(post, 0)).join('')
+    );
 
     // 首屏有折叠时，底部提供「查看所有评论」，点开后原地加载全部
     const more = moreCommentsHtml(topic, shown);
-    if (more) inner.insertAdjacentHTML('beforeend', more);
+    if (more) holder.insertAdjacentHTML('beforeend', more);
+
+    prepareVideoFacades(holder);
+    teardownMedia(inner);
+    inner.innerHTML = '';
+    while (holder.firstChild) inner.appendChild(holder.firstChild);
+    restoreAudioSources(inner);
 
     localizeMentions(inner, mentionMap);
     deferHeavyMedia(inner);
@@ -2480,8 +2794,11 @@
     deferredMedia = [];
     if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
 
-    // 关掉浮层时中止未完成的 AI 生成
+    // 关掉浮层时中止未完成的 AI 生成；已经生成好的内容留在 pcai_cache 里，
+    // 下次打开同一帖按同一缓存键直接恢复，不会重新请求
     abortAi();
+    aiPanelText = '';
+    aiPanelBusy = false;
     if (aiPort) {
       try { aiPort.disconnect(); } catch (e) { /* noop */ }
       aiPort = null;
@@ -2508,6 +2825,8 @@
     drag = null;
     pendingBack = false;
     resetOriginCard();
+    // 关闭浮层：先暂停并摘掉已注入的媒体，再移除整层
+    teardownMedia(root);
     if (root && root.parentNode) root.parentNode.removeChild(root);
     root = null;
     shell = null;
@@ -2520,6 +2839,9 @@
     // 关闭→立刻打开下一张：保留页面当前的缩放，避免背景闪回 1:1 再缩一次
     if (keepPage) pageEl = null;
     else resetPage();
+    selectProbe = null;
+    // 通知引导层收尾：移除 Tour / 气泡，不残留任何节点
+    guideNotify('overlay-closed');
   }
 
   function animateClose(fromDrag) {
@@ -2533,6 +2855,8 @@
     root.classList.remove('is-settled');
     root.classList.add('is-animating');
     closeLightbox();
+    // 关闭动作一开始就停掉正在播放的媒体，不等整段退出动画结束
+    teardownMedia(root);
     // 回弹计时器可能还在跑：立刻摘掉，避免中途换掉位移层的过渡曲线
     root.classList.remove('is-springing');
     // 只有“上滑松手”关闭才保留尺寸过冲；点按钮 / 点空白处属于主动关闭，直接收回到卡片
@@ -2974,6 +3298,11 @@
         e.preventDefault();
         closeRailMenu();
         sharePost();
+      } else if (act === 'more-guide') {
+        e.preventDefault();
+        closeRailMenu();
+        // 手动重看引导：交给 guide 脚本，忽略已完成步骤立即重播
+        if (window.PCOGuide && window.PCOGuide.replay) window.PCOGuide.replay();
       } else if (act === 'all-comments') {
         e.preventDefault();
         loadAllComments();
@@ -3082,6 +3411,12 @@
         setAiHidden(!!panel && !panel.hidden);
       } else if (act === 'ai-summarize') {
         e.preventDefault();
+        if (!aiFeatureOn('summary')) return;
+        // 还没配置密钥：让引导层给出「去设置」气泡，同时继续走原有错误提示
+        // ollama / custom 走本地或自建地址，不需要密钥，不能误报
+        if (!aiConfig.apiKey && aiConfig.provider !== 'ollama' && aiConfig.provider !== 'custom') {
+          guideNotify('ai-blocked');
+        }
         // 面板可能被开关收起：先确保可见，再开始生成
         if (aiHidden()) setAiHidden(false);
         runAiPanel();
@@ -3096,9 +3431,11 @@
         copyAiPanel();
       } else if (act === 'ai-write' || act === 'ai-polish') {
         e.preventDefault();
+        if (aiConfig.aiEnabled === false || aiConfig.aiReply === false) return;
         runAi(act === 'ai-polish' ? 'polish' : 'write');
       } else if (act === 'ai-summary') {
         e.preventDefault();
+        if (!aiFeatureOn('summary')) return;
         runSummary();
       } else if (act === 'comment') {
         e.preventDefault();
@@ -3200,20 +3537,63 @@
 
   const AI_HIDDEN_KEY = 'pco_ai_hidden';
 
+  /** 某项 AI 能力是否开启（总开关优先；summary 复用已有的 enabled 键） */
+  function aiFeatureOn(name) {
+    if (aiConfig.aiEnabled === false) return false;
+    if (name === 'summary') return aiConfig.enabled !== false;
+    return aiConfig[name] !== false;
+  }
+
+  /** 按设置隐藏 AI 入口；关闭后同时清掉面板内容，避免展示缓存结果 */
+  function applyAiAvailability() {
+    if (!root) return;
+    const summary = aiFeatureOn('summary');
+    const reply = aiConfig.aiEnabled !== false && aiConfig.aiReply !== false;
+    const show = (sel, on) => {
+      root.querySelectorAll(sel).forEach((el) => { el.hidden = !on; });
+    };
+    show('[data-act="ai-summarize"]', summary);
+    show('[data-act="ai-summary"]', summary);
+    show('[data-act="rail-ai"]', summary);
+    show('[data-act="ai-write"], [data-act="ai-polish"]', reply);
+    const tool = root.querySelector('[data-act="tool-ai"]');
+    if (tool) tool.hidden = !(summary || reply);
+    const pop = root.querySelector('[data-role="ai-pop"]');
+    if (pop && !(summary || reply)) pop.hidden = true;
+    if (!summary) {
+      aiPanelText = '';
+      aiPanelBusy = false;
+      abortAi();
+    }
+    syncAiPanelVisibility();
+  }
+
   /** 显示状态持久化：面板回到正文流，切帖 / 重渲染后按上次开关恢复 */
   function aiHidden() {
     try { return localStorage.getItem(AI_HIDDEN_KEY) === '1'; } catch (e) { return false; }
   }
 
+  /**
+   * 面板只在「已有总结内容」或「正在生成」时出现；
+   * 空态（标题栏、虚线占位、min-height）整块隐藏，不占版面。
+   */
+  function syncAiPanelVisibility() {
+    if (!root) return;
+    const panel = root.querySelector('[data-role="ai-panel"]');
+    if (!panel) return;
+    const hasText = !!String(aiPanelText || '').trim();
+    const visible = aiFeatureOn('summary') && !aiHidden() && (hasText || aiPanelBusy);
+    panel.hidden = !visible;
+    const note = panel.querySelector('[data-role="ai-note"]');
+    if (note) note.hidden = !hasText;
+    root.querySelectorAll('[data-act="rail-ai"]').forEach((btn) => {
+      btn.setAttribute('aria-expanded', visible ? 'true' : 'false');
+    });
+  }
+
   function setAiHidden(hidden) {
     try { localStorage.setItem(AI_HIDDEN_KEY, hidden ? '1' : '0'); } catch (e) { /* 隐私模式忽略 */ }
-    const panel = root && root.querySelector('[data-role="ai-panel"]');
-    if (panel) panel.hidden = hidden;
-    if (root) {
-      root.querySelectorAll('[data-act="rail-ai"]').forEach((btn) => {
-        btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
-      });
-    }
+    syncAiPanelVisibility();
   }
 
   /** 操作栏插入 AI 按钮，只做显示 / 隐藏，不再弹浮层 */
@@ -4154,7 +4534,7 @@
       chrome.storage.local.get(['pcai_config'], (raw) => {
         const saved = (raw && raw.pcai_config) || {};
         aiConfig = Object.assign(
-          { provider: 'deepseek', model: 'deepseek-chat', apiKey: '' },
+          { aiEnabled: true, enabled: true, aiReply: true, provider: 'deepseek', model: 'deepseek-chat', apiKey: '' },
           saved
         );
       });
@@ -4225,6 +4605,7 @@
   }
 
   function runAi(kind) {
+    if (aiConfig.aiEnabled === false || aiConfig.aiReply === false) return;
     if (!view || !view.topic || aiBusy) return;
     const ta = composerInput();
     if (!ta) return;
@@ -4399,13 +4780,19 @@
     if (!parts || !parts.out) return;
     if (streaming) parts.out.textContent = aiPanelText;
     else parts.out.innerHTML = aiPanelText ? mdRender(aiPanelText) : '';
-    parts.out.classList.toggle('is-empty', !aiPanelText);
+    const hasText = !!String(aiPanelText || '').trim();
+    parts.out.classList.toggle('is-empty', !hasText);
+    // 还没有任何正文时不显示输出区，避免空态虚线框和占位高度
+    parts.out.hidden = !hasText;
     if (parts.stop) parts.stop.hidden = !aiPanelBusy;
-    if (parts.copy) parts.copy.hidden = aiPanelBusy || !aiPanelText;
+    if (parts.copy) parts.copy.hidden = aiPanelBusy || !hasText;
     parts.out.scrollTop = parts.out.scrollHeight;
+    // 空态整块隐藏；有内容或生成中才占版面
+    syncAiPanelVisibility();
   }
 
   function runAiPanel() {
+    if (!aiFeatureOn('summary')) return;
     if (!root || !view || !view.topic || aiBusy) return;
 
     if (!aiConfig.apiKey && aiConfig.provider !== 'ollama' && aiConfig.provider !== 'custom') {
@@ -4443,12 +4830,16 @@
         setAiPanelStatus(aiPanelText
           ? ((msg && msg.cached) ? '已读取缓存总结' : '生成完成')
           : '模型没有返回内容，请重试');
+        // 没有内容时面板会整块隐藏，用 toast 兜住这条提示
+        if (!aiPanelText) toast('模型没有返回内容，请重试', 'err');
       },
       onError: (msg) => {
         aiBusy = false;
         aiPanelBusy = false;
         paintAiPanel(false);
-        setAiPanelStatus((msg && msg.message) || '生成失败，请重试');
+        const text = (msg && msg.message) || '生成失败，请重试';
+        setAiPanelStatus(text);
+        if (!aiPanelText) toast(text, 'err');
       }
     };
 
@@ -4493,11 +4884,51 @@
     return (h >>> 0).toString(36);
   }
 
+  /** 总结缓存：与后台同一个存储键，浮层只读不写，清缓存仍由设置页负责 */
+  const AI_CACHE_KEY = 'pcai_cache';
+
+  /**
+   * 打开 / 切回帖子时恢复已生成的总结。
+   * 读的是后台写入的同一份缓存、同一个键，所以：
+   *  - 关闭浮层、切走再切回不会丢内容，也不会重新发模型请求；
+   *  - 设置页「清空总结缓存」后自然读不到，回到空态；
+   *  - 正文或模型变化时缓存键随之变化，不会误用旧结果；
+   *  - AI 总开关 / 帖子总结关闭时直接跳过，既不读缓存也不显示。
+   */
+  function restoreAiSummary(topic) {
+    if (!root || !topic || aiPanelBusy || !aiFeatureOn('summary')) return;
+    const key = summaryCacheKey(summaryMessages(topic), topic);
+    readCachedSummary(key, (text) => {
+      // 异步回来时可能已经切帖 / 关闭浮层，必须再确认一次归属
+      if (!root || !view || view.topic !== topic || aiPanelBusy) return;
+      if (!text) { syncAiPanelVisibility(); return; }
+      aiPanelText = text;
+      paintAiPanel(false);
+      setAiPanelStatus('已读取缓存总结');
+    });
+  }
+
+  /** 从 chrome.storage 读取一条总结缓存；失败或关闭时一律当作没有 */
+  function readCachedSummary(key, done) {
+    if (!key || !aiFeatureOn('summary')) { done(''); return; }
+    try {
+      chrome.storage.local.get(AI_CACHE_KEY, (raw) => {
+        if (chrome.runtime.lastError) { done(''); return; }
+        const box = raw && raw[AI_CACHE_KEY];
+        const item = box && box[key];
+        done(item && item.text ? String(item.text) : '');
+      });
+    } catch (e) {
+      done('');
+    }
+  }
+
   /** 总结缓存键：帖子 + 模型 + 实际发出的提示词；正文或模型变化时自动失效 */
-  function summaryCacheKey(messages) {
+  function summaryCacheKey(messages, topic) {
+    const t = topic || (view && view.topic) || null;
     const model = (aiConfig && aiConfig.model) || '';
     const payload = model + '|' + messages.map((m) => m.content).join('\n');
-    const postId = (view && view.topic && view.topic.id) || '';
+    const postId = (t && t.id) || '';
     return 'sum:' + postId + ':' + aiHash(payload);
   }
 
@@ -4526,6 +4957,7 @@
 
   /** 在 AI 面板里流式生成帖子总结，结果只展示、不写入回复框 */
   function runSummary() {
+    if (!aiFeatureOn('summary')) return;
     if (!view || !view.topic || aiBusy || !root) return;
 
     if (!aiConfig.apiKey && aiConfig.provider !== 'ollama' && aiConfig.provider !== 'custom') {
@@ -4646,6 +5078,28 @@
     if (!root) return;
     const btn = e.target.closest && e.target.closest('.pco-composer-tools button, .pco-pop button');
     if (btn) e.preventDefault();
+    // 未开启文本选中时在正文里按下：记下起点，拖动超过阈值再提示
+    if (!selectOn && !btn && e.target.closest && e.target.closest('.pco-post-body')) {
+      selectProbe = { x: e.clientX, y: e.clientY };
+    }
+  }
+
+  /** 正文拖选探测：默认 user-select:none 下不会产生 selection，只能靠拖动距离判断 */
+  function onRootMouseMoveProbe(e) {
+    if (!selectProbe) return;
+    if (Math.abs(e.clientX - selectProbe.x) + Math.abs(e.clientY - selectProbe.y) > 8) {
+      selectProbe = null;
+      guideNotify('select-blocked');
+    }
+  }
+
+  /** 回复框获得焦点：用于「回复工具条默认关闭」的场景气泡 */
+  function onRootFocusIn(e) {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('[data-role="composer"]')) {
+      guideNotify('composer-focus', { toolsEnabled: composerToolsEnabled });
+    }
   }
 
   /** 未开启文本选中时禁止拖动图片（含被链接包裹的图片），避免拽出半透明残影 */
@@ -4661,9 +5115,11 @@
     root.addEventListener('click', onRootClick);
     root.addEventListener('change', onRootChange);
     root.addEventListener('dragstart', onRootDragStart);
+    root.addEventListener('focusin', onRootFocusIn);
     root.addEventListener('input', onRootInput);
     root.addEventListener('keydown', onRootKeydown);
     root.addEventListener('mousedown', onRootMouseDown);
+    root.addEventListener('mousemove', onRootMouseMoveProbe);
     root.addEventListener('pointerdown', onPointerDown);
     root.addEventListener('pointermove', onPointerMove);
     root.addEventListener('pointerup', onPointerUp);
@@ -4810,6 +5266,17 @@
     openTiltOn = !(cfg && cfg.openTilt === false);
     if (!cardTiltOn && tiltCard) clearCardTilt(tiltCard);
 
+    // 全屏偏好：默认全屏，用户手动退出后沿用他的选择；切帖复用同一个 fullOn，不退回默认
+    const wantFull = !(cfg && cfg.fullscreen === false);
+    if (wantFull !== fullOn) {
+      fullOn = wantFull;
+      if (root) {
+        root.classList.toggle('is-full', fullOn);
+        paintViewControls();
+        scheduleNavOffset();
+      }
+    }
+
     if (!overlayEnabled && root) {
       cleanup();
       return;
@@ -4862,6 +5329,133 @@
       applyOverlaySetting(changes[SETTINGS_KEY].newValue);
     });
   } catch (e) { /* noop */ }
+
+  // AI 开关改动：立即隐藏 / 恢复入口，关闭时中断请求并清掉已生成内容
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !changes.pcai_config) return;
+      aiConfig = Object.assign(
+        { aiEnabled: true, enabled: true, aiReply: true, provider: 'deepseek', model: 'deepseek-chat', apiKey: '' },
+        changes.pcai_config.newValue || {}
+      );
+      applyAiAvailability();
+    });
+  } catch (e) { /* noop */ }
+
+  // 开放接口 v1.0：post.context —— 按 postId 或当前打开的帖子返回基础信息
+  const POST_CONTEXT_MAX = 100000;  // 正文 Markdown 上限（字符），超出截断并标记
+  const POST_CONTEXT_FIELDS = ['id', 'title', 'author', 'createdAt', 'replyCount', 'url', 'body'];
+
+  /** 从当前页面 URL 推断帖子 id（详情页 /forum/post/:id） */
+  function apiPostIdFromLocation() {
+    try {
+      const m = String(location.pathname || '').match(POST_HREF);
+      return m ? decodeURIComponent(m[1]) : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /** 优先复用浮层已加载的帖子，避免重复请求 */
+  async function apiFetchTopic(topicId) {
+    const hit = cache.get(topicId);
+    if (hit && Date.now() - hit.at < CACHE_TTL) return hit.topic;
+    const topic = await fetchJson('/api/v1/topics/' + encodeURIComponent(topicId));
+    cache.set(topicId, { topic: topic, at: Date.now() });
+    return topic;
+  }
+
+  /** 帖子正文 HTML → Markdown；转换器不可用时降级为纯文本 */
+  function apiPostBodyMarkdown(topic) {
+    const html = topic && topic.firstPost && topic.firstPost.cookedHtml;
+    if (!html) return '';
+    let out = '';
+    try {
+      const div = document.createElement('div');
+      div.innerHTML = String(html);
+      div.querySelectorAll('script,style,iframe,link,meta,noscript,svg,canvas,video,audio')
+        .forEach((el) => el.remove());
+      const convert = window.PCOEditor && typeof window.PCOEditor.htmlToMd === 'function'
+        ? window.PCOEditor.htmlToMd : null;
+      out = convert ? String(convert(div) || '') : String(div.textContent || '');
+    } catch (e) {
+      out = '';
+    }
+    return out.trim();
+  }
+
+  /** 只回白名单字段；body 在请求时才包含 */
+  function apiShapePost(topic, requested) {
+    const first = topic.firstPost || {};
+    const author = topic.author || {};
+    const wanted = requested && requested.length ? requested : POST_CONTEXT_FIELDS;
+    const data = { id: String(topic.id || '') };
+    if (wanted.indexOf('title') !== -1) data.title = String(topic.title || '');
+    if (wanted.indexOf('author') !== -1) {
+      data.author = { id: String(author.id || ''), username: String(author.username || '') };
+    }
+    if (wanted.indexOf('createdAt') !== -1) data.createdAt = String(topic.createdAt || '');
+    if (wanted.indexOf('replyCount') !== -1) data.replyCount = Number(topic.replyCount) || 0;
+    if (wanted.indexOf('url') !== -1) data.url = location.origin + '/forum/post/' + encodeURIComponent(data.id);
+    if (wanted.indexOf('body') !== -1) {
+      const full = apiPostBodyMarkdown(topic);
+      data.bodyLength = full.length;
+      data.bodyTruncated = full.length > POST_CONTEXT_MAX;
+      data.body = data.bodyTruncated ? full.slice(0, POST_CONTEXT_MAX) : full;
+      data.floor = Number(first.postNumber) || null;
+    }
+    return data;
+  }
+
+  async function apiPostContext(payload) {
+    const p = payload && typeof payload === 'object' ? payload : {};
+    let postId = typeof p.postId === 'string' ? p.postId.trim().slice(0, 128) : '';
+    // 未指定 postId 时：详情页取路径 id，信息流页取当前浮层打开的帖子
+    if (!postId) postId = apiPostIdFromLocation();
+    if (!postId && view && view.topic && view.topic.id) postId = String(view.topic.id);
+    if (!postId && current && current.id) postId = String(current.id);
+    if (!postId) {
+      return { ok: false, code: 'UNSUPPORTED_CONTEXT', message: '当前页面没有可读取的帖子' };
+    }
+
+    // 字段白名单：只接受已知字段，避免把内部结构透给第三方
+    const requested = Array.isArray(p.fields)
+      ? p.fields.filter((f) => typeof f === 'string' && POST_CONTEXT_FIELDS.indexOf(f) !== -1)
+      : [];
+
+    try {
+      const openTopic = view && view.topic && String(view.topic.id) === String(postId) ? view.topic : null;
+      const topic = openTopic || await apiFetchTopic(postId);
+      if (!topic || !topic.id) {
+        return { ok: false, code: 'NOT_FOUND', message: '没有找到该帖子' };
+      }
+      return { ok: true, code: 'OK', data: apiShapePost(topic, requested) };
+    } catch (err) {
+      const msg = String((err && err.message) || err);
+      if (/HTTP 404/.test(msg)) {
+        return { ok: false, code: 'NOT_FOUND', message: '没有找到该帖子' };
+      }
+      if (/HTTP 401|HTTP 403/.test(msg)) {
+        return { ok: false, code: 'UNAUTHORIZED', message: '没有权限读取该帖子' };
+      }
+      return { ok: false, code: 'INTERNAL', message: '读取帖子失败：' + msg };
+    }
+  }
+
+  // 开放接口 v1.0：background broker 转发的 post.open / post.context
+  try {
+    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+      if (!msg || msg.__pcr_api_dispatch !== true) return;
+      if (msg.action === 'post.context') {
+        apiPostContext(msg.payload).then(sendResponse);
+        return true;
+      }
+      if (msg.action !== 'post.open') return;
+      const p = msg.payload && typeof msg.payload === 'object' ? msg.payload : {};
+      const id = typeof p.postId === 'string' ? p.postId.trim().slice(0, 128) : '';
+      sendResponse(openPostById(id));
+    });
+  } catch (e) { /* 扩展上下文失效时忽略 */ }
 
   // 只注册一次：捕获阶段先于站点路由与扩展其他模块
   loadOverlaySetting();
