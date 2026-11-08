@@ -1,6 +1,6 @@
 # PickScribe 开放接口 v1.0
 
-> 适用版本：PickScribe 3.10.x
+> 适用版本：PickScribe 3.11.x
 > 站点：`https://pickcat.dao3.fun/`、`https://cdsq.dao3.fun/`
 > 完整路线图见 [pickscribe-open-api-v1.md](./pickscribe-open-api-v1.md)
 
@@ -75,7 +75,7 @@ ACK 的 `data` 即能力声明：
 
 ```json
 {
-  "version": "3.10.0",
+  "version": "3.11.0",
   "protocol": { "v": 1, "min": 1, "max": 1 },
   "auth": { "mode": "l1", "pairing": false },
   "page": { "type": "editor", "href": "...", "postId": "" },
