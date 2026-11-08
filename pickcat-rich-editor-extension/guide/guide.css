@@ -710,11 +710,14 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
 
 /* ============================ 分步引导（贴目标） ============================ */
 
-/* 透明拦截层：Tour 期间不让误触浮层，但不额外加暗、不加毛玻璃 */
+/* 只作为视觉分层的底垫：不再拦截点击。
+   此前 pointer-events:auto 的透明层铺满视口且层级高于 #pco-root，
+   首次打开浮层时会把两侧切换按钮的点击整片吞掉（Tour 只播一次，
+   所以「关掉再打开」才恢复正常）。 */
 .pcg-block {
   position: fixed;
   inset: 0;
-  pointer-events: auto;
+  pointer-events: none;
   background: transparent;
 }
 
