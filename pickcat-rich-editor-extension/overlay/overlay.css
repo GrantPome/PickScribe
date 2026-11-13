@@ -1112,6 +1112,34 @@ html.pco-lock body {
   color: var(--pco-primary);
 }
 
+/* 每楼的「更多操作」：与「回复」同排靠右 */
+#pco-root .pco-comment-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pco-dim);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+#pco-root .pco-comment-more:hover,
+#pco-root .pco-comment-more[aria-expanded="true"] {
+  background: var(--pco-soft);
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-comment-more:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--pco-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
 #pco-root .pco-comments-empty {
   padding: 46px 10px;
   text-align: center;
@@ -2598,6 +2626,237 @@ html.pco-lock body {
 #pco-root .pco-menu-item:focus-visible {
   background: var(--pco-soft);
   outline: none;
+}
+
+/* 评论「⋯」菜单：fixed 贴按钮展开，层级低于轻提示 */
+#pco-root .pco-comment-menu {
+  position: fixed;
+  z-index: 7;
+  width: 168px;
+  padding: 5px;  border: 1px solid var(--pco-border);
+  border-radius: 12px;
+  background: var(--pco-bg);
+  box-shadow: 0 18px 38px -20px rgba(8, 10, 16, 0.46);
+  animation: pco-menu-in 0.18s var(--pco-ease);
+  pointer-events: auto;
+}
+
+#pco-root .pco-comment-menu .pco-menu-item.is-danger {
+  color: var(--pco-primary);
+}
+
+#pco-root .pco-menu-item:disabled {
+  color: var(--pco-dim);
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+#pco-root .pco-menu-item:disabled:hover {
+  background: transparent;
+}
+
+/* -------------------------- 评论操作对话框 -------------------------- */
+
+#pco-root .pco-dlg {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 12, 16, 0.44);
+  -webkit-backdrop-filter: blur(4px) saturate(1.04);
+  backdrop-filter: blur(4px) saturate(1.04);
+  animation: pco-fade-in 0.18s ease;
+  pointer-events: auto;
+}
+
+#pco-root .pco-dlg-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 100%);
+  max-height: min(76vh, 640px);
+  border: 1px solid var(--pco-border);
+  border-radius: 16px;
+  background: var(--pco-bg);
+  box-shadow: 0 28px 70px -24px rgba(8, 10, 16, 0.55);
+  overflow: hidden;
+  animation: pco-menu-in 0.2s var(--pco-ease);
+}
+
+#pco-root .pco-dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 8px;
+}
+
+#pco-root .pco-dlg-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--pco-text);
+}
+
+#pco-root .pco-dlg-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pco-dim);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+#pco-root .pco-dlg-x:hover {
+  background: var(--pco-soft);
+}
+
+#pco-root .pco-dlg-body {
+  padding: 4px 18px 8px;
+  overflow: auto;
+  color: var(--pco-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+#pco-root .pco-dlg-desc {
+  margin: 0 0 10px;
+}
+
+#pco-root .pco-dlg-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  color: var(--pco-text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+#pco-root .pco-dlg-radio:hover {
+  background: var(--pco-soft);
+}
+
+#pco-root .pco-dlg-radio input {
+  margin: 0;
+  accent-color: var(--pco-primary);
+}
+
+#pco-root .pco-dlg-textarea {
+  width: 100%;
+  min-height: 76px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--pco-border);
+  border-radius: 8px;
+  background: var(--pco-soft);
+  color: var(--pco-text);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+#pco-root .pco-dlg-textarea:focus {
+  outline: 2px solid color-mix(in oklab, var(--pco-primary) 45%, transparent);
+  outline-offset: 1px;
+}
+
+#pco-root .pco-dlg-err {
+  margin: 0 18px 6px;
+  color: var(--pco-primary);
+  font-size: 12px;
+}
+
+#pco-root .pco-dlg-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 18px 16px;
+}
+
+#pco-root .pco-dlg-btn {
+  padding: 7px 14px;
+  border: 1px solid var(--pco-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pco-text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+#pco-root .pco-dlg-btn:hover {
+  background: var(--pco-soft);
+}
+
+#pco-root .pco-dlg-btn--primary {
+  border-color: transparent;
+  background: var(--pco-primary);
+  color: #fff;
+}
+
+#pco-root .pco-dlg-btn--primary:hover {
+  background: color-mix(in oklab, var(--pco-primary) 86%, #000 14%);
+}
+
+#pco-root .pco-dlg-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+#pco-root .pco-dlg-loading {
+  padding: 18px 0;
+  text-align: center;
+  color: var(--pco-dim);
+  font-size: 12.5px;
+}
+
+#pco-root .pco-rev {
+  padding: 10px 0;
+  border-top: 1px solid var(--pco-border);
+}
+
+#pco-root .pco-rev:first-child {
+  border-top: 0;
+}
+
+#pco-root .pco-rev-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--pco-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+#pco-root .pco-rev-head span:last-child {
+  color: var(--pco-dim);
+  font-weight: 400;
+}
+
+#pco-root .pco-rev-text {
+  margin: 4px 0 0;
+  color: var(--pco-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+@keyframes pco-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* -------------------------- 轻提示 -------------------------- */

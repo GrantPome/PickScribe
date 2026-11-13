@@ -2218,6 +2218,8 @@
   function resetRail() {
     if (!root) return;
     closeRailMenu();
+    closeCommentMenu();
+    closeCommentDialog();
     closePops();
     const avatar = root.querySelector('[data-role="rail-avatar"]');
     if (avatar) {
@@ -2714,6 +2716,11 @@
                   ' data-no="' + esc(post.postNumber) + '"' +
                   ' data-name="' + esc(userName(a) || shortMentionId(a.id)) + '">回复</button>'
               : '') +
+            (post.deleted || !post.id ? '' :
+              '<button type="button" class="pco-comment-more" data-act="comment-menu"' +
+                ' data-id="' + esc(post.id) + '" data-no="' + esc(post.postNumber || '') + '"' +
+                ' aria-haspopup="menu" aria-expanded="false" title="更多操作">' +
+                icon('more', 14) + '</button>') +
           '</div>' +
         '</div>' +
       '</article>';
@@ -2810,6 +2817,376 @@
     } finally {
       if (view) view.commentLikeBusy.delete(post.id);
     }
+  }
+
+  // ---------------------------- 评论操作菜单 ----------------------------
+
+  /** 菜单当前指向的 post：菜单节点上存了 id / 楼层号，重渲染后仍能找回 */
+  function currentMenuPost() {
+    const menu = root && root.querySelector('[data-role="comment-menu"]');
+    if (!menu || menu.hidden || !view) return null;
+    return findCommentPost(menu.dataset.postNo, menu.dataset.postId);
+  }
+
+  /** 按站点 ForumPostOverflowActions 的回复项顺序与能力位拼菜单 */
+  function commentMenuHtml(post) {
+    const caps = post.viewerCapabilities || {};
+    const items = [];
+    if (caps.canEdit) items.push({ act: 'cm-edit', label: '编辑' });
+    if (Number(post.currentRevision) > 1) items.push({ act: 'cm-revisions', label: '历史版本' });
+    if (caps.canPin) items.push({ act: 'cm-pin', label: post.pinned ? '取消置顶' : '置顶' });
+    // 站点能力位叫 canSelectAnswer；只有这条回复当前被采纳时才出现「取消采纳」
+    const canUnselect = caps.canUnselectAnswer === true ||
+      (caps.canSelectAnswer === true && !!(post.viewerState && post.viewerState.selectedAnswer));
+    if (canUnselect) items.push({ act: 'cm-unselect', label: '取消采纳' });
+    // 举报始终在菜单里：自己的内容 / 当前不可举报时与站点一样展示为不可用
+    items.push({
+      act: 'cm-report',
+      label: caps.canReport === false ? '举报（查看不可用原因）' : '举报',
+      disabled: caps.canReport === false,
+      title: caps.canReport === false ? '自己的内容或当前不可举报' : ''
+    });
+    if (caps.canDelete) items.push({ act: 'cm-delete', label: '删除', danger: true });
+
+    return items.map((it) => '<button type="button" role="menuitem" class="pco-menu-item' +
+      (it.danger ? ' is-danger' : '') + '" data-act="' + it.act + '"' +
+      (it.disabled ? ' disabled aria-disabled="true"' : '') +
+      (it.title ? ' title="' + esc(it.title) + '"' : '') + '>' +
+      esc(it.label) + '</button>').join('');
+  }
+
+  function ensureCommentMenu() {
+    let menu = root && root.querySelector('[data-role="comment-menu"]');
+    if (menu) return menu;
+    menu = document.createElement('div');
+    menu.className = 'pco-comment-menu';
+    menu.setAttribute('data-role', 'comment-menu');
+    menu.setAttribute('role', 'menu');
+    menu.hidden = true;
+    menu.addEventListener('keydown', onCommentMenuKeydown);
+    root.appendChild(menu);
+    return menu;
+  }
+
+  /** 菜单贴着「⋯」按钮展开：右对齐，下面放不下就翻到上方 */
+  function placeCommentMenu(btn) {
+    const menu = root && root.querySelector('[data-role="comment-menu"]');
+    if (!menu || menu.hidden || !btn) return;
+    const anchor = btn.getBoundingClientRect();
+    const gap = 6;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = menu.offsetWidth;
+    const h = menu.offsetHeight;
+    let left = anchor.right - w;
+    left = Math.max(gap, Math.min(left, vw - w - gap));
+    let top = anchor.bottom + gap;
+    if (top + h > vh - gap) top = Math.max(gap, anchor.top - gap - h);
+    menu.style.left = Math.round(left) + 'px';
+    menu.style.top = Math.round(top) + 'px';
+  }
+
+  function toggleCommentMenu(btn) {
+    if (!root || !view || !btn) return;
+    const menu = ensureCommentMenu();
+    const post = findCommentPost(btn.getAttribute('data-no'), btn.getAttribute('data-id'));
+    if (!post) return;
+    if (!menu.hidden && menu.dataset.postId === post.id) {
+      closeCommentMenu(true);
+      return;
+    }
+    closeRailMenu();
+    closePops();
+    menu.dataset.postId = post.id || '';
+    menu.dataset.postNo = post.postNumber || '';
+    menu._anchor = btn;
+    menu.innerHTML = commentMenuHtml(post);
+    menu.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    placeCommentMenu(btn);
+    const first = menu.querySelector('.pco-menu-item:not(:disabled)');
+    if (first) first.focus({ preventScroll: true });
+  }
+
+  /** 关闭评论菜单；restore 为 true 时把焦点还给入口按钮 */
+  function closeCommentMenu(restore) {
+    const menu = root && root.querySelector('[data-role="comment-menu"]');
+    if (!menu || menu.hidden) return false;
+    const anchor = menu._anchor;
+    menu.hidden = true;
+    menu.dataset.postId = '';
+    menu.dataset.postNo = '';
+    if (anchor && anchor.isConnected) {
+      anchor.setAttribute('aria-expanded', 'false');
+      if (restore) anchor.focus({ preventScroll: true });
+    }
+    return true;
+  }
+
+  /** 菜单内键盘导航：上下 / Home / End 在可用项之间移动 */
+  function onCommentMenuKeydown(e) {
+    const menu = e.currentTarget;
+    if (!menu || menu.hidden) return;
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].indexOf(e.key) === -1) return;
+    const items = Array.prototype.slice.call(menu.querySelectorAll('.pco-menu-item:not(:disabled)'));
+    if (!items.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const at = items.indexOf(document.activeElement);
+    let next = 0;
+    if (e.key === 'ArrowDown') next = at < 0 ? 0 : (at + 1) % items.length;
+    else if (e.key === 'ArrowUp') next = at <= 0 ? items.length - 1 : at - 1;
+    else if (e.key === 'End') next = items.length - 1;
+    items[next].focus({ preventScroll: true });
+  }
+
+  // ---------------------------- 评论操作对话框 ----------------------------
+
+  function dialogHost() {
+    return root && root.querySelector('[data-role="comment-dialog"]');
+  }
+
+  /** 通用对话框：遮罩 / Esc 关闭，确认按钮带 busy 态，失败保持打开并就地提示 */
+  function openCommentDialog(opts) {
+    if (!root) return null;
+    closeCommentDialog();
+    const wrap = document.createElement('div');
+    wrap.className = 'pco-dlg';
+    wrap.setAttribute('data-role', 'comment-dialog');
+    wrap.innerHTML =
+      '<div class="pco-dlg-panel" role="dialog" aria-modal="true" aria-label="' + esc(opts.title) + '">' +
+        '<div class="pco-dlg-head">' +
+          '<h3 class="pco-dlg-title">' + esc(opts.title) + '</h3>' +
+          '<button type="button" class="pco-dlg-x" data-act="dlg-close" aria-label="关闭">' + icon('close', 14) + '</button>' +
+        '</div>' +
+        '<div class="pco-dlg-body">' + (opts.bodyHtml || '') + '</div>' +
+        '<div class="pco-dlg-err" data-role="dlg-error" hidden></div>' +
+        '<div class="pco-dlg-foot">' +
+          '<button type="button" class="pco-dlg-btn" data-act="dlg-cancel">取消</button>' +
+          (opts.okText === null ? '' :
+            '<button type="button" class="pco-dlg-btn pco-dlg-btn--primary' +
+              (opts.danger ? ' is-danger' : '') + '" data-act="dlg-ok">' +
+              esc(opts.okText || '确定') + '</button>') +
+        '</div>' +
+      '</div>';
+    wrap._onConfirm = opts.onConfirm || null;
+    wrap._restore = document.activeElement;
+    root.appendChild(wrap);
+    const focusEl = wrap.querySelector('[data-act="dlg-ok"]') ||
+      wrap.querySelector('[data-act="dlg-cancel"]');
+    if (focusEl) focusEl.focus({ preventScroll: true });
+    return wrap;
+  }
+
+  function closeCommentDialog(restore) {
+    const wrap = dialogHost();
+    if (!wrap) return false;
+    const back = wrap._restore;
+    wrap.remove();
+    if (restore && back && back.isConnected) back.focus({ preventScroll: true });
+    return true;
+  }
+
+  function showDialogError(err) {
+    const wrap = dialogHost();
+    if (!wrap) return;
+    const box = wrap.querySelector('[data-role="dlg-error"]');
+    if (!box) return;
+    box.hidden = false;
+    box.textContent = (err && err.message) || '操作失败，请稍后重试';
+  }
+
+  async function runCommentDialog(wrap) {
+    if (!wrap || !wrap._onConfirm) return;
+    const btn = wrap.querySelector('[data-act="dlg-ok"]');
+    const box = wrap.querySelector('[data-role="dlg-error"]');
+    if (box) box.hidden = true;
+    const label = btn ? btn.textContent : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add('is-busy');
+      btn.textContent = '处理中…';
+    }
+    try {
+      await wrap._onConfirm();
+      if (wrap.isConnected) closeCommentDialog(true);
+    } catch (err) {
+      if (wrap.isConnected) showDialogError(err);
+    } finally {
+      if (btn && btn.isConnected) {
+        btn.disabled = false;
+        btn.classList.remove('is-busy');
+        btn.textContent = label;
+      }
+    }
+  }
+
+  /** 置顶状态只改这一条评论的 badge，避免整列重渲染与入场动画重播 */
+  function paintCommentPinned(post) {
+    if (!root || !post) return;
+    const arts = root.querySelectorAll('[data-role="comment"]');
+    for (let i = 0; i < arts.length; i += 1) {
+      const art = arts[i];
+      if (art.getAttribute('data-id') !== post.id) continue;
+      const foot = art.querySelector('.pco-comment-foot');
+      if (!foot) return;
+      const old = foot.querySelector('.pco-comment-pin');
+      if (post.pinned && !old) {
+        const badge = document.createElement('span');
+        badge.className = 'pco-comment-pin';
+        badge.textContent = '置顶';
+        const like = foot.querySelector('.pco-comment-like');
+        if (like && like.nextSibling) foot.insertBefore(badge, like.nextSibling);
+        else foot.insertBefore(badge, foot.firstChild);
+      } else if (!post.pinned && old) {
+        old.remove();
+      }
+      return;
+    }
+  }
+
+  function actionErrorText(err, fallback) {
+    if (err && err.status === 401) return '请先登录后再操作';
+    return fallback + '：' + ((err && err.message) || '请稍后重试');
+  }
+
+  async function toggleCommentPin(post) {
+    if (!post) return;
+    const next = !post.pinned;
+    try {
+      await apiSend('/posts/' + encodeURIComponent(post.id) + '/pin', next ? 'PUT' : 'DELETE');
+      post.pinned = next;
+      paintCommentPinned(post);
+      toast(next ? '已置顶' : '已取消置顶');
+    } catch (err) {
+      toast(actionErrorText(err, next ? '置顶失败' : '取消置顶失败'), 'err');
+    }
+  }
+
+  async function unselectAnswer(post) {
+    if (!post || !view || !view.topic) return;
+    try {
+      await apiSend('/questions/' + encodeURIComponent(view.topic.id) + '/selected-answer', 'DELETE');
+      post.viewerState = post.viewerState || {};
+      post.viewerState.selectedAnswer = false;
+      toast('已取消采纳');
+    } catch (err) {
+      toast(actionErrorText(err, '取消采纳失败'), 'err');
+    }
+  }
+
+  function openDeleteDialog(post) {
+    openCommentDialog({
+      title: '删除回复',
+      bodyHtml: '<p class="pco-dlg-desc">确定删除这条回复吗？</p>',
+      okText: '删除',
+      danger: true,
+      onConfirm: async () => {
+        await apiSend('/posts/' + encodeURIComponent(post.id), 'DELETE');
+        post.deleted = true;
+        if (view && view.topic) {
+          view.topic.replyCount = Math.max(0, (Number(view.topic.replyCount) || 0) - 1);
+          if (countEl) countEl.textContent = fmtCount(view.topic.replyCount);
+          paintRail();
+        }
+        if (view && view.posts && view.topic) {
+          renderComments(view.topic, view.posts, buildMentionMap(view.topic, view.posts));
+        }
+        toast('回复已删除');
+      }
+    });
+  }
+
+  const REPORT_REASONS = [
+    ['SPAM', '垃圾广告或恶意刷屏'],
+    ['HARASSMENT', '人身攻击或骚扰'],
+    ['PRIVACY', '泄露个人信息'],
+    ['OFF_TOPIC', '与当前讨论无关'],
+    ['OTHER', '其他需要管理员关注']
+  ];
+
+  function reportErrorMessage(err) {
+    const code = (err && err.data && (err.data.reasonCode || err.data.code)) || '';
+    if (err && err.status === 401) return '请先登录后再举报';
+    if (code === 'ACTION_ALREADY_PERFORMED') return '已举报过这条内容';
+    if (code === 'REPORT_QUOTA_EXCEEDED') return '今天的举报次数已用完';
+    if (code === 'REPORT_COOLDOWN_ACTIVE') return '举报过于频繁，请稍后再试';
+    if (code === 'POST_NOT_FOUND') return '这条回复已被删除';
+    return '举报失败：' + ((err && err.message) || '请稍后重试');
+  }
+
+  function openReportDialog(post) {
+    const body = '<p class="pco-dlg-desc">请选择最符合问题的一项。举报会交由管理员审核，不代表内容已经被判定违规。</p>' +
+      REPORT_REASONS.map(([code, label], i) =>
+        '<label class="pco-dlg-radio"><input type="radio" name="pco-report" value="' + code + '"' +
+          (i === 0 ? '' : '') + '><span>' + esc(label) + '</span></label>').join('') +
+      '<textarea class="pco-dlg-textarea" data-role="report-detail" maxlength="1000"' +
+        ' placeholder="补充说明（选择「其他」时必填，最多 1000 字）"></textarea>';
+
+    openCommentDialog({
+      title: '举报回复',
+      bodyHtml: body,
+      okText: '提交举报',
+      onConfirm: async () => {
+        const wrap = dialogHost();
+        const picked = wrap && wrap.querySelector('input[name="pco-report"]:checked');
+        if (!picked) throw new Error('请选择举报原因');
+        const code = picked.value;
+        const detailEl = wrap.querySelector('[data-role="report-detail"]');
+        const detail = detailEl ? detailEl.value.trim() : '';
+        if (code === 'OTHER' && !detail) throw new Error('选择「其他」时请补充说明');
+        const payload = { targetKind: 'POST', reasonCode: code };
+        if (detail) payload.detail = detail.slice(0, 1000);
+        try {
+          await apiSend('/posts/' + encodeURIComponent(post.id) + '/reports', 'POST', payload);
+          toast('已提交管理员审核');
+        } catch (err) {
+          const e = new Error(reportErrorMessage(err));
+          e.data = err && err.data;
+          throw e;
+        }
+      }
+    });
+  }
+
+  /** 历史版本：只读对话框，字段按站点返回做多名字兜底 */
+  function openRevisionsDialog(post) {
+    const wrap = openCommentDialog({
+      title: '历史版本',
+      bodyHtml: '<div class="pco-dlg-loading">正在加载…</div>',
+      okText: null
+    });
+    if (!wrap) return;
+    apiSend('/posts/' + encodeURIComponent(post.id) + '/revisions?limit=20', 'GET').then((data) => {
+      if (!wrap.isConnected) return;
+      const box = wrap.querySelector('.pco-dlg-body');
+      if (!box) return;
+      const list = (data && (data.items || data.revisions)) || [];
+      if (!list.length) {
+        box.innerHTML = '<p class="pco-dlg-desc">暂无历史版本</p>';
+        return;
+      }
+      box.innerHTML = '<div class="pco-rev-list">' + list.map((rv, i) => {
+        const no = rv.revisionNumber || rv.revision || (list.length - i);
+        const who = userName(rv.author) || shortMentionId(rv.author && rv.author.id) || '';
+        const when = rv.createdAt ? timeAgo(rv.createdAt) : '';
+        const text = plainText(rv.markdown || rv.excerpt || '').slice(0, 120);
+        return '<div class="pco-rev">' +
+          '<div class="pco-rev-head"><span>第 ' + esc(no) + ' 版</span>' +
+            '<span>' + esc([who, when].filter(Boolean).join(' · ')) + '</span></div>' +
+          (text ? '<p class="pco-rev-text">' + esc(text) + '</p>' : '') +
+        '</div>';
+      }).join('') + '</div>';
+    }).catch((err) => {
+      if (!wrap.isConnected) return;
+      const box = wrap.querySelector('.pco-dlg-body');
+      if (box) box.innerHTML = '<p class="pco-dlg-desc">' + esc(actionErrorText(err, '历史版本加载失败')) + '</p>';
+    });
+  }
+
+  function openCommentEdit(post) {
+    if (!post || !post.id) return;
+    window.open('/forum/editor?type=edit&id=' + encodeURIComponent(post.id), '_blank', 'noopener');
   }
 
   /** 「查看所有评论」入口：只有首屏被折叠时才出现 */
@@ -3293,7 +3670,15 @@
     if (!e.target.closest('[data-role="rail-menu"]') && !e.target.closest('[data-act="more"]')) {
       closeRailMenu();
     }
+    if (!e.target.closest('[data-role="comment-menu"]') && !e.target.closest('[data-act="comment-menu"]')) {
+      closeCommentMenu();
+    }
     if (!e.target.closest('[data-role="tools"], .pco-pop')) closePops();
+    // 对话框遮罩：点空白处关闭
+    if (e.target.classList && e.target.classList.contains('pco-dlg')) {
+      closeCommentDialog(true);
+      return;
+    }
 
     // 正文 / 回复里的图片：铺开大图；已展开时点任意位置收起
     const zoomImg = e.target.closest('.pco-md img');
@@ -3520,6 +3905,27 @@
       } else if (act === 'comment-like') {
         e.preventDefault();
         toggleCommentLike(actEl);
+      } else if (act === 'comment-menu') {
+        e.preventDefault();
+        toggleCommentMenu(actEl);
+      } else if (act === 'cm-edit' || act === 'cm-revisions' || act === 'cm-pin' ||
+                 act === 'cm-unselect' || act === 'cm-report' || act === 'cm-delete') {
+        e.preventDefault();
+        const post = currentMenuPost();
+        closeCommentMenu();
+        if (!post) return;
+        if (act === 'cm-edit') openCommentEdit(post);
+        else if (act === 'cm-revisions') openRevisionsDialog(post);
+        else if (act === 'cm-pin') toggleCommentPin(post);
+        else if (act === 'cm-unselect') unselectAnswer(post);
+        else if (act === 'cm-report') openReportDialog(post);
+        else openDeleteDialog(post);
+      } else if (act === 'dlg-close' || act === 'dlg-cancel') {
+        e.preventDefault();
+        closeCommentDialog(true);
+      } else if (act === 'dlg-ok') {
+        e.preventDefault();
+        runCommentDialog(actEl.closest('[data-role="comment-dialog"]'));
       } else if (act === 'comment') {
         e.preventDefault();
         focusComposer();
@@ -3554,6 +3960,15 @@
     if (e.key !== 'Escape') return;
     e.preventDefault();
     e.stopImmediatePropagation();   // 不让站点起始页 / 其他模块同时响应 Esc
+    // 评论对话框 / 评论菜单最优先：Esc 只收这一层
+    if (dialogHost()) {
+      closeCommentDialog(true);
+      return;
+    }
+    if (root.querySelector('[data-role="comment-menu"]:not([hidden])')) {
+      closeCommentMenu(true);
+      return;
+    }
     // 大图展开时 Esc 只收起大图，浮层保持打开
     if (root.querySelector('.pco-lightbox')) {
       closeLightbox();
@@ -5377,6 +5792,8 @@
     root.addEventListener('pointermove', onPointerMove);
     root.addEventListener('pointerup', onPointerUp);
     root.addEventListener('pointercancel', onPointerUp);
+    // 滚动评论区时菜单会脱离锚点，直接收起
+    root.addEventListener('scroll', () => { closeCommentMenu(); }, true);
   }
 
   /* ---------------- 信息流卡片 3D 倾斜 ----------------
@@ -5729,5 +6146,6 @@
     if (!root) return;
     scheduleNavOffset();
     placePop();
+    closeCommentMenu();
   });
 })();
