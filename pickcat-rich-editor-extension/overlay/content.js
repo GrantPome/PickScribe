@@ -1307,6 +1307,7 @@
       likeBusy: false,
       bookmarkBusy: false,
       commentBusy: false,
+      commentLikeBusy: new Set(),
       replyTo: null
     };
     current = {
@@ -2310,6 +2311,7 @@
       view.likeBusy = false;
       view.bookmarkBusy = false;
       view.commentBusy = false;
+      if (view.commentLikeBusy) view.commentLikeBusy.clear();
     }
     paintSorts();
 
@@ -2679,8 +2681,20 @@
             esc(userName(parent.author) || shortMentionId(parent.author && parent.author.id)) +
             '</span></div>'
         : '';
+      const liked = !!(post.viewerState && post.viewerState.liked);
+      const likeBtn = post.deleted ? '' :
+        '<button type="button" class="pco-comment-like' + (liked ? ' is-on' : '') + '"' +
+          ' data-act="comment-like" data-id="' + esc(post.id || '') + '"' +
+          ' data-no="' + esc(post.postNumber || '') + '"' +
+          ' aria-pressed="' + (liked ? 'true' : 'false') + '"' +
+          ' title="' + (liked ? '取消点赞' : '点赞') + '">' +
+          icon('heart', 12) +
+          '<span data-role="comment-like-count">' + esc(fmtCount(post.likeCount)) + '</span>' +
+        '</button>';
       return '<article class="pco-comment' + (depth ? ' pco-comment--child' : '') +
-          '" style="--i:' + (seq++) + '">' +
+          '" style="--i:' + (seq++) + '"' +
+          ' data-role="comment" data-id="' + esc(post.id || '') + '"' +
+          ' data-no="' + esc(post.postNumber || '') + '">' +
         avatarHtml(a, 'pco-avatar pco-avatar--sm') +
         '<div class="pco-comment-main">' +
           '<div class="pco-comment-head">' +
@@ -2692,7 +2706,7 @@
           replyTo +
           '<div class="pco-md pco-md--sm">' + body + '</div>' +
           '<div class="pco-comment-foot">' +
-            '<span>' + icon('heart', 12) + esc(fmtCount(post.likeCount)) + '</span>' +
+            likeBtn +
             (post.pinned ? '<span class="pco-comment-pin">置顶</span>' : '') +
             '<span class="pco-comment-no">#' + esc(post.postNumber || '') + '</span>' +
             (post.postNumber
@@ -2736,6 +2750,66 @@
 
     localizeMentions(inner, mentionMap);
     deferHeavyMedia(inner);
+  }
+
+  /** 按楼层号 / id 在当前回复列表里定位 post（浮层只认 view.posts 这一份数据） */
+  function findCommentPost(no, id) {
+    const items = (view && view.posts && view.posts.items) || [];
+    return items.find((p) => p && ((id && p.id === id) ||
+      (no && String(p.postNumber) === String(no)))) || null;
+  }
+
+  /** 只刷新这一条评论的点赞外观，不重渲染整列，避免计数闪动与入场动画重播 */
+  function paintCommentLike(btn, post) {
+    if (!btn || !post) return;
+    const liked = !!(post.viewerState && post.viewerState.liked);
+    btn.classList.toggle('is-on', liked);
+    btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
+    btn.title = liked ? '取消点赞' : '点赞';
+    const num = btn.querySelector('[data-role="comment-like-count"]');
+    if (num) num.textContent = fmtCount(post.likeCount);
+  }
+
+  /** 评论点赞：先乐观更新，再写回站点；失败（含未登录）回滚并提示 */
+  async function toggleCommentLike(btn) {
+    if (!view || !btn) return;
+    const post = findCommentPost(btn.getAttribute('data-no'), btn.getAttribute('data-id'));
+    if (!post || !post.id) return;
+    if (!view.commentLikeBusy) view.commentLikeBusy = new Set();
+    if (view.commentLikeBusy.has(post.id)) return;
+
+    const prevLiked = !!(post.viewerState && post.viewerState.liked);
+    const prevCount = Number(post.likeCount) || 0;
+    const next = !prevLiked;
+
+    post.viewerState = post.viewerState || {};
+    post.viewerState.liked = next;
+    post.likeCount = Math.max(0, prevCount + (next ? 1 : -1));
+    paintCommentLike(btn, post);
+    view.commentLikeBusy.add(post.id);
+
+    try {
+      const res = await apiSend('/posts/' + encodeURIComponent(post.id) + '/like',
+        next ? 'PUT' : 'DELETE');
+      // 服务端有明确返回值时以它为准（PUT 返回帖子；DELETE 可能只返回本地推算）
+      if (res && typeof res === 'object') {
+        const serverLiked = typeof res.liked === 'boolean' ? res.liked :
+          (res.viewerState && typeof res.viewerState.liked === 'boolean' ? res.viewerState.liked : null);
+        if (serverLiked !== null) post.viewerState.liked = serverLiked;
+        if (typeof res.likeCount === 'number') post.likeCount = Math.max(0, res.likeCount);
+        if (btn.isConnected) paintCommentLike(btn, post);
+      }
+    } catch (err) {
+      post.viewerState.liked = prevLiked;
+      post.likeCount = prevCount;
+      if (btn.isConnected) paintCommentLike(btn, post);
+      let msg = '点赞失败：' + err.message;
+      if (err.status === 401) msg = '请先登录后再点赞';
+      else if (err.status === 403) msg = '当前账号不能点赞这条回复';
+      toast(msg, 'err');
+    } finally {
+      if (view) view.commentLikeBusy.delete(post.id);
+    }
   }
 
   /** 「查看所有评论」入口：只有首屏被折叠时才出现 */
@@ -3443,6 +3517,9 @@
         e.preventDefault();
         if (!aiFeatureOn('summary')) return;
         runSummary();
+      } else if (act === 'comment-like') {
+        e.preventDefault();
+        toggleCommentLike(actEl);
       } else if (act === 'comment') {
         e.preventDefault();
         focusComposer();
