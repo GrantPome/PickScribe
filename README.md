@@ -9,7 +9,7 @@
 > 不改后台、不改提交逻辑，安心用。
 
 [![Chrome 扩展](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4.svg)](https://developer.chrome.com/docs/extensions)
-[![版本](https://img.shields.io/badge/version-4.0.0-2ea44f.svg)](https://github.com/GrantPome/PickScribe/releases/latest)
+[![版本](https://img.shields.io/badge/version-4.0.1-2ea44f.svg)](https://github.com/GrantPome/PickScribe/releases/latest)
 
 > PickScribe 是一个 **Chrome 扩展（Manifest V3）**，不再需要 Tampermonkey。
 > 仓库的 `legacy/` 目录仍保留早期油猴脚本 `pickcat-rich-editor.user.js`，但推荐使用扩展版。
@@ -128,7 +128,7 @@
 
 **方式 A · 下载打包好的 `.zip`（推荐）**
 
-1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载最新的 `pickcat-rich-editor-extension-4.0.0.zip`（文件名带版本号）
+1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载最新的 `pickcat-rich-editor-extension-4.0.1.zip`（文件名带版本号）
 2. 解压到任意目录，得到一个包含 `manifest.json` 的文件夹
 3. 打开 `chrome://extensions/`（Edge 为 `edge://extensions/`），右上角开启「**开发者模式**」
 4. 点「**加载已解压的扩展程序**」，选择第 2 步解压出的文件夹
@@ -196,7 +196,7 @@
 ```
 pickscribe/
 ├── pickcat-rich-editor-extension/       # Chrome 扩展（安装这个）
-│   ├── manifest.json                    # Manifest V3 清单（当前 4.0.0）
+│   ├── manifest.json                    # Manifest V3 清单（当前 4.0.1）
 │   ├── content.js                       # 编辑器主体逻辑（命名空间 pcr）
 │   ├── api/                             # 开放接口：授权确认弹窗、头像菜单设置入口
 │   ├── guide/                           # 新手引导（一屏一个功能大类）

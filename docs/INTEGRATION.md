@@ -75,7 +75,7 @@ ACK 的 `data` 即能力声明：
 
 ```json
 {
-  "version": "4.0.0",
+  "version": "4.0.1",
   "protocol": { "v": 1, "min": 1, "max": 1 },
   "auth": { "mode": "l1", "pairing": false },
   "page": { "type": "editor", "href": "...", "postId": "" },
