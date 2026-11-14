@@ -779,6 +779,10 @@
     mathBlock: svg('<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M6.5 9.5h6M6.5 12.5h9M6.5 15.5h6"/>'),
     fullscreen: svg('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
     clear: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+    // 资料库卡片上的三个小图标：重命名、覆盖、删除
+    pencil: svg('<path d="M4.5 19.5h4L20 8l-4-4L4.5 15.5z"/><path d="M14.5 5.5 18.5 9.5"/>'),
+    down: svg('<path d="M12 4.5v10"/><path d="m8 10.5 4 4 4-4"/><path d="M4.5 19.5h15"/>'),
+    trash: svg('<path d="M4 7h16"/><path d="M9.5 4.5h5"/><path d="M6.6 7l.8 11.4a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9L17.4 7"/><path d="M10.2 11v5.6M13.8 11v5.6"/>'),
     layout: svg('<rect x="3" y="4.5" width="18" height="6" rx="1.6"/><rect x="3" y="13.5" width="18" height="6" rx="1.6"/>'),
     search: svg('<circle cx="10.7" cy="10.7" r="6.1"/><path d="m15.3 15.3 4.3 4.3"/>'),
     help: svg('<circle cx="12" cy="12" r="9"/><path d="M9.4 9.2a2.6 2.6 0 1 1 3.6 2.4c-.7.4-1 .9-1 1.7v.2"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>'),
@@ -817,6 +821,46 @@
     "system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue'," +
     "'Noto Sans','Liberation Sans',Arial,sans-serif,'Apple Color Emoji','Segoe UI Emoji'," +
     "'Segoe UI Symbol','Noto Color Emoji'";
+
+  /**
+   * 字体增强是否只应在当前文档生效：只在顶层文档注入。
+   * content script 声明了 all_frames，视频 / 嵌入等 iframe 里重复注入既看不到效果，
+   * 还会让每个 frame 各解析一次十几 MB 的字体，纯属浪费。
+   * 跨域访问 window.top 会抛异常，捕获后按「非顶层」处理。
+   */
+  function isTopFrame() {
+    try {
+      return window.top === window.self;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** 待执行的字体注入标记：首屏空闲只排队一次，避免多次调用重复建节点 */
+  let fontApplyPending = false;
+
+  /**
+   * 把字体注入推迟到首屏空闲之后。
+   * 简中可变字体体积很大（约 12MB），脚本启动即注入会和首屏关键资源抢带宽，
+   * 因此改为 idle 时再挂 @font-face；页面已渲染完成时几乎立即执行。
+   */
+  function scheduleFontApply() {
+    if (fontApplyPending) return;
+    fontApplyPending = true;
+    const run = () => {
+      fontApplyPending = false;
+      if (!fontOn || !isTopFrame()) return;
+      injectFontStyle(customFaces.length > 0);
+    };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 1500 });
+    else setTimeout(run, 300);
+  }
+
+  /** 移除字体样式节点：关闭字体功能时连 @font-face 一起撤掉，避免后续继续触发字体请求 */
+  function removeFontStyle() {
+    const el = document.getElementById(FONT_STYLE_ID);
+    if (el) el.remove();
+  }
 
   /** 扩展内字体文件的可访问 URL；非扩展环境（油猴等）取不到，返回空串以便整体跳过注入 */
   function fontUrl(file) {
@@ -948,12 +992,19 @@
       customFaces.forEach((f) => { try { document.fonts.delete(f); } catch (e) { /* noop */ } });
       customFaces = [];
     }
-    injectFontStyle(false);
+    // 关闭字体增强或处于 iframe：不注入任何 @font-face，从根源上避免下载字体
+    if (!fontOn || !isTopFrame()) {
+      removeFontStyle();
+      return;
+    }
+    // 默认鸿蒙字体推迟到首屏空闲后注入，避免抢占首屏带宽
+    scheduleFontApply();
     if (fontMode !== 'custom') return;
     if (!customSpec || !Array.isArray(customSpec.faces) || !customSpec.faces.length) return;
 
     const faces = await loadCustomFaces(customSpec);
-    if (!faces.length) return;
+    // 异步取字节期间用户可能已经关掉字体或切走，回来后再校验一次
+    if (!faces.length || !fontOn || !isTopFrame()) return;
     faces.forEach((f) => document.fonts.add(f));
     customFaces = faces;
     injectFontStyle(true);
@@ -1335,10 +1386,10 @@
   border-color:var(--pcr-accent);}
 .${NS}-slash-foot-btn:active{transform:scale(.97);}
 
-/* —— 模板库弹窗 —— */
+/* —— 模板库 / 草稿箱（共用一套卡片列表） —— */
 .${NS}-tpl-mask{position:fixed;inset:0;z-index:10004;display:flex;align-items:center;
   justify-content:center;padding:20px;background:rgba(0,0,0,.45);}
-.${NS}-tpl-modal{width:min(520px,100%);max-height:min(620px,86vh);display:flex;flex-direction:column;
+.${NS}-tpl-modal{width:min(640px,100%);max-height:min(680px,88vh);display:flex;flex-direction:column;
   overflow:hidden;background:var(--pcr-surface);color:var(--pcr-text);
   border:1px solid var(--pcr-border);border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.32);
   font-family:var(--pcr-font);animation:${NS}TplIn .28s cubic-bezier(.16,1,.3,1) both;}
@@ -1350,23 +1401,70 @@
   color:var(--pcr-subtle);font:inherit;font-size:18px;line-height:1;cursor:pointer;
   transition:background .2s,color .2s;}
 .${NS}-tpl-close:hover{background:var(--pcr-surface-hover);color:var(--pcr-text);}
-.${NS}-tpl-body{flex:1;min-height:0;overflow:auto;padding:0 12px 10px;}
-.${NS}-tpl-row{display:flex;align-items:center;gap:8px;padding:8px 6px;
-  border-bottom:1px solid var(--pcr-border);}
-.${NS}-tpl-row:last-child{border-bottom:0;}
-.${NS}-tpl-name{flex:1;min-width:0;height:30px;padding:0 8px;border:1px solid transparent;
-  border-radius:7px;background:transparent;color:var(--pcr-text);font:inherit;font-size:13.5px;}
-.${NS}-tpl-name:hover{border-color:var(--pcr-border);}
-.${NS}-tpl-name:focus{outline:none;border-color:var(--pcr-accent);background:var(--pcr-canvas);}
-.${NS}-tpl-meta{flex:none;font-size:11.5px;color:var(--pcr-subtle);font-variant-numeric:tabular-nums;}
-.${NS}-tpl-act{flex:none;height:28px;padding:0 10px;border:1px solid var(--pcr-border);
-  background:var(--pcr-surface);color:var(--pcr-text);font:inherit;font-size:12px;
-  border-radius:var(--pcr-r-control);cursor:pointer;
+/* 页签：草稿箱 / 模板库 */
+.${NS}-lib-tabs{display:flex;align-items:center;gap:6px;padding:0 16px 10px;flex:none;}
+.${NS}-lib-tab{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;
+  border:0;border-radius:8px;background:transparent;color:var(--pcr-subtle);
+  font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+  transition:background .2s,color .2s;}
+.${NS}-lib-tab:hover{background:var(--pcr-surface-hover);color:var(--pcr-text);}
+.${NS}-lib-tab.is-active{color:var(--pcr-accent);
+  background:color-mix(in oklab,var(--pcr-accent) 12%,transparent);}
+.${NS}-lib-count{min-width:18px;height:18px;padding:0 5px;border-radius:9px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--pcr-surface-hover);font-size:11px;font-weight:600;
+  font-variant-numeric:tabular-nums;}
+.${NS}-lib-tab.is-active .${NS}-lib-count{background:color-mix(in oklab,var(--pcr-accent) 18%,transparent);}
+/* 卡片列表 */
+.${NS}-lib-body{flex:1;min-height:0;overflow:auto;padding:0 16px 12px;
+  display:flex;flex-direction:column;gap:10px;}
+.${NS}-lib-card{border:1px solid var(--pcr-border);border-radius:12px;
+  background:var(--pcr-surface);transition:border-color .2s,background .2s;}
+.${NS}-lib-card:hover{border-color:color-mix(in oklab,var(--pcr-accent) 42%,var(--pcr-border));}
+.${NS}-lib-card.is-open{border-color:var(--pcr-accent);}
+.${NS}-lib-row{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;}
+.${NS}-lib-main{flex:1;min-width:0;display:block;padding:0;border:0;background:transparent;
+  color:inherit;font:inherit;text-align:left;cursor:pointer;}
+.${NS}-lib-name{font-size:15px;font-weight:650;line-height:1.35;color:var(--pcr-text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.${NS}-lib-meta{margin-top:4px;font-size:12.5px;color:var(--pcr-text);opacity:.72;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.${NS}-lib-time{margin-top:3px;font-size:11.5px;color:var(--pcr-subtle);
+  font-variant-numeric:tabular-nums;}
+.${NS}-lib-acts{flex:none;display:flex;align-items:center;gap:8px;}
+.${NS}-lib-open{height:32px;padding:0 14px;border:1px solid var(--pcr-accent);border-radius:8px;
+  background:transparent;color:var(--pcr-accent);font:inherit;font-size:12.5px;font-weight:600;
+  cursor:pointer;transition:background .2s,color .2s,transform .18s;}
+.${NS}-lib-open:hover{background:color-mix(in oklab,var(--pcr-accent) 12%,transparent);}
+.${NS}-lib-open:active{transform:scale(.96);}
+.${NS}-lib-icon{width:32px;height:32px;display:grid;place-items:center;padding:0;
+  border:1px solid var(--pcr-border);border-radius:8px;background:transparent;
+  color:var(--pcr-subtle);cursor:pointer;
   transition:background .2s,border-color .2s,color .2s,transform .18s;}
-.${NS}-tpl-act:hover{background:var(--pcr-surface-hover);}
-.${NS}-tpl-act:active{transform:scale(.96);}
-.${NS}-tpl-act.is-danger{color:var(--pcr-error);border-color:var(--pcr-error);}
-.${NS}-tpl-act.is-danger:hover{background:color-mix(in oklab,var(--pcr-error) 10%,transparent);}
+.${NS}-lib-icon svg{width:16px;height:16px;}
+.${NS}-lib-icon:hover{color:var(--pcr-text);background:var(--pcr-surface-hover);}
+.${NS}-lib-icon:active{transform:scale(.94);}
+.${NS}-lib-icon.is-armed{color:var(--pcr-error);border-color:var(--pcr-error);
+  background:color-mix(in oklab,var(--pcr-error) 10%,transparent);}
+/* 点击卡片展开的预览区 */
+.${NS}-lib-preview{display:none;margin:0 14px 12px;padding-top:10px;
+  border-top:1px solid var(--pcr-border);max-height:200px;overflow:auto;
+  font-size:13px;line-height:1.66;color:var(--pcr-text);}
+.${NS}-lib-card.is-open .${NS}-lib-preview{display:block;}
+.${NS}-lib-preview>:first-child{margin-top:0;}
+.${NS}-lib-preview>:last-child{margin-bottom:0;}
+.${NS}-lib-preview p{margin:0 0 8px;}
+.${NS}-lib-preview h1{font-size:17px;margin:0 0 8px;}
+.${NS}-lib-preview h2{font-size:15.5px;margin:0 0 8px;}
+.${NS}-lib-preview h3,h4,h5,h6{font-size:14px;margin:0 0 8px;}
+.${NS}-lib-preview ul,.${NS}-lib-preview ol{margin:0 0 8px;padding-left:20px;}
+.${NS}-lib-preview li{margin:2px 0;}
+.${NS}-lib-preview pre{margin:0 0 8px;padding:8px 10px;border-radius:8px;
+  background:var(--pcr-canvas);overflow:auto;font-size:12px;}
+.${NS}-lib-preview code{font-size:12.5px;}
+.${NS}-lib-preview img{max-width:100%;height:auto;border-radius:8px;}
+.${NS}-lib-preview blockquote{margin:0 0 8px;padding-left:10px;
+  border-left:2px solid var(--pcr-border);color:var(--pcr-subtle);}
 .${NS}-tpl-empty{padding:28px 10px;text-align:center;font-size:13px;color:var(--pcr-subtle);}
 .${NS}-tpl-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;flex:none;
   border-top:1px solid var(--pcr-border);}
@@ -2230,32 +2328,92 @@
     fullscreen: ['全屏编辑', '全屏']
   };
 
-  /** 在站点原生编辑器区域内查找按钮（优先原生工具栏，其次全文档） */
-  function findSiteButton(labels) {
-    const list = (Array.isArray(labels) ? labels : [labels]).filter(Boolean);
-    if (!list.length) return null;
+  /**
+   * 站点按钮的查找范围（由内向外）：原生工具栏 → 原生容器 → 编辑器卡片 → 编辑表单 → 整页兜底。
+   * 必须把原生工具栏排在最前：站点工具栏常常挂在原生容器外面，如果直接全文档查找，
+   * 会先命中站内导航里的「作品」「图片」等链接，点下去就跳到别的页面了。
+   */
+  function siteButtonScopes() {
     const scopes = [];
-    if (origWrapper && document.body.contains(origWrapper)) scopes.push(origWrapper);
-    scopes.push(document);
-    for (const scope of scopes) {
-      const nodes = scope.querySelectorAll('button, a, [role="button"], [role="menuitem"], [role="tab"]');
+    const push = (el) => {
+      if (el && el.querySelectorAll && !isOwnNode(el) && !scopes.includes(el)) scopes.push(el);
+    };
+    if (!nativeToolbar || !nativeToolbar.isConnected) nativeToolbar = findNativeToolbar();
+    push(nativeToolbar);
+    push(origWrapper);
+    push(origWrapper && origWrapper.parentElement);
+    push(origWrapper && origWrapper.closest && origWrapper.closest('form'));
+    return scopes;
+  }
+
+  /** 读取按钮自身的可读文案（aria-label / title / 文本），过长说明是容器，直接排除 */
+  function siteButtonOwnLabels(el) {
+    const out = [
+      (el.getAttribute('aria-label') || '').trim(),
+      (el.getAttribute('title') || '').trim(),
+      (el.textContent || '').trim()
+    ].filter((t) => t && t.length <= 40);
+    return out;
+  }
+
+  /** 汇总按钮所有属性值（跳过 class），用于兜底匹配 data-* 之类的标识 */
+  function siteButtonAttrHay(el) {
+    let hay = '';
+    for (const a of el.attributes) {
+      if (a.name === 'class') continue;                         // class 太宽泛，容易误匹配
+      hay += ' ' + a.value;
+    }
+    return hay;
+  }
+
+  /** 链接是否真的会跳转（href="#"、javascript: 这类占位链接不算） */
+  function isNavigatingLink(el) {
+    const href = el.getAttribute && el.getAttribute('href');
+    if (href == null) return false;
+    const h = href.trim();
+    return h !== '' && h !== '#' && !/^javascript:/i.test(h);
+  }
+
+  /** 在某个范围内按「文案完全一致 → 属性包含」两级匹配，标签按候选顺序优先 */
+  function pickSiteButton(scope, list, isDocFallback) {
+    const nodes = Array.from(scope.querySelectorAll('button, a, [role="button"], [role="menuitem"], [role="tab"]'))
+      .filter((el) => {
+        if (el.dataset && el.dataset.pcrOwn === '1') return false;  // 脚本自身按钮
+        if (isOwnNode(el)) return false;                            // 本面板
+        // 会跳转的链接一律不当按钮点，避免「插入作品」把页面跳到作品页
+        if (isNavigatingLink(el)) return false;
+        const link = el.closest('a[href]');
+        if (link && isNavigatingLink(link)) return false;
+        // 站内导航 / 顶部栏里的「作品」「图片」不是编辑器按钮，任何范围都不要
+        if (el.closest('nav, header, [role="navigation"], [role="menubar"]')) return false;
+        // 整页兜底时再排除侧栏与菜单，进一步降低误点概率
+        if (isDocFallback && el.closest('aside, [role="menu"]')) return false;
+        return true;
+      });
+
+    for (const lb of list) {
       for (const el of nodes) {
-        if (el.dataset && el.dataset.pcrOwn === '1') continue;  // 跳过脚本自身按钮
-        if (root && root.contains(el)) continue;                // 跳过本面板
-        // 汇总所有可读文案来源：常用属性 + 全部属性值（含 data-*、class 之外的标识）+ 文本
-        let hay = (el.getAttribute('aria-label') || '') + ' ' +
-          (el.getAttribute('title') || '') + ' ' +
-          (el.textContent || '').trim();
-        for (const a of el.attributes) {
-          if (a.name === 'class') continue;                     // class 太宽泛，容易误匹配
-          hay += ' ' + a.value;
-        }
-        for (const lb of list) {
-          if (lb && hay.indexOf(lb) >= 0) return el;
-        }
+        if (siteButtonOwnLabels(el).includes(lb)) return el;        // 文案完全一致最可靠
+      }
+    }
+    for (const lb of list) {
+      for (const el of nodes) {
+        const own = siteButtonOwnLabels(el).join(' ');
+        if (own.indexOf(lb) >= 0 || siteButtonAttrHay(el).indexOf(lb) >= 0) return el;
       }
     }
     return null;
+  }
+
+  /** 在站点原生编辑器范围内查找按钮（优先原生工具栏，最后才全文档兜底） */
+  function findSiteButton(labels) {
+    const list = (Array.isArray(labels) ? labels : [labels]).filter(Boolean);
+    if (!list.length) return null;
+    for (const scope of siteButtonScopes()) {
+      const hit = pickSiteButton(scope, list, false);
+      if (hit) return hit;
+    }
+    return pickSiteButton(document, list, true);
   }
 
   /** 列出页面上可用的站点按钮文案，便于排查「找不到按钮」 */
@@ -3066,79 +3224,226 @@
     });
   }
 
-  /** 打开模板库：改名、插入、删除、新建 */
-  async function openTemplateManager() {
-    slashTemplates = await loadTemplates();
-    renderTplManager(slashTemplates);
+  // —— 资料库（草稿箱 / 模板库共用一套卡片列表） ——
+
+  let libTab = 'draft';     // 当前页签：draft / tpl
+  let libOpenId = '';       // 当前展开预览的条目 id
+
+  function libList(tab) { return tab === 'tpl' ? loadTemplates() : loadDrafts(); }
+  function libSave(tab, list) { return tab === 'tpl' ? saveTemplates(list) : saveDrafts(list); }
+  function libLabel(tab) { return tab === 'tpl' ? '模板' : '草稿'; }
+
+  /** 卡片右侧的小图标按钮；覆盖 / 删除用它做二次确认 */
+  function libIconBtn(icon, tip, onClick) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = NS + '-lib-icon';
+    btn.innerHTML = icon;
+    btn.title = tip;
+    btn.setAttribute('aria-label', tip);
+    btn.addEventListener('click', () => onClick(btn));
+    return btn;
   }
 
-  function renderTplManager(list) {
-    const shell = openTplShell({ title: '模板库' });
+  /** 打开资料库，tab 传 'draft' 或 'tpl' */
+  async function openLibrary(tab) {
+    const next = tab === 'tpl' ? 'tpl' : 'draft';
+    if (next !== libTab) libOpenId = '';
+    libTab = next;
+    const list = await libList(libTab);
+    if (libTab === 'tpl') slashTemplates = list;
+    renderLibrary(list);
+  }
+
+  function openTemplateManager() { return openLibrary('tpl'); }
+  function openDraftManager() { return openLibrary('draft'); }
+
+  /** 渲染资料库：顶部页签 + 卡片列表，点卡片展开预览 */
+  function renderLibrary(list) {
+    const tab = libTab;
+    const isTpl = tab === 'tpl';
+    const label = libLabel(tab);
+    const shell = openTplShell({ title: isTpl ? '模板库' : '草稿箱' });
+
+    // 页签：两个互相切换，当前页签带数量
+    const tabs = document.createElement('div');
+    tabs.className = NS + '-lib-tabs';
+    [['draft', '草稿箱'], ['tpl', '模板库']].forEach((pair) => {
+      const key = pair[0];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = NS + '-lib-tab' + (tab === key ? ' is-active' : '');
+      btn.setAttribute('aria-pressed', tab === key ? 'true' : 'false');
+      btn.appendChild(document.createTextNode(pair[1]));
+      if (tab === key) {
+        const count = document.createElement('span');
+        count.className = NS + '-lib-count';
+        count.textContent = String(list.length);
+        btn.appendChild(count);
+      }
+      btn.addEventListener('click', () => { if (tab !== key) openLibrary(key); });
+      tabs.appendChild(btn);
+    });
+    shell.modal.appendChild(tabs);
+
     const body = document.createElement('div');
-    body.className = NS + '-tpl-body';
+    body.className = NS + '-lib-body';
     if (!list.length) {
       const empty = document.createElement('div');
       empty.className = NS + '-tpl-empty';
-      empty.textContent = '还没有模板。写好内容后点「保存为模板」，之后在空行输入 / 就能快速插入。';
+      empty.textContent = isTpl
+        ? '还没有模板。写好内容后点下方「保存当前为模板」，之后在空行输入 / 就能快速插入。'
+        : '还没有草稿。写完内容后点下方「保存当前为新草稿」，之后可随时载入或重命名。';
       body.appendChild(empty);
     }
-    list.forEach((tpl) => {
+
+    list.forEach((item) => {
+      const content = item.content || '';
+      const card = document.createElement('div');
+      card.className = NS + '-lib-card' + (item.id === libOpenId ? ' is-open' : '');
+
       const row = document.createElement('div');
-      row.className = NS + '-tpl-row';
-      const name = document.createElement('input');
-      name.type = 'text';
-      name.className = NS + '-tpl-name';
-      name.value = tpl.name || '';
-      name.title = '点击可重命名';
-      name.maxLength = 40;
-      name.addEventListener('change', async () => {
-        const v = (name.value || '').trim();
-        if (!v) { name.value = tpl.name || ''; toast('模板名称不能为空'); return; }
-        if (v === tpl.name) return;
-        tpl.name = v;
-        tpl.updatedAt = Date.now();
-        const ok = await saveTemplates(slashTemplates);
-        toast(ok ? '已重命名' : '重命名失败');
+      row.className = NS + '-lib-row';
+
+      // 左半边整块是按钮：点击展开 / 收起预览
+      const main = document.createElement('button');
+      main.type = 'button';
+      main.className = NS + '-lib-main';
+      main.title = '点击预览内容';
+      main.setAttribute('aria-expanded', item.id === libOpenId ? 'true' : 'false');
+      const nameEl = document.createElement('div');
+      nameEl.className = NS + '-lib-name';
+      nameEl.textContent = item.name || '未命名' + label;
+      const metaEl = document.createElement('div');
+      metaEl.className = NS + '-lib-meta';
+      metaEl.textContent = content.length + ' 字 / ' + (content.trim() ? content.split('\n').length : 0) + ' 行';
+      const timeEl = document.createElement('div');
+      timeEl.className = NS + '-lib-time';
+      timeEl.textContent = draftTime(item.updatedAt || item.createdAt);
+      main.appendChild(nameEl);
+      main.appendChild(metaEl);
+      main.appendChild(timeEl);
+      main.addEventListener('click', () => {
+        const open = item.id !== libOpenId;
+        libOpenId = open ? item.id : '';
+        body.querySelectorAll('.' + NS + '-lib-card.is-open').forEach((el) => {
+          el.classList.remove('is-open');
+          const b = el.querySelector('.' + NS + '-lib-main');
+          if (b) b.setAttribute('aria-expanded', 'false');
+        });
+        if (open) {
+          card.classList.add('is-open');
+          main.setAttribute('aria-expanded', 'true');
+        }
       });
-      const meta = document.createElement('span');
-      meta.className = NS + '-tpl-meta';
-      meta.textContent = (tpl.content || '').length + ' 字';
-      const ins = document.createElement('button');
-      ins.type = 'button';
-      ins.className = NS + '-tpl-act';
-      ins.textContent = '插入';
-      ins.addEventListener('click', () => {
-        closeTplShell();
-        insertHtml(mdToHtml(tpl.content || ''));
-        richToSource();
-        toast('已插入模板「' + (tpl.name || '未命名模板') + '」');
-      });
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = NS + '-tpl-act is-danger';
-      del.textContent = '删除';
-      let armed = 0;   // 二次确认计时器：3 秒内再点一次才真正删除
-      del.addEventListener('click', async () => {
-        if (!armed) {
-          del.textContent = '确认删除';
-          armed = setTimeout(() => { armed = 0; del.textContent = '删除'; }, 3000);
+
+      const acts = document.createElement('div');
+      acts.className = NS + '-lib-acts';
+
+      // 主操作：草稿「载入」、模板「插入」
+      const primary = document.createElement('button');
+      primary.type = 'button';
+      primary.className = NS + '-lib-open';
+      primary.textContent = isTpl ? '插入' : '载入';
+      let armedLoad = 0;
+      primary.addEventListener('click', () => {
+        if (isTpl) {
+          closeTplShell();
+          insertHtml(mdToHtml(content));
+          richToSource();
+          toast('已插入模板「' + (item.name || '未命名模板') + '」');
           return;
         }
-        clearTimeout(armed);
-        armed = 0;
-        const next = slashTemplates.filter((x) => x.id !== tpl.id);
-        const ok = await saveTemplates(next);
-        if (!ok) { toast('删除失败'); return; }
-        slashTemplates = next;
-        toast('已删除模板');
-        renderTplManager(next);
+        const current = editor ? htmlToMd(editor) : '';
+        if (current && current !== content && !armedLoad) {
+          armedLoad = setTimeout(() => { armedLoad = 0; primary.textContent = '载入'; }, 3000);
+          primary.textContent = '确认替换';
+          return;
+        }
+        if (armedLoad) { clearTimeout(armedLoad); armedLoad = 0; }
+        closeTplShell();
+        replaceEditorContent(content);
+        toast('已载入草稿「' + (item.name || '未命名草稿') + '」');
       });
-      row.appendChild(name);
-      row.appendChild(meta);
-      row.appendChild(ins);
-      row.appendChild(del);
-      body.appendChild(row);
+
+      // 重命名：复用命名弹窗，确认后回到当前页签
+      const rename = libIconBtn(ICONS.pencil, '重命名', () => {
+        openTemplateNameDialog(item.name || '', async (name) => {
+          item.name = name;
+          item.updatedAt = Date.now();
+          const ok = await libSave(tab, list);
+          if (!ok) { toast('重命名失败'); return; }
+          toast('已重命名');
+          openLibrary(tab);
+        }, { title: '重命名' + label, placeholder: label + '名称', emptyTip: '名称不能为空' });
+      });
+
+      acts.appendChild(primary);
+      acts.appendChild(rename);
+
+      // 草稿额外提供「用当前正文覆盖」
+      if (!isTpl) {
+        let armedCover = 0;
+        acts.appendChild(libIconBtn(ICONS.down, '用当前正文覆盖', async (btn) => {
+          const current = editor ? htmlToMd(editor) : '';
+          if (!current || !current.trim()) { toast('当前内容为空，无法覆盖'); return; }
+          if (current !== content && !armedCover) {
+            btn.classList.add('is-armed');
+            btn.title = '再点一次覆盖';
+            armedCover = setTimeout(() => {
+              armedCover = 0;
+              btn.classList.remove('is-armed');
+              btn.title = '用当前正文覆盖';
+            }, 3000);
+            return;
+          }
+          if (armedCover) { clearTimeout(armedCover); armedCover = 0; }
+          item.content = current;
+          item.updatedAt = Date.now();
+          const ok = await libSave(tab, list);
+          if (!ok) { toast('覆盖失败'); return; }
+          toast('已覆盖草稿「' + (item.name || '未命名草稿') + '」');
+          openLibrary(tab);
+        }));
+      }
+
+      // 删除：第一次点变红，3 秒内再点才真正删除
+      let armedDel = 0;
+      acts.appendChild(libIconBtn(ICONS.trash, '删除', async (btn) => {
+        if (!armedDel) {
+          btn.classList.add('is-armed');
+          btn.title = '再点一次删除';
+          armedDel = setTimeout(() => {
+            armedDel = 0;
+            btn.classList.remove('is-armed');
+            btn.title = '删除';
+          }, 3000);
+          return;
+        }
+        clearTimeout(armedDel);
+        armedDel = 0;
+        const next = list.filter((x) => x.id !== item.id);
+        const ok = await libSave(tab, next);
+        if (!ok) { toast('删除失败'); return; }
+        if (libOpenId === item.id) libOpenId = '';
+        toast('已删除' + label);
+        openLibrary(tab);
+      }));
+
+      row.appendChild(main);
+      row.appendChild(acts);
+
+      // 预览区：默认折叠，展开后渲染 Markdown
+      const preview = document.createElement('div');
+      preview.className = NS + '-lib-preview';
+      if (content.trim()) preview.innerHTML = mdToHtml(content);
+      else preview.textContent = '（空内容）';
+
+      card.appendChild(row);
+      card.appendChild(preview);
+      body.appendChild(card);
     });
+
     shell.modal.appendChild(body);
 
     const foot = document.createElement('div');
@@ -3146,10 +3451,11 @@
     const add = document.createElement('button');
     add.type = 'button';
     add.className = NS + '-tpl-btn';
-    add.textContent = '新建模板';
+    add.textContent = isTpl ? '保存当前为模板' : '保存当前为新草稿';
     add.addEventListener('click', () => {
       closeTplShell();
-      saveCurrentAsTemplate();
+      if (isTpl) saveCurrentAsTemplate();
+      else saveCurrentAsDraft();
     });
     const done = document.createElement('button');
     done.type = 'button';
@@ -3201,12 +3507,13 @@
     });
   }
 
-  /** 草稿时间戳 → MM-DD HH:mm */
+  /** 草稿时间戳 → YYYY-MM-DD HH:mm（与资料库卡片上的时间行一致） */
   function draftTime(ts) {
     const d = new Date(Number(ts) || 0);
     if (isNaN(d.getTime())) return '';
     const pad = (n) => (n < 10 ? '0' + n : String(n));
-    return (d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+      ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
 
   /** 用草稿内容替换整篇正文（会同步回站点源码框） */
@@ -3240,142 +3547,8 @@
       const ok = await saveDrafts([item].concat(list));
       if (!ok) { toast('草稿保存失败'); return; }
       toast('已保存草稿「' + name + '」');
-      renderDraftManager(await loadDrafts());
+      openLibrary('draft');
     }, { title: '保存草稿', placeholder: '草稿名称', emptyTip: '请填写草稿名称' });
-  }
-
-  async function openDraftManager() {
-    renderDraftManager(await loadDrafts());
-  }
-
-  /** 草稿箱：载入 / 覆盖 / 重命名 / 删除 */
-  function renderDraftManager(list) {
-    const shell = openTplShell({ title: '草稿箱' });
-    const body = document.createElement('div');
-    body.className = NS + '-tpl-body';
-    if (!list.length) {
-      const empty = document.createElement('div');
-      empty.className = NS + '-tpl-empty';
-      empty.textContent = '还没有草稿。写完内容后点下方「保存当前为新草稿」，之后可随时载入或重命名。';
-      body.appendChild(empty);
-    }
-
-    list.forEach((draft) => {
-      const row = document.createElement('div');
-      row.className = NS + '-tpl-row';
-
-      const name = document.createElement('input');
-      name.type = 'text';
-      name.className = NS + '-tpl-name';
-      name.value = draft.name || '';
-      name.title = '点击可重命名';
-      name.maxLength = 40;
-      name.addEventListener('change', async () => {
-        const v = (name.value || '').trim();
-        if (!v) { name.value = draft.name || ''; toast('草稿名称不能为空'); return; }
-        if (v === draft.name) return;
-        draft.name = v;
-        draft.updatedAt = Date.now();
-        const ok = await saveDrafts(list);
-        meta.textContent = (draft.content || '').length + ' 字 · ' + draftTime(draft.updatedAt);
-        toast(ok ? '已重命名' : '重命名失败');
-      });
-
-      const meta = document.createElement('span');
-      meta.className = NS + '-tpl-meta';
-      meta.textContent = (draft.content || '').length + ' 字 · ' + draftTime(draft.updatedAt);
-
-      // 载入：当前正文非空且与草稿不同，先改文案二次确认，避免误覆盖
-      const load = document.createElement('button');
-      load.type = 'button';
-      load.className = NS + '-tpl-act';
-      load.textContent = '载入';
-      let loadArmed = 0;
-      load.addEventListener('click', () => {
-        const current = editor ? htmlToMd(editor) : '';
-        const same = current && current === (draft.content || '');
-        if (current && !same && !loadArmed) {
-          loadArmed = setTimeout(() => { loadArmed = 0; load.textContent = '载入'; }, 3000);
-          load.textContent = '确认替换';
-          return;
-        }
-        if (loadArmed) { clearTimeout(loadArmed); loadArmed = 0; }
-        closeTplShell();
-        replaceEditorContent(draft.content || '');
-        toast('已载入草稿「' + (draft.name || '未命名草稿') + '」');
-      });
-
-      // 覆盖：把当前正文写进这条草稿
-      const cover = document.createElement('button');
-      cover.type = 'button';
-      cover.className = NS + '-tpl-act';
-      cover.textContent = '覆盖';
-      let coverArmed = 0;
-      cover.addEventListener('click', async () => {
-        const current = editor ? htmlToMd(editor) : '';
-        if (!current || !current.trim()) { toast('当前内容为空，无法覆盖'); return; }
-        if (current !== (draft.content || '') && !coverArmed) {
-          coverArmed = setTimeout(() => { coverArmed = 0; cover.textContent = '覆盖'; }, 3000);
-          cover.textContent = '确认覆盖';
-          return;
-        }
-        if (coverArmed) { clearTimeout(coverArmed); coverArmed = 0; }
-        draft.content = current;
-        draft.updatedAt = Date.now();
-        const ok = await saveDrafts(list);
-        if (!ok) { toast('覆盖失败'); return; }
-        toast('已覆盖草稿「' + (draft.name || '未命名草稿') + '」');
-        renderDraftManager(await loadDrafts());
-      });
-
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = NS + '-tpl-act is-danger';
-      del.textContent = '删除';
-      let armed = 0;
-      del.addEventListener('click', async () => {
-        if (!armed) {
-          del.textContent = '确认删除';
-          armed = setTimeout(() => { armed = 0; del.textContent = '删除'; }, 3000);
-          return;
-        }
-        clearTimeout(armed);
-        armed = 0;
-        const next = list.filter((x) => x.id !== draft.id);
-        const ok = await saveDrafts(next);
-        if (!ok) { toast('删除失败'); return; }
-        toast('已删除草稿');
-        renderDraftManager(next);
-      });
-
-      row.appendChild(name);
-      row.appendChild(meta);
-      row.appendChild(load);
-      row.appendChild(cover);
-      row.appendChild(del);
-      body.appendChild(row);
-    });
-
-    shell.modal.appendChild(body);
-
-    const foot = document.createElement('div');
-    foot.className = NS + '-tpl-foot';
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = NS + '-tpl-btn';
-    add.textContent = '保存当前为新草稿';
-    add.addEventListener('click', () => {
-      closeTplShell();
-      saveCurrentAsDraft();
-    });
-    const done = document.createElement('button');
-    done.type = 'button';
-    done.className = NS + '-tpl-btn is-primary';
-    done.textContent = '完成';
-    done.addEventListener('click', closeTplShell);
-    foot.appendChild(add);
-    foot.appendChild(done);
-    shell.modal.appendChild(foot);
   }
 
   let splitNativeRestore = null;  // 全屏左右对照时，站点源码区被临时移到面板内，这里记录它的原位
@@ -3721,10 +3894,14 @@
     const add = (b) => { cur.items.push(b); };
     const I = siteIcon; // 站点原生图标（运行时从站点工具栏读取，缺失时用内置图标兜底）
 
-    // —— 历史 ——
-    group('历史');
+    // —— 操作（撤销 / 重做 + 模板库 / 草稿箱）——
+    group('操作');
     add(makeBtn({ key: 'undo', html: ICONS.undo, tip: '撤销 (Ctrl+Z)', onClick: () => exec('undo') }));
     add(makeBtn({ key: 'redo', html: ICONS.redo, tip: '重做 (Ctrl+Y)', onClick: () => exec('redo') }));
+    // 模板库：与编辑区输入「/」或「、」唤起的斜杠面板共用同一份模板数据
+    add(makeBtn({ key: 'tpl', html: ICONS.text('T'), tip: '模板库（保存并复用常用内容）', onClick: () => openTemplateManager() }));
+    // 草稿箱：可保存多条草稿，支持载入、覆盖与重命名
+    add(makeBtn({ key: 'draft', html: ICONS.text('稿'), tip: '草稿箱（保存多条草稿，支持重命名）', onClick: () => openDraftManager() }));
 
     // —— 查找（紧跟撤销/重做，和 Word 的「编辑」区习惯一致）——
     group('查找');
@@ -3803,10 +3980,6 @@
     add(makeBtn({ key: 'mathinline', html: I(SITE_LABELS.mathinline, ICONS.mathInline), tip: '行内公式', onClick: insertInlineMath }));
     add(makeBtn({ key: 'mathblock', html: I(SITE_LABELS.mathblock, ICONS.mathBlock), tip: '块级公式', onClick: insertBlockMath }));
     add(makeBtn({ key: 'hr', html: I(SITE_LABELS.hr, ICONS.hr), tip: '分割线', onClick: () => { insertHtml('<hr><p><br></p>'); richToSource(); } }));
-    // 模板库：与编辑区输入「/」或「、」唤起的斜杠面板共用同一份模板数据
-    add(makeBtn({ key: 'tpl', html: ICONS.text('T'), tip: '模板库（保存并复用常用内容）', onClick: () => openTemplateManager() }));
-    // 草稿箱：可保存多条草稿，支持载入、覆盖与重命名
-    add(makeBtn({ key: 'draft', html: ICONS.text('稿'), tip: '草稿箱（保存多条草稿，支持重命名）', onClick: () => openDraftManager() }));
 
     // —— 视图 ——
     group('视图');
@@ -4448,9 +4621,10 @@
   // 编辑帖子页会先加载帖子数据再渲染编辑器，Vue 重渲染容易把注入的节点冲掉；
   // 另外站点是 SPA，站内跳转不刷新页面，必须靠这里兜底（否则会出现「有时注入、有时不注入」）。
   // 字体与编辑页无关（整站生效），因此放在编辑页判断之前：样式节点被重渲染丢掉时也要恢复。
+  // 但只在字体增强开启且处于顶层文档时才补，关闭 / iframe 下不重建，避免重新触发字体下载。
   let lastHref = location.href;
   setInterval(() => {
-    if (!document.getElementById(FONT_STYLE_ID)) injectFontStyle(customFaces.length > 0);
+    if (fontOn && isTopFrame() && !document.getElementById(FONT_STYLE_ID)) scheduleFontApply();
     // 离开编辑页：把独立窗口一并收起，避免它跟着 SPA 路由飘到别的页面上
     if (!isEditorPage()) { if (aiPop) closeAIWriter(); return; }
     // 对方的富文本编辑器可能比我们晚注入：一旦出现，立刻拆掉自己的面板让位
@@ -4480,8 +4654,8 @@
     }
   }, 700);
 
-  // 字体：与编辑页无关，整站生效，脚本启动即注入；具体来源（鸿蒙 / 自定义）随后由设置决定
-  injectFontStyle(false);
+  // 字体：与编辑页无关，整站生效。先读设置再决定是否注入——关闭字体或处于 iframe 时
+  // 不创建任何 @font-face，避免白下载十几 MB；开启时由 applyFontConfig 推迟到首屏空闲注入。
   loadFontSetting();
 
   // G2 圆角：同样整站生效，先按默认开启注入，再按存储里的开关校正
