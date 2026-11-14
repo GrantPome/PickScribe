@@ -40,7 +40,7 @@
   --pcg-s15: 60px;
 
   /* 层级间距：按「卡片内边距 → 标题 / 总述 / 列表 / 配置 / 底部」固定映射 */
-  --pcg-pad-top: var(--pcg-s15);      /* 卡片上内边距 60 */
+  --pcg-pad-top: var(--pcg-s12);      /* 卡片上内边距 48 */
   --pcg-pad-x: var(--pcg-s12);        /* 卡片左右内边距 48 */
   --pcg-pad-bottom: var(--pcg-s11);   /* 卡片下内边距 44 */
   --pcg-pad-card-sm: var(--pcg-s5);   /* Tour 卡片内边距 20 */
@@ -186,10 +186,14 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: min(600px, calc(100vw - 40px));
-  min-height: min(660px, calc(100vh - 40px));
-  max-height: calc(100vh - 40px);
+  width: min(820px, calc(100vw - 40px));
+  min-height: min(600px, calc(100vh - 40px));
+  /* 卡片高度封顶：内容再多也只到 660px，超出部分在 .pcg-screens 内滚动，
+     底部进度点与按钮始终留在卡片底部 */
+  max-height: min(660px, calc(100vh - 40px));
   overflow: hidden;
+  /* 高于屏幕边缘的光带画布（0 / 1），小屏上卡片压住光带而不是被光带盖住 */
+  z-index: 2;
   padding: var(--pcg-pad-top) var(--pcg-pad-x) var(--pcg-pad-bottom);
   border-radius: 28px;
   background: var(--pcg-bg);
@@ -251,25 +255,233 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   flex: none;
   width: 100%;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
+  align-items: stretch;
+  text-align: left;
 }
 
+/* 左图标 + 右内容：两栏等宽（Win11 OOBE 式排布），
+   图标在左栏正中，左栏高度随右栏内容撑开，所以图标的垂直位置就是内容块的正中 */
+.pcg-screen-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--pcg-s6);
+  width: 100%;
+}
+
+/* 图标在自己那一栏里水平、垂直都居中 */
+.pcg-screen-body > .pcg-logo-stage,
+.pcg-screen-body > .pcg-logo,
+.pcg-screen-body > .pcg-cat-ico,
+.pcg-screen-body > .pcg-finish-ico {
+  justify-self: center;
+  align-self: center;
+}
+
+.pcg-screen-main {
+  min-width: 0;
+}
+
+/* 内容超过一屏时（AI 能力屏这类）：图标若按内容正中排会停在初始视图下方，
+   看着和别的屏错位。这里让它 sticky 在可视区正中，滚动时也跟着不走。
+   偏移量 --pcg-ico-top 由脚本按可视区高度算，正好把图标放在垂直中间。 */
+.pcg-screens.is-scroll .pcg-screen.is-on .pcg-logo-stage,
+.pcg-screens.is-scroll .pcg-screen.is-on .pcg-cat-ico,
+.pcg-screens.is-scroll .pcg-screen.is-on .pcg-finish-ico {
+  align-self: start;
+  position: sticky;
+  top: var(--pcg-ico-top, 0px);
+}
+
+/* 外层只承担位移动画，尺寸由里面的 LOGO 决定 */
+.pcg-logo-stage {
+  display: block;
+  position: relative;
+}
+
+/* 入场打字机：压在图标正上方，跟图标一起停在卡片中央。
+   细体、单行不折行，末尾一根常闪的插入光标。 */
+.pcg-typer {
+  position: absolute;
+  bottom: calc(100% + 24px);
+  left: 50%;
+  z-index: 3;   /* 压在粒子画布之上，文字始终清晰可读 */
+  transform: translateX(-50%);
+  margin: 0;
+  min-height: 1.7em;
+  font-size: 26px;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+  line-height: 1.7;
+  color: var(--pcg-muted);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity calc(0.24s * var(--pcg-dur)) ease;
+}
+
+/* 卡片落位并停顿之后才开始出字（is-typing 由脚本按入场动画时长延后添加） */
+.pcg-modal.is-intro.is-typing .pcg-typer {
+  opacity: 1;
+}
+
+/* 图标滑回左栏时文字先退场，避免和右栏文案打架 */
+.pcg-modal.is-reveal .pcg-typer {
+  opacity: 0;
+}
+
+.pcg-typer-caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.16em;
+  background: currentColor;
+  animation: pcg-caret calc(1.05s * var(--pcg-dur)) steps(1, end) infinite;
+}
+
+@keyframes pcg-caret {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* ------------------------------------------------------------
+   欢迎屏入场编排：
+   is-intro     图标先挪到卡片正中，把描线 / 回弹 / 淡入整套演完，
+                文案、按钮、跳过都先藏起来；
+   is-reveal    图标连着滑回左栏，文案与底部按钮同时渐显上移。
+   位移量 --pcg-intro-x/y 由脚本按实际布局量出来，这里只负责过渡。
+   ------------------------------------------------------------ */
+.pcg-modal.is-intro .pcg-logo-stage {
+  transform: translate(var(--pcg-intro-x, 0px), var(--pcg-intro-y, 0px));
+}
+
+/* 重播时才需要「滑回卡片中央」的过渡；首次入场保持直接定位，避免与卡片入场叠加 */
+.pcg-modal.is-replaying .pcg-logo-stage {
+  transition: transform calc(0.52s * var(--pcg-dur)) var(--pcg-move);
+}
+
+.pcg-modal.is-intro.is-reveal .pcg-logo-stage {
+  transform: translate(0, 0);
+  transition: transform calc(0.62s * var(--pcg-dur)) var(--pcg-move);
+}
+
+.pcg-modal.is-intro .pcg-welcome-skip,
+.pcg-modal.is-intro .pcg-screen-main,
+.pcg-modal.is-intro .pcg-welcome-foot {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+}
+
+.pcg-modal.is-intro.is-reveal .pcg-welcome-skip,
+.pcg-modal.is-intro.is-reveal .pcg-screen-main,
+.pcg-modal.is-intro.is-reveal .pcg-welcome-foot {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  transition: opacity calc(0.42s * var(--pcg-dur)) var(--pcg-ease),
+    transform calc(0.5s * var(--pcg-dur)) var(--pcg-move);
+}
+
+/* 文案先到，按钮随后，跳过最后，形成一条从上往下的读序 */
+.pcg-modal.is-intro.is-reveal .pcg-screen-main {
+  transition-delay: calc(0.06s * var(--pcg-dur));
+}
+
+.pcg-modal.is-intro.is-reveal .pcg-welcome-foot {
+  transition-delay: calc(0.16s * var(--pcg-dur));
+}
+
+.pcg-modal.is-intro.is-reveal .pcg-welcome-skip {
+  transition-delay: calc(0.26s * var(--pcg-dur));
+}
+
+/* 图标只保留图形本身：放大到原来的两倍，去掉底色块，让红色图形直接立在栏里。
+   overflow 放开，粒子和光波要能画到框外 */
 .pcg-logo {
-  width: 68px;
-  height: 68px;
-  margin: 0 auto;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--pcg-soft);
+  flex: none;
+  position: relative;
+  width: 192px;
+  height: 192px;
+  border-radius: 26px;
+  overflow: visible;
 }
 
 .pcg-logo img {
   display: block;
-  width: 68px;
-  height: 68px;
-  /* LOGO 图形自带 viewBox 留白：在固定 68px 框内等比放大收掉留白，图案仍不触边 */
+  width: 100%;
+  height: 100%;
+  /* LOGO 图形自带 viewBox 留白：在固定框内等比放大收掉留白，图案仍不触边 */
   transform: scale(1.18);
+}
+
+/* 粒子比 LOGO 大一圈：粒子从四周飞入，画布不够大就会被裁在边上。
+   宽高必须写死（不能用 inset + auto）：canvas 是替换元素，设了 width/height 属性后
+   auto 会退回固有尺寸，画布被撑大、内容只剩左上角，看起来就像下半截被裁掉了 */
+/* 粒子画布包在图标外面一圈，留在卡片内活动；放在 stage 里而不是 logo 里，
+   避免被 logo 的 overflow: hidden 和圆角裁掉 */
+.pcg-logo-particles {
+  position: absolute;
+  top: -90px;
+  left: -90px;
+  width: calc(100% + 180px);
+  height: calc(100% + 180px);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* 成形瞬间推出去的光波：两圈错开，余韵留在「超出回」之后 */
+.pcg-logo-wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--pcg-primary) 55%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.45);
+}
+
+.pcg-logo.is-formed .pcg-logo-wave {
+  animation: pcg-logo-wave calc(0.86s * var(--pcg-dur)) var(--pcg-ease) both;
+}
+
+.pcg-logo.is-formed .pcg-logo-wave--late {
+  animation-delay: calc(0.12s * var(--pcg-dur));
+}
+
+/* 粒子聚齐后整块做一次「超出回」：冲过头再收回来，幅度依次收敛 */
+.pcg-logo.is-formed {
+  transform-origin: 50% 50%;
+  animation: pcg-logo-pop calc(0.62s * var(--pcg-dur)) var(--pcg-move) both;
+}
+
+/* 欢迎屏 LOGO 的粒子层与实心图叠在同一格里 */
+.pcg-logo-trace-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--pcg-primary);
+}
+
+/* 实心 LOGO 压在粒子下面；粒子先完全淡出，再让图淡入，避免两层图形叠在一起看着错位 */
+.pcg-logo-img {
+  position: relative;
+  opacity: 0;
+  /* 承接粒子：从一团雾里聚焦出来，模糊收干净的时刻就是「成形」 */
+  filter: blur(14px);
+}
+
+.pcg-logo.is-formed .pcg-logo-img {
+  opacity: 1;
+  filter: blur(0);
+  transition:
+    opacity calc(0.3s * var(--pcg-dur)) var(--pcg-ease) calc(0.2s * var(--pcg-dur)),
+    filter calc(0.72s * var(--pcg-dur)) var(--pcg-ease) calc(0.2s * var(--pcg-dur));
 }
 
 .pcg-logo-fallback {
@@ -281,14 +493,15 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   color: var(--pcg-primary);
 }
 
-/* LOGO 位 68px 不变，兜底图标放大到接近边缘 */
+/* LOGO 框内留一圈呼吸位，兜底图标放大到接近边缘 */
 .pcg-logo-fallback svg {
-  width: 44px;
-  height: 44px;
+  width: 124px;
+  height: 124px;
 }
 
+/* 文案列独立成栏，标题不再需要为避让图标留上边距 */
 .pcg-welcome-title {
-  margin: var(--pcg-s7) 0 0;
+  margin: 0;
   font-size: 27px;
   font-weight: 700;
   line-height: 1.35;
@@ -296,11 +509,25 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
 }
 
 .pcg-welcome-sub {
-  max-width: 22em;
   margin: var(--pcg-gap-lead) 0 0;
   font-size: 14px;
   line-height: 1.8;
   color: var(--pcg-muted);
+}
+
+/* 首屏的「重播动画」：只留图标，方形按钮排在「下一步」左侧。
+   双类名是为了压过上面 .pcg-ghost 的胶囊内边距 */
+.pcg-ghost.pcg-replay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  padding: 0;
+}
+
+.pcg-replay svg {
+  width: 16px;
+  height: 16px;
 }
 
 .pcg-screen-title {
@@ -310,43 +537,62 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   line-height: 1.4;
 }
 
-/* 类别屏顶部的类别图标，比欢迎 LOGO 小一号，不抢标题 */
+/* 类别屏左侧的类别图标：与欢迎 LOGO 同样只留图形，尺寸是原底块的两倍 */
 .pcg-cat-ico {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
-  margin-bottom: var(--pcg-s4);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--pcg-primary) 10%, transparent);
+  width: 228px;
+  height: 228px;
   color: var(--pcg-primary);
 }
 
-/* 52px 底块不变，图标放大 */
+/* 228px 的图标位，图形按比例放大 */
 .pcg-cat-ico svg {
-  width: 34px;
-  height: 34px;
+  width: 150px;
+  height: 150px;
 }
 
-/* 类别屏的一句话总述：居中，行宽与正文对齐 */
+/* ------------------------------------------------------------
+   标题上方大图标的入场：一根线勾完 → 轻弹摇晃 → 归于平静
+   只挂在 is-on 屏上，所以换屏回来时会重新描一遍，不会首次播完就永久静止。
+   ------------------------------------------------------------ */
+
+/* 各段线条依次描出：时长 0.32s、相邻错开 0.1s，首尾略有重叠，连起来像一笔画成；
+   起手留 0.16s 让卡片先落位，动画不会被入场位移吃掉 */
+#pcg-root .pcg-screen.is-on .pcg-draw [data-draw],
+#pcg-root .pcg-screen.is-on .pcg-logo-line [data-draw] {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: pcg-line-draw calc(0.32s * var(--pcg-dur)) var(--pcg-ease)
+    calc(0.16s * var(--pcg-dur) + var(--i, 0) * 0.1s * var(--pcg-dur)) both;
+}
+
+/* 描完接一个回弹：--shapes 由脚本写入子路径条数，用来算「全部画完」的时刻 */
+#pcg-root .pcg-screen.is-on .pcg-draw {
+  transform-origin: 50% 50%;
+  animation: pcg-icon-live calc(0.58s * var(--pcg-dur)) var(--pcg-move)
+    calc(0.42s * var(--pcg-dur) + var(--shapes, 1) * 0.1s * var(--pcg-dur)) both;
+}
+
+/* 欢迎屏 LOGO 不再走线稿：粒子汇聚成形后在 .is-formed 上接回弹与光波，
+   所以这里不再给 .pcg-logo / .pcg-logo-img 预设时间线 */
+
+/* 类别屏的一句话总述：跟在标题下，左对齐铺满右栏 */
 .pcg-screen-lead {
-  max-width: 24em;
   margin: var(--pcg-gap-lead) 0 0;
   font-size: 13px;
   line-height: 1.8;
   color: var(--pcg-muted);
-  text-align: center;
 }
 
-/* 图标在左、文案在右；列表整体在卡内居中，文案区左对齐 */
+/* 图标在左、文案在右；整列铺满右栏宽度 */
 .pcg-feats {
   display: flex;
   flex-direction: column;
   gap: var(--pcg-gap-feat);
   width: 100%;
-  max-width: 424px;
   margin: var(--pcg-gap-list) 0 0;
   padding: 0;
   list-style: none;
@@ -392,38 +638,84 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   z-index: 3;
   width: 100%;
   height: 100%;
+  border-radius: inherit;
   pointer-events: none;
 }
 
-.pcg-finish {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: var(--pcg-s6) 0 var(--pcg-s2);
-  text-align: center;
+/* ------------------------------------------------------------
+   AI 能力屏：贴着屏幕边缘的彩色光带
+   两层画布（固定铺满视口，走 fixed 不进卡片布局）：
+     soft 宽而糊，靠 CSS 模糊出光晕；
+     core 窄而亮，另带一颗白色光点当前导。
+   绘制顺序由脚本按「右上 → 右下 → 左下 → 左上」展开。
+   ------------------------------------------------------------ */
+
+/* 位置与尺寸由脚本写成内联样式（fixed + 100vw/100vh，挂在 #pcg-root 下），
+   这里只管质感：两层都做模糊，没有硬边 */
+.pcg-ai-soft,
+.pcg-ai-core {
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity calc(0.45s * var(--pcg-dur)) ease;
+}
+
+.pcg-ai-soft {
+  filter: blur(15px);
+}
+
+.pcg-ai-core {
+  /* 里层也糊透：只留下光晕的扩散，看不到彩色光带本身 */
+  filter: blur(7px);
+}
+
+/* 波前：一层全屏透明层，靠 backdrop-filter 把「环带扫过处」的背景糊开并提亮，
+   看上去就是水波折射；靠径向渐变的 mask 收成一道环，环外完全不受影响。
+   不叠加任何底色，保证只看到画面的扭曲、看不到白色带子。
+   --pcg-wave-r 由脚本每帧写入，等于波前半径。 */
+.pcg-ai-wave {
+  pointer-events: none;
+  --pcg-wave-r: 0px;
+  opacity: 0;
+  -webkit-backdrop-filter: blur(10px) saturate(1.5) brightness(1.12);
+  backdrop-filter: blur(10px) saturate(1.5) brightness(1.12);
+  -webkit-mask-image: radial-gradient(circle at 100% 0,
+    transparent calc(var(--pcg-wave-r) - 300px),
+    #000 calc(var(--pcg-wave-r) - 210px),
+    #000 calc(var(--pcg-wave-r) + 210px),
+    transparent calc(var(--pcg-wave-r) + 300px));
+  mask-image: radial-gradient(circle at 100% 0,
+    transparent calc(var(--pcg-wave-r) - 300px),
+    #000 calc(var(--pcg-wave-r) - 210px),
+    #000 calc(var(--pcg-wave-r) + 210px),
+    transparent calc(var(--pcg-wave-r) + 300px));
+}
+
+.pcg-ai-soft.is-on {
+  opacity: 0.55;
+}
+
+.pcg-ai-core.is-on {
+  opacity: 0.8;
 }
 
 /* 收尾勾：主题成功色实心圆底 + 白勾，先弹入再把勾一笔画完；reduced-motion 时直接静止显示 */
+/* 收尾勾：去掉绿色圆底，只留一笔绿色对勾；尺寸为原来的两倍 */
 .pcg-finish-ico {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 62px;
-  height: 62px;
-  margin-bottom: var(--pcg-s4);
-  border-radius: 50%;
-  background: var(--pcg-success);
-  color: #fff;
-  box-shadow: 0 10px 26px -12px color-mix(in srgb, var(--pcg-success) 85%, transparent);
+  width: 252px;
+  height: 252px;
+  color: var(--pcg-success);
   animation: pcg-check-pop calc(0.42s * var(--pcg-dur)) var(--pcg-move) both;
 }
 
-/* 62px 圆底不变，勾放大但仍在圆内 */
+/* 252px 图标位，勾按比例放大 */
 .pcg-finish-ico svg {
   display: block;
-  width: 48px;
-  height: 48px;
+  width: 186px;
+  height: 144px;
 }
 
 .pcg-check-path {
@@ -438,9 +730,10 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
 }
 
 /* 引导内的快捷配置：不套灰框，与页面同一底色；条目之间不画分隔线，只用间距区分 */
+/* 快捷配置跟在右栏列表之后，与右栏同宽 */
 .pcg-config {
   width: 100%;
-  max-width: 424px;
+  max-width: none;
   margin: var(--pcg-gap-config) 0 0;
   padding-top: var(--pcg-s3);
   border-top: 1px solid var(--pcg-border);
@@ -469,6 +762,12 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
 .pcg-cfg-group.is-off {
   opacity: 0.42;
   pointer-events: none;
+}
+
+/* 总开关关闭时，间隔下拉同样不可操作 */
+.pcg-cfg-input:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 /* display:flex 会盖掉 UA 的 [hidden]：条件行必须显式藏起来 */
@@ -611,19 +910,21 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
 }
 
 /* 整块居中：进度点在上、提示居中、主按钮固定在最下 */
+/* 底部一行：进度点与提示靠左，操作按钮推到最右侧，
+   右边缘与右栏内容同一条内边距线，不再单独居中 */
 .pcg-welcome-foot {
   display: flex;
   flex: none;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--pcg-s3);
+  gap: var(--pcg-s3) var(--pcg-s4);
   margin-top: var(--pcg-gap-foot);
 }
 
 /* 欢迎流程的进度点复用 Tour 那套，但不再占满一行 */
 .pcg-welcome-foot .pcg-dots {
   flex: none;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .pcg-welcome-foot .pcg-primary {
@@ -632,12 +933,13 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   font-size: 14px;
 }
 
-/* 「上一步」与「下一步 / 结束」同一行；上一步是次要按钮，不抢主按钮 */
+/* 「上一步」与「下一步 / 结束」同一行，整体贴右；上一步是次要按钮，不抢主按钮 */
 .pcg-welcome-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: var(--pcg-gap-btn);
+  margin-left: auto;
 }
 
 .pcg-ghost {
@@ -677,7 +979,7 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   font-size: 11.5px;
   line-height: 1.6;
   color: var(--pcg-dim);
-  text-align: center;
+  text-align: left;
 }
 
 .pcg-primary {
@@ -952,9 +1254,27 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
 
 /* 收尾勾：弹入 + 描边一笔画出 */
 @keyframes pcg-check-pop {
-  0% { opacity: 0; transform: scale(0.62); }
-  62% { opacity: 1; transform: scale(1.06); }
-  100% { opacity: 1; transform: scale(1); }
+  0% { opacity: 0; transform: scale(0.62) rotate(-8deg); }
+  58% { opacity: 1; transform: scale(1.07) rotate(3deg); }
+  78% { transform: scale(0.985) rotate(-1.2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+/* 粒子成形时的「超出回」：先冲过头，再往回收，幅度依次收敛后归零 */
+@keyframes pcg-logo-pop {
+  0% { transform: scale(1); }
+  26% { transform: scale(1.14); }
+  48% { transform: scale(0.955); }
+  68% { transform: scale(1.045); }
+  84% { transform: scale(0.992); }
+  100% { transform: scale(1); }
+}
+
+/* 光波：从 LOGO 内圈推出去，边扩边淡 */
+@keyframes pcg-logo-wave {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.45); }
+  16% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.95); }
 }
 
 @keyframes pcg-check-draw {
@@ -970,6 +1290,22 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+/* 一笔描出：pathLength 归一化到 1 后，dashoffset 从 1 收到 0 就是沿路径画完 */
+@keyframes pcg-line-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* 画完后的「活一下」：轻弹、左右各晃一次，幅度递减，最后落回原位归于平静 */
+@keyframes pcg-icon-live {
+  0% { transform: scale(1) rotate(0deg); }
+  26% { transform: scale(1.1) rotate(-3.5deg); }
+  50% { transform: scale(0.965) rotate(2.6deg); }
+  72% { transform: scale(1.035) rotate(-1.3deg); }
+  88% { transform: scale(0.99) rotate(0.5deg); }
+  100% { transform: scale(1) rotate(0deg); }
 }
 
 @keyframes pcg-step-in {
@@ -995,6 +1331,16 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   /* 欢迎窗直接出现：遮罩与卡片都不做淡入，避免祖先 opacity 把卡片一起渐显 */
   #pcg-root .pcg-scrim {
     animation: none !important;
+  }
+
+  /* 不放粒子（脚本会跳过）：实心 LOGO 直接露出来 */
+  #pcg-root .pcg-logo-img {
+    opacity: 1 !important;
+    filter: none !important;
+  }
+
+  #pcg-root .pcg-logo-particles {
+    display: none !important;
   }
 
   /* 浮层进出都不做位移与淡入：直接出现在最终位置，退场只保留淡出 */
@@ -1028,8 +1374,66 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
     max-width: 100%;
   }
 
+  /* 窄屏：两栏等宽放不下，改单列，图标回到文案上方 */
+  .pcg-screen-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--pcg-s4);
+  }
+
+  .pcg-screen-body > .pcg-logo-stage,
+  .pcg-screen-body > .pcg-logo,
+  .pcg-screen-body > .pcg-cat-ico,
+  .pcg-screen-body > .pcg-finish-ico {
+    grid-row: 1;
+    justify-self: start;
+  }
+
+  .pcg-screen-main {
+    grid-row: 2;
+  }
+
   .pcg-config {
     max-width: 100%;
+  }
+
+  /* 窄屏：图标仍按两倍口径，但整体收一号，避免挤掉文案 */
+  .pcg-logo {
+    width: 144px;
+    height: 144px;
+  }
+
+  /* 打字机同步收一号，单行不长到出界 */
+  .pcg-typer {
+    font-size: 20px;
+  }
+
+  .pcg-logo-fallback svg {
+    width: 92px;
+    height: 92px;
+  }
+
+  .pcg-cat-ico {
+    width: 180px;
+    height: 180px;
+  }
+
+  .pcg-cat-ico svg {
+    width: 114px;
+    height: 114px;
+  }
+
+  .pcg-finish-ico {
+    width: 192px;
+    height: 192px;
+  }
+
+  .pcg-finish-ico svg {
+    width: 144px;
+    height: 111px;
+  }
+
+  .pcg-welcome-title {
+    font-size: 22px;
   }
 
   .pcg-cfg-input {
