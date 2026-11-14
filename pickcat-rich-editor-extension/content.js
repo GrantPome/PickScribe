@@ -2740,6 +2740,8 @@
 
   const TPL_KEY = 'pcr_templates';        // 模板库存储键（chrome.storage.local，失效时降级 localStorage）
   const TPL_MAX = 30;                     // 模板数量上限，避免无限增长
+  const TPL_SEED_KEY = 'pcr_templates_seeded';  // 默认模板播种标记：只播种一次，用户删掉后不再补回
+  const TPL_SEED_VER = '1';               // 播种版本号，后续新增默认模板时可改它做增量补种
   const DRAFT_KEY = 'pcr_drafts';         // 草稿箱存储键（多条草稿，可与模板一样降级 localStorage）
   const DRAFT_MAX = 50;                   // 草稿数量上限
   const SLASH_GROUP_TAG = { heading: '标题', list: '列表', code: '代码', insert: '插入', tpl: '模板', ai: 'AI' };
@@ -3109,6 +3111,201 @@
     });
   }
 
+  // —— 默认模板（首次挂载时自动补入，用户可自由改名 / 删除） ——
+
+  /** 内置模板：只写纯 Markdown，不写站点私有 ID（表情 / 图片 UUID / 作品与视频组件需用工具栏插入） */
+  const DEFAULT_TEMPLATES = [
+    {
+      id: 'tpl_default_works',
+      name: '作品发布',
+      content: [
+        '# 作品名',
+        '',
+        '> 一句话介绍这个作品：做了什么、给谁玩。',
+        '',
+        '## 🔗 在线体验',
+        '',
+        '[点这里直接玩](https://)',
+        '',
+        '## 🎮 玩法说明',
+        '',
+        '1. 打开后点击「开始」',
+        '2. 用方向键移动，空格跳跃',
+        '3. 收集全部星星过关',
+        '',
+        '## ✨ 这次做了什么',
+        '',
+        '- 新增：',
+        '- 调整：',
+        '- 优化：',
+        '',
+        '## 🐛 已知问题',
+        '',
+        '- [ ] 移动端触屏暂未适配',
+        '- [ ] 第三关背景音乐有延迟',
+        '',
+        '## 💬 想听听你的意见',
+        '',
+        '欢迎在评论区说说手感如何，或者你想要什么新玩法。'
+      ].join('\n')
+    },
+    {
+      id: 'tpl_default_changelog',
+      name: '更新日志',
+      content: [
+        '## 🗓️ 版本号 / 日期',
+        '',
+        '**更新要点**',
+        '',
+        '- ✨ 新增：',
+        '- 🛠️ 优化：',
+        '- 🐛 修复：',
+        '',
+        '---',
+        '',
+        '### 详细说明',
+        '',
+        '| 模块 | 变化 |',
+        '| --- | --- |',
+        '| 编辑器 |  |',
+        '| 浮层 |  |',
+        '',
+        '> 升级方式：在扩展管理页重新加载，或直接安装新版本。'
+      ].join('\n')
+    },
+    {
+      id: 'tpl_default_tutorial',
+      name: '图文教程',
+      content: [
+        '# 教程标题',
+        '',
+        '> 一句话说明这篇教程能解决什么问题、适合谁看。',
+        '',
+        '## 前置条件',
+        '',
+        '- [ ] 已安装插件',
+        '- [ ] 已登录站点账号',
+        '',
+        '## 操作步骤',
+        '',
+        '### 1. 第一步',
+        '',
+        '（写下操作说明，并在下方插入截图）',
+        '',
+        '### 2. 第二步',
+        '',
+        '（继续补充步骤）',
+        '',
+        '## 常见问题',
+        '',
+        '| 问题 | 解决办法 |',
+        '| --- | --- |',
+        '| 按钮没出现 | 刷新页面后重试 |',
+        '',
+        '## 参考链接',
+        '',
+        '- '
+      ].join('\n')
+    },
+    {
+      id: 'tpl_default_feedback',
+      name: '问题反馈',
+      content: [
+        '# 问题反馈',
+        '',
+        '## 环境信息',
+        '',
+        '| 项目 | 信息 |',
+        '| --- | --- |',
+        '| 浏览器 | Chrome 版本号 |',
+        '| 操作系统 | Windows 11 |',
+        '| 插件版本 |  |',
+        '',
+        '## 复现步骤',
+        '',
+        '1. 打开编辑页',
+        '2. 点击「插入图片」',
+        '3. 选择本地文件',
+        '',
+        '## 预期行为',
+        '',
+        '## 实际行为',
+        '',
+        '## 截图 / 录屏',
+        '',
+        '（在此处插入图片）',
+        '',
+        '## 控制台报错',
+        '',
+        '```text',
+        '把红色报错原样粘贴到这里',
+        '```'
+      ].join('\n')
+    }
+  ];
+
+  let tplSeedTask = null;   // 播种只执行一次，缓存 Promise 避免重复读写
+
+  /** 读取播种标记（与模板列表共用同一套存储降级逻辑） */
+  function readTplSeedFlag(cb) {
+    if (!tplStorageOk()) {
+      try { cb(localStorage.getItem(TPL_SEED_KEY) === TPL_SEED_VER); }
+      catch (e) { cb(false); }
+      return;
+    }
+    try {
+      chrome.storage.local.get({ [TPL_SEED_KEY]: '' }, (raw) => {
+        if (chrome.runtime.lastError) { cb(false); return; }
+        cb(String((raw && raw[TPL_SEED_KEY]) || '') === TPL_SEED_VER);
+      });
+    } catch (e) { cb(false); }
+  }
+
+  /** 写入播种标记；写失败时下次挂载会再试一遍，不会重复补入（有 id / 名称去重） */
+  function writeTplSeedFlag() {
+    if (!tplStorageOk()) {
+      try { localStorage.setItem(TPL_SEED_KEY, TPL_SEED_VER); } catch (e) { /* 配额不足时忽略 */ }
+      return;
+    }
+    try { chrome.storage.local.set({ [TPL_SEED_KEY]: TPL_SEED_VER }); } catch (e) { /* 同上 */ }
+  }
+
+  /** 首次挂载时补入内置模板：不覆盖已有模板，用户删掉后不再补回 */
+  function seedDefaultTemplates() {
+    if (tplSeedTask) return tplSeedTask;
+    tplSeedTask = new Promise((resolve) => {
+      readTplSeedFlag((seeded) => {
+        if (seeded) { resolve(); return; }
+        loadTemplates().then((list) => {
+          // 已有模板占满上限：先不写标记，等用户清理后再补
+          if (list.length >= TPL_MAX) { resolve(); return; }
+          const usedIds = new Set(list.map((t) => t && t.id));
+          const usedNames = new Set(list.map((t) => t && t.name));
+          // 时间戳排在已有模板之前（更旧），保证用户自己的模板在斜杠面板里优先展示
+          const oldest = list.reduce((min, t) => {
+            const time = (t && (t.updatedAt || t.createdAt)) || 0;
+            return time > 0 && time < min ? time : min;
+          }, Date.now());
+          const base = oldest - 60000;
+          const items = DEFAULT_TEMPLATES
+            .filter((tpl) => !usedIds.has(tpl.id) && !usedNames.has(tpl.name))
+            .map((tpl, i) => Object.assign({}, tpl, {
+              createdAt: base - i * 1000,
+              updatedAt: base - i * 1000
+            }));
+          if (!items.length) { writeTplSeedFlag(); resolve(); return; }
+          // 剩余空位放不下全部默认模板时先不写标记，等用户清理后再整批补入
+          if (list.length + items.length > TPL_MAX) { resolve(); return; }
+          saveTemplates(list.concat(items)).then((ok) => {
+            if (ok) writeTplSeedFlag();
+            resolve();
+          });
+        });
+      });
+    });
+    return tplSeedTask;
+  }
+
   // —— 模板弹窗 ——
 
   /** 统一弹窗外壳；Esc 与点遮罩都会关闭 */
@@ -3151,6 +3348,7 @@
   function closeTplShell() {
     if (tplMask && tplMask.parentElement) tplMask.parentElement.removeChild(tplMask);
     tplMask = null;
+    libShell = null;   // 外壳已移除，下次打开重新构建
     if (tplEscHandler) {
       document.removeEventListener('keydown', tplEscHandler, true);
       tplEscHandler = null;
@@ -3228,8 +3426,9 @@
 
   let libTab = 'draft';     // 当前页签：draft / tpl
   let libOpenId = '';       // 当前展开预览的条目 id
+  let libShell = null;      // 已构建的弹窗外壳：切页签只换内容，不重新打开
+  let libCache = { draft: [], tpl: [] };  // 两个页签的缓存，切换时不用重新读存储
 
-  function libList(tab) { return tab === 'tpl' ? loadTemplates() : loadDrafts(); }
   function libSave(tab, list) { return tab === 'tpl' ? saveTemplates(list) : saveDrafts(list); }
   function libLabel(tab) { return tab === 'tpl' ? '模板' : '草稿'; }
 
@@ -3245,49 +3444,142 @@
     return btn;
   }
 
+  /** 内容变化前后平滑过渡弹窗高度：不重播打开动画，也不重建整个窗口 */
+  function libMorph(fn) {
+    const modal = libShell && libShell.modal;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!modal || reduce) { if (fn) fn(); return; }
+    const from = modal.getBoundingClientRect().height;
+    if (fn) fn();
+    // 先量出内容需要的新高度，再退回旧高度开始过渡
+    modal.style.height = 'auto';
+    const to = modal.getBoundingClientRect().height;
+    if (Math.abs(to - from) < 1) { modal.style.height = ''; return; }
+    modal.style.height = from + 'px';
+    void modal.offsetHeight;   // 强制回流，让起始高度先落地
+    const body = libShell.body;
+    const oldOverflow = body.style.overflow;
+    body.style.overflow = 'hidden';   // 过渡期间不出现内层滚动条抖动
+    modal.style.transition = 'height .28s cubic-bezier(.22,1,.36,1)';
+    const finish = () => {
+      modal.style.transition = '';
+      modal.style.height = '';
+      body.style.overflow = oldOverflow;
+    };
+    // transitionend 被下一次过渡打断时不会触发，用定时器兜底复位
+    const fallback = setTimeout(finish, 420);
+    const onEnd = (e) => {
+      if (e.target !== modal || e.propertyName !== 'height') return;
+      clearTimeout(fallback);
+      modal.removeEventListener('transitionend', onEnd);
+      finish();
+    };
+    modal.addEventListener('transitionend', onEnd);
+    requestAnimationFrame(() => { modal.style.height = to + 'px'; });
+  }
+
+  /** 重新读取两个页签数据并原地重绘（改名、覆盖、删除后调用） */
+  async function libRefresh() {
+    libCache.draft = await loadDrafts();
+    libCache.tpl = await loadTemplates();
+    slashTemplates = libCache.tpl;
+    if (libShell) libMorph(() => paintLibrary());
+  }
+
   /** 打开资料库，tab 传 'draft' 或 'tpl' */
   async function openLibrary(tab) {
     const next = tab === 'tpl' ? 'tpl' : 'draft';
     if (next !== libTab) libOpenId = '';
     libTab = next;
-    const list = await libList(libTab);
-    if (libTab === 'tpl') slashTemplates = list;
-    renderLibrary(list);
+    await libRefresh();     // 外壳已存在时内部会原地重绘并平滑过渡
+    if (!libShell) {
+      buildLibraryShell();
+      paintLibrary();
+    }
   }
 
   function openTemplateManager() { return openLibrary('tpl'); }
   function openDraftManager() { return openLibrary('draft'); }
 
-  /** 渲染资料库：顶部页签 + 卡片列表，点卡片展开预览 */
-  function renderLibrary(list) {
-    const tab = libTab;
-    const isTpl = tab === 'tpl';
-    const label = libLabel(tab);
-    const shell = openTplShell({ title: isTpl ? '模板库' : '草稿箱' });
+  /** 构建固定外壳：标题、页签、内容区、底栏都只建一次 */
+  function buildLibraryShell() {
+    const shell = openTplShell({ title: '' });
+    const modal = shell.modal;
+    const lib = {
+      modal: modal,
+      title: modal.querySelector('.' + NS + '-tpl-title'),
+      tabs: document.createElement('div'),
+      body: document.createElement('div'),
+      addBtn: document.createElement('button'),
+      tabBtns: {},
+      countEls: {}
+    };
 
-    // 页签：两个互相切换，当前页签带数量
-    const tabs = document.createElement('div');
-    tabs.className = NS + '-lib-tabs';
+    lib.tabs.className = NS + '-lib-tabs';
     [['draft', '草稿箱'], ['tpl', '模板库']].forEach((pair) => {
       const key = pair[0];
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = NS + '-lib-tab' + (tab === key ? ' is-active' : '');
-      btn.setAttribute('aria-pressed', tab === key ? 'true' : 'false');
+      btn.className = NS + '-lib-tab';
       btn.appendChild(document.createTextNode(pair[1]));
-      if (tab === key) {
-        const count = document.createElement('span');
-        count.className = NS + '-lib-count';
-        count.textContent = String(list.length);
-        btn.appendChild(count);
-      }
-      btn.addEventListener('click', () => { if (tab !== key) openLibrary(key); });
-      tabs.appendChild(btn);
+      const count = document.createElement('span');
+      count.className = NS + '-lib-count';
+      btn.appendChild(count);
+      btn.addEventListener('click', () => { if (libTab !== key) openLibrary(key); });
+      lib.tabBtns[key] = btn;
+      lib.countEls[key] = count;
+      lib.tabs.appendChild(btn);
     });
-    shell.modal.appendChild(tabs);
 
-    const body = document.createElement('div');
-    body.className = NS + '-lib-body';
+    lib.body.className = NS + '-lib-body';
+    modal.appendChild(lib.tabs);
+    modal.appendChild(lib.body);
+
+    const foot = document.createElement('div');
+    foot.className = NS + '-tpl-foot';
+    lib.addBtn.type = 'button';
+    lib.addBtn.className = NS + '-tpl-btn';
+    lib.addBtn.addEventListener('click', () => {
+      const isTpl = libTab === 'tpl';
+      closeTplShell();
+      if (isTpl) saveCurrentAsTemplate();
+      else saveCurrentAsDraft();
+    });
+    const done = document.createElement('button');
+    done.type = 'button';
+    done.className = NS + '-tpl-btn is-primary';
+    done.textContent = '完成';
+    done.addEventListener('click', closeTplShell);
+    foot.appendChild(lib.addBtn);
+    foot.appendChild(done);
+    modal.appendChild(foot);
+
+    libShell = lib;
+  }
+
+  /** 原地绘制当前页签内容 */
+  function paintLibrary() {
+    if (!libShell) return;
+    const tab = libTab;
+    const list = libCache[tab] || [];
+    const isTpl = tab === 'tpl';
+    const label = libLabel(tab);
+
+    const paint = () => {
+      // 标题、页签、数量、底栏按钮都复用已有节点，只改状态
+      libShell.title.textContent = isTpl ? '模板库' : '草稿箱';
+      ['draft', 'tpl'].forEach((key) => {
+        const active = key === tab;
+        const btn = libShell.tabBtns[key];
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+        libShell.countEls[key].textContent = String((libCache[key] || []).length);
+      });
+      libShell.addBtn.textContent = isTpl ? '保存当前为模板' : '保存当前为新草稿';
+
+      const body = libShell.body;
+      body.textContent = '';    // 只替换内容，外壳与页签不重建
+      body.scrollTop = 0;
     if (!list.length) {
       const empty = document.createElement('div');
       empty.className = NS + '-tpl-empty';
@@ -3325,16 +3617,19 @@
       main.appendChild(timeEl);
       main.addEventListener('click', () => {
         const open = item.id !== libOpenId;
-        libOpenId = open ? item.id : '';
-        body.querySelectorAll('.' + NS + '-lib-card.is-open').forEach((el) => {
-          el.classList.remove('is-open');
-          const b = el.querySelector('.' + NS + '-lib-main');
-          if (b) b.setAttribute('aria-expanded', 'false');
+        // 展开 / 收起预览时同样平滑过渡高度
+        libMorph(() => {
+          libOpenId = open ? item.id : '';
+          body.querySelectorAll('.' + NS + '-lib-card.is-open').forEach((el) => {
+            el.classList.remove('is-open');
+            const b = el.querySelector('.' + NS + '-lib-main');
+            if (b) b.setAttribute('aria-expanded', 'false');
+          });
+          if (open) {
+            card.classList.add('is-open');
+            main.setAttribute('aria-expanded', 'true');
+          }
         });
-        if (open) {
-          card.classList.add('is-open');
-          main.setAttribute('aria-expanded', 'true');
-        }
       });
 
       const acts = document.createElement('div');
@@ -3374,7 +3669,7 @@
           const ok = await libSave(tab, list);
           if (!ok) { toast('重命名失败'); return; }
           toast('已重命名');
-          openLibrary(tab);
+          libRefresh();
         }, { title: '重命名' + label, placeholder: label + '名称', emptyTip: '名称不能为空' });
       });
 
@@ -3403,7 +3698,7 @@
           const ok = await libSave(tab, list);
           if (!ok) { toast('覆盖失败'); return; }
           toast('已覆盖草稿「' + (item.name || '未命名草稿') + '」');
-          openLibrary(tab);
+          libRefresh();
         }));
       }
 
@@ -3427,7 +3722,7 @@
         if (!ok) { toast('删除失败'); return; }
         if (libOpenId === item.id) libOpenId = '';
         toast('已删除' + label);
-        openLibrary(tab);
+        libRefresh();
       }));
 
       row.appendChild(main);
@@ -3444,27 +3739,9 @@
       body.appendChild(card);
     });
 
-    shell.modal.appendChild(body);
+    };
 
-    const foot = document.createElement('div');
-    foot.className = NS + '-tpl-foot';
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = NS + '-tpl-btn';
-    add.textContent = isTpl ? '保存当前为模板' : '保存当前为新草稿';
-    add.addEventListener('click', () => {
-      closeTplShell();
-      if (isTpl) saveCurrentAsTemplate();
-      else saveCurrentAsDraft();
-    });
-    const done = document.createElement('button');
-    done.type = 'button';
-    done.className = NS + '-tpl-btn is-primary';
-    done.textContent = '完成';
-    done.addEventListener('click', closeTplShell);
-    foot.appendChild(add);
-    foot.appendChild(done);
-    shell.modal.appendChild(foot);
+    paint();
   }
 
   // —— 草稿箱 ——
@@ -4555,6 +4832,7 @@
       // 首次为这个 textarea 挂载：注入样式、统一编辑行为、绑定一次性事件
       ta.dataset[MOUNT_FLAG] = '1';
       injectStyle();
+      seedDefaultTemplates();   // 首次挂载补入内置模板（只补一次，之后走用户自己的增删）
 
       // 统一编辑行为：回车生成 <p>（利于转成 Markdown 段落），颜色类命令用 span 内联样式
       try {
