@@ -297,7 +297,7 @@ html[data-theme="dark"] .pcs-logo-light {
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  transition: background-color 0.16s ease, box-shadow 0.2s ease;
+  transition: background-color 0.16s ease, box-shadow 0.2s ease, transform 0.12s ease;
 }
 
 .pcs-submit:hover {
@@ -306,6 +306,7 @@ html[data-theme="dark"] .pcs-logo-light {
 
 .pcs-submit:active {
   background: color-mix(in oklab, var(--pcs-primary) 78%, #000);
+  transform: scale(0.97);
 }
 
 .pcs-submit:focus-visible {

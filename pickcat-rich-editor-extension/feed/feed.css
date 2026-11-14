@@ -55,7 +55,7 @@ section[aria-label$="帖子"].pcf-grid > :not(article[data-slot="root"]) {
   background: transparent;
   color: var(--ui-text-muted, #767676);
   cursor: pointer;
-  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
   -webkit-appearance: none;
   appearance: none;
 }
@@ -63,6 +63,10 @@ section[aria-label$="帖子"].pcf-grid > :not(article[data-slot="root"]) {
 #pcf-toggle .pcf-btn:hover {
   background: var(--ui-bg-elevated, #ffffff);
   color: var(--ui-text-highlighted, #111111);
+}
+
+#pcf-toggle .pcf-btn:active {
+  transform: scale(0.94);
 }
 
 #pcf-toggle .pcf-btn:focus-visible {

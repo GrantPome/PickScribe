@@ -498,14 +498,14 @@ code {
   font: inherit;
   font-size: 14px;
   font-weight: 600;
-  transition: background-color .15s, color .15s, border-color .15s, box-shadow .15s;
+  transition: background-color .15s, color .15s, border-color .15s, box-shadow .15s, transform .12s ease;
 }
 .mini:hover {
   border-color: var(--ui-border-accented);
   background: var(--ui-bg-accented);
   color: var(--ui-text);
 }
-.mini:active { background: var(--ui-bg-muted); }
+.mini:active { background: var(--ui-bg-muted); transform: scale(0.96); }
 .mini:focus-visible {
   outline: 2px solid var(--ui-primary);
   outline-offset: 2px;
@@ -796,7 +796,7 @@ a.row-value:focus-visible {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color .15s, color .15s, border-color .15s, box-shadow .15s;
+  transition: background-color .15s, color .15s, border-color .15s, box-shadow .15s, transform .12s ease;
 }
 .btn:hover {
   border-color: var(--ui-text-dimmed);
@@ -806,6 +806,7 @@ a.row-value:focus-visible {
 .btn:active {
   background: var(--ui-bg-muted);
   border-color: var(--ui-text-muted);
+  transform: scale(0.97);
 }
 .btn:focus-visible {
   outline: 2px solid var(--ui-primary);

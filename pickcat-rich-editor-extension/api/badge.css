@@ -1,0 +1,644 @@
+/**
+ * 账号工牌样式。
+ *
+ * 形态：头像底部伸出一根弹性绳，绳子系着工牌顶部，工牌浮在头像下方。
+ * 结构：#pcr-badge-root（fixed 全屏、不接收事件）
+ *         ├─ .pcr-badge-rope（SVG，铺满视口，只画绳子）
+ *         └─ .pcr-badge-stage（JS 每帧 translate3d，跟随绳子摆动）
+ *               └─ .pcr-badge-card（rotateZ / rotateX / rotateY，顶部中心为轴）
+ *
+ * 约定：
+ *   1. 没有全屏遮罩，也没有模态语义，点击外部即关闭；
+ *   2. 动画只改 transform / opacity，卡片本体不用 backdrop-filter；
+ *   3. 颜色全部取站点 --ui-* 令牌，深色模式自动跟随。
+ */
+
+#pcr-badge-root {
+  --pcr-card: var(--ui-bg-elevated, #ffffff);
+  --pcr-text: var(--ui-text, #1f2328);
+  --pcr-muted: var(--ui-text-muted, #6b7280);
+  --pcr-dim: var(--ui-text-dimmed, #9aa0a6);
+  --pcr-line: var(--ui-border, rgba(0, 0, 0, 0.1));
+  --pcr-soft: var(--ui-bg-accented, #f3f4f6);
+  --pcr-primary: var(--ui-primary, #d93b36);
+  --pcr-danger: var(--ui-error, #d93b36);
+  --pcr-rope: rgba(0, 0, 0, 0.34);
+  --pcr-shadow: 0 26px 60px rgba(0, 0, 0, 0.26), 0 3px 12px rgba(0, 0, 0, 0.12);
+
+  position: fixed;
+  inset: 0;
+  z-index: 2147482000;
+  /* 浮层不是窗帘：根节点只做定位容器，事件只交给工牌本身 */
+  pointer-events: none;
+  font-family: inherit;
+  color: var(--pcr-text);
+}
+
+#pcr-badge-root[hidden] {
+  display: none;
+}
+
+html.dark #pcr-badge-root {
+  --pcr-card: var(--ui-bg-elevated, #1b1d21);
+  --pcr-text: var(--ui-text, #f2f3f5);
+  --pcr-muted: var(--ui-text-muted, #a3a8b0);
+  --pcr-dim: var(--ui-text-dimmed, #787e88);
+  --pcr-line: var(--ui-border, rgba(255, 255, 255, 0.12));
+  --pcr-soft: var(--ui-bg-accented, #24272c);
+  --pcr-rope: rgba(255, 255, 255, 0.42);
+  --pcr-shadow: 0 28px 70px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+#pcr-badge-root *,
+#pcr-badge-root *::before,
+#pcr-badge-root *::after {
+  box-sizing: border-box;
+}
+
+#pcr-badge-root h2,
+#pcr-badge-root p {
+  margin: 0;
+}
+
+#pcr-badge-root button,
+#pcr-badge-root a {
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#pcr-badge-root :focus-visible {
+  outline: 2px solid var(--pcr-primary);
+  outline-offset: 2px;
+}
+
+/* ============================ 弹性绳 ============================ */
+
+.pcr-badge-rope {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* 起点是头像底部，终点是工牌顶部中心；拉伸时由 JS 让曲线鼓出去 */
+.pcr-badge-rope path {
+  fill: none;
+  stroke: var(--pcr-rope);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.pcr-badge-rope circle {
+  fill: var(--pcr-rope);
+  stroke: var(--pcr-card);
+  stroke-width: 1.4;
+}
+
+/* ============================ 浮动舞台 ============================ */
+
+/* 位置完全由 JS 的 translate3d 决定，这里只负责 3D 透视与淡入淡出 */
+.pcr-badge-stage {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: max-content;
+  perspective: 1100px;
+  perspective-origin: 50% 0;
+  opacity: 0;
+  pointer-events: auto;
+  will-change: transform, opacity;
+  transition: opacity 0.18s ease;
+}
+
+#pcr-badge-root.is-open .pcr-badge-stage {
+  opacity: 1;
+}
+
+#pcr-badge-root.is-closing .pcr-badge-stage {
+  opacity: 0;
+  pointer-events: none;
+  /* 先让工牌沿绳子收回，再淡出，避免半路消失 */
+  transition: opacity 0.2s ease 0.14s;
+}
+
+/* ============================ 卡片与 3D ============================ */
+
+.pcr-badge-card {
+  position: relative;
+  width: clamp(272px, 80vw, 304px);
+  height: clamp(360px, 64vh, 400px);
+  border-radius: 22px;
+  /* 挂点在上边缘中心，摆动像吊牌而不是绕中心翻转 */
+  transform-origin: 50% 0;
+  transform-style: preserve-3d;
+  transform: rotateY(var(--pcr-flip, 0deg));
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  outline: none;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  will-change: transform;
+}
+
+.pcr-badge-card.is-dragging {
+  cursor: grabbing;
+  transition: none;
+}
+
+.pcr-badge-card:focus-visible {
+  outline: 2px solid var(--pcr-primary);
+  outline-offset: 8px;
+}
+
+.pcr-badge-face {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  background: var(--pcr-card);
+  border: 1px solid var(--pcr-line);
+  box-shadow: var(--pcr-shadow);
+  color: var(--pcr-text);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.pcr-badge-back {
+  transform: rotateY(180deg);
+  padding: 16px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ============================ 正面 ============================ */
+
+.pcr-badge-front {
+  padding: 38px 22px 16px;
+  touch-action: none;
+}
+
+.pcr-badge-holo {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: -26%;
+  height: 70%;
+  background: radial-gradient(closest-side, var(--pcr-primary), transparent 72%);
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+/* 顶部挂孔：绳子从这里穿进卡片 */
+.pcr-badge-clip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 68px;
+  height: 30px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--pcr-line);
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  background: linear-gradient(180deg, var(--pcr-soft), var(--pcr-card));
+  box-shadow: inset 0 -3px 6px rgb(0 0 0 / 0.08);
+  z-index: 2;
+}
+
+.pcr-badge-clip span {
+  width: 24px;
+  height: 7px;
+  border-radius: 6px;
+  background: var(--pcr-line);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.18);
+}
+
+.pcr-badge-front-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+}
+
+.pcr-badge-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  margin-top: 4px;
+  background: var(--pcr-soft);
+  border: 2px solid var(--pcr-line);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.14);
+  flex: none;
+}
+
+.pcr-badge-avatar img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  display: block;
+}
+
+.pcr-badge-avatar span {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--pcr-muted);
+}
+
+.pcr-badge-name {
+  margin-top: 14px;
+  font-size: 21px;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pcr-badge-handle {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--pcr-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pcr-badge-site {
+  margin-top: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--pcr-line);
+  border-radius: 999px;
+  background: var(--pcr-soft);
+  color: var(--pcr-dim);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+/* 作品 / 粉丝 / 关注 */
+.pcr-badge-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.pcr-badge-stat {
+  min-width: 0;
+  padding: 9px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  border: 1px solid var(--pcr-line);
+  border-radius: 11px;
+  background: var(--pcr-soft);
+  color: var(--pcr-muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.pcr-badge-stat b {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--pcr-text);
+}
+
+.pcr-badge-meta {
+  margin-top: 14px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--pcr-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.pcr-badge-hint {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 11px;
+  color: var(--pcr-dim);
+  letter-spacing: 0.3px;
+}
+
+/* 随拖拽移动的高光，只改 --pcr-gx / --pcr-gy */
+.pcr-badge-front::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    240px circle at var(--pcr-gx, 50%) var(--pcr-gy, 30%),
+    rgb(255 255 255 / 0.28),
+    transparent 62%
+  );
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+html.dark #pcr-badge-root .pcr-badge-front::after {
+  background: radial-gradient(
+    240px circle at var(--pcr-gx, 50%) var(--pcr-gy, 30%),
+    rgb(255 255 255 / 0.1),
+    transparent 62%
+  );
+}
+
+/* ============================ 背面 ============================ */
+
+.pcr-badge-back-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pcr-muted);
+}
+
+.pcr-badge-flip {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--pcr-muted);
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.pcr-badge-flip:hover {
+  background: var(--pcr-soft);
+  color: var(--pcr-text);
+}
+
+.pcr-badge-menu {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* 触屏上保留纵向滚动，横向拖动仍交给 3D 倾斜 */
+  touch-action: pan-y;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 2px 2px;
+}
+
+.pcr-badge-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.pcr-badge-menu::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--pcr-line);
+}
+
+.pcr-badge-item {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--pcr-text);
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.pcr-badge-item:hover {
+  background: var(--pcr-soft);
+}
+
+.pcr-badge-item:active {
+  background: var(--pcr-line);
+}
+
+.pcr-badge-item-ico {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--pcr-soft);
+  color: var(--pcr-muted);
+}
+
+.pcr-badge-item:hover .pcr-badge-item-ico {
+  color: var(--pcr-text);
+}
+
+/* PickScribe 入口使用插件 LOGO，通过 mask 跟随菜单文字色 */
+.pcr-badge-logo {
+  display: block;
+  width: 17px;
+  height: 17px;
+  background: currentColor;
+  -webkit-mask: var(--pcr-logo) center / contain no-repeat;
+  mask: var(--pcr-logo) center / contain no-repeat;
+}
+
+.pcr-badge-item-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pcr-badge-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--pcr-line);
+}
+
+.pcr-badge-theme-label {
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--pcr-muted);
+}
+
+.pcr-badge-seg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--pcr-soft);
+}
+
+.pcr-badge-seg button {
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pcr-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.pcr-badge-seg button:hover {
+  color: var(--pcr-text);
+}
+
+.pcr-badge-seg button.is-on {
+  background: var(--pcr-card);
+  color: var(--pcr-text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
+}
+
+.pcr-badge-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--pcr-danger);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+}
+
+.pcr-badge-logout:hover {
+  background: var(--pcr-soft);
+}
+
+.pcr-badge-logout.is-armed {
+  border-color: var(--pcr-danger);
+}
+
+.pcr-badge-logout:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.pcr-badge-error {
+  margin: -2px 4px 0;
+  font-size: 11px;
+  color: var(--pcr-danger);
+}
+
+/* ============================ 关闭按钮 ============================ */
+
+.pcr-badge-close {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--pcr-line);
+  border-radius: 50%;
+  background: var(--pcr-card);
+  color: var(--pcr-muted);
+  cursor: pointer;
+  z-index: 3;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.2);
+  transition: color 0.16s ease, transform 0.16s ease;
+}
+
+.pcr-badge-close:hover {
+  color: var(--pcr-text);
+  transform: scale(1.06);
+}
+
+.pcr-badge-close:active {
+  transform: scale(0.94);
+}
+
+/* ============================ 窄屏与降级 ============================ */
+
+@media (max-width: 420px), (max-height: 620px) {
+  .pcr-badge-card {
+    width: min(292px, calc(100vw - 40px));
+    height: min(396px, calc(100vh - 140px));
+  }
+
+  .pcr-badge-close {
+    top: -10px;
+    right: -8px;
+  }
+
+  .pcr-badge-front {
+    padding: 34px 18px 14px;
+  }
+
+  .pcr-badge-avatar {
+    width: 72px;
+    height: 72px;
+    margin-top: 2px;
+  }
+
+  .pcr-badge-name {
+    margin-top: 10px;
+    font-size: 18px;
+  }
+
+  .pcr-badge-site {
+    margin-top: 8px;
+  }
+
+  .pcr-badge-stats {
+    margin-top: 10px;
+  }
+
+  .pcr-badge-meta {
+    margin-top: 10px;
+  }
+
+  .pcr-badge-hint {
+    padding-top: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcr-badge-stage,
+  .pcr-badge-card {
+    transition-duration: 0.001s !important;
+    transition-delay: 0s !important;
+  }
+}

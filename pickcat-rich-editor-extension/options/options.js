@@ -906,6 +906,8 @@ const IMAGE_ZOOM_KEY = 'pcr_image_zoom';
 const G2_RADIUS_KEY = 'pcr_g2_radius';
 /** 键 pcr_plus_link：与 content.js 的 PLUS_LINK_KEY 保持一致，控制是否响应 PICKCAT Plus 的唤起指令 */
 const PLUS_LINK_KEY = 'pcr_plus_link';
+/** 键 pcr_badge_menu：与 api/badge.js 的 ENABLED_KEY 保持一致，控制头像菜单是否使用 3D 工牌（默认关闭） */
+const BADGE_MENU_KEY = 'pcr_badge_menu';
 
 /** 与 content.js / shared/font-host.js 保持一致的字体库位置 */
 const FONT_DB = 'pcr_fonts';
@@ -1071,11 +1073,12 @@ async function removeFontFace(id, pending) {
 
 async function loadAppearance() {
   const raw = await chrome.storage.local.get([
-    HARMONY_FONT_KEY, IMAGE_ZOOM_KEY, FONT_MODE_KEY, FONT_CUSTOM_KEY, G2_RADIUS_KEY
+    HARMONY_FONT_KEY, IMAGE_ZOOM_KEY, FONT_MODE_KEY, FONT_CUSTOM_KEY, G2_RADIUS_KEY, BADGE_MENU_KEY
   ]);
   $('appearanceHarmonyFont').checked = raw[HARMONY_FONT_KEY] !== false && raw[HARMONY_FONT_KEY] !== '0';
   $('appearanceImageZoom').checked = raw[IMAGE_ZOOM_KEY] !== false && raw[IMAGE_ZOOM_KEY] !== '0';
   $('appearanceG2Radius').checked = raw[G2_RADIUS_KEY] !== false && raw[G2_RADIUS_KEY] !== '0';
+  $('appearanceBadgeMenu').checked = raw[BADGE_MENU_KEY] === true;
 
   const spec = raw[FONT_CUSTOM_KEY];
   savedFaces = (spec && Array.isArray(spec.faces) ? spec.faces : []).map((f) => ({
@@ -1169,6 +1172,11 @@ $('clearCustomFont').addEventListener('click', async () => {
 $('appearanceImageZoom').addEventListener('change', async (e) => {
   await chrome.storage.local.set({ [IMAGE_ZOOM_KEY]: e.target.checked });
   setStatus(e.target.checked ? '已开启点击图片查看大图' : '已关闭点击图片查看大图', 'ok');
+});
+
+$('appearanceBadgeMenu').addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ [BADGE_MENU_KEY]: e.target.checked });
+  setStatus(e.target.checked ? '头像菜单已切换为 3D 工牌' : '已恢复站点原生头像菜单', 'ok');
 });
 
 loadAppearance().catch((e) => setStatus('读取站点外观设置失败：' + e.message, 'err'));

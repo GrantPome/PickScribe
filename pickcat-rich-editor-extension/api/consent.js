@@ -27,6 +27,8 @@
   let root = null;
   let card = null;
   let requesterEl = null;
+  let clientIdEl = null;
+  let clientMarkEl = null;
   let actionEl = null;
   let permsEl = null;
   let detailEl = null;
@@ -46,39 +48,58 @@
     root.innerHTML = [
       '<div class="pcc-scrim" data-act="close"></div>',
       '<div class="pcc-card" role="dialog" aria-modal="true" aria-labelledby="pcc-title" aria-describedby="pcc-desc" tabindex="-1">',
-      '  <button class="pcc-close" type="button" aria-label="关闭确认窗口" data-act="close">×</button>',
       '  <div class="pcc-head">',
-      '    <div class="pcc-badge" aria-hidden="true">!</div>',
+      '    <div class="pcc-badge" aria-hidden="true">',
+      '      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.2c0 4.4-3 8.1-7 9.8-4-1.7-7-5.4-7-9.8V6l7-3Z"/><path d="m9.4 12.2 1.8 1.8 3.5-3.7"/></svg>',
+      '    </div>',
       '    <div class="pcc-head-text">',
       '      <h2 class="pcc-title" id="pcc-title">允许第三方扩展访问？</h2>',
       '      <p class="pcc-desc" id="pcc-desc">对方请求使用 PickScribe 的数据能力。</p>',
       '    </div>',
       '  </div>',
-      '  <div class="pcc-meta">',
-      '    <div class="pcc-meta-row"><span>请求方</span><strong data-ref="requester">—</strong></div>',
-      '    <div class="pcc-meta-row"><span>本次动作</span><strong data-ref="action">—</strong></div>',
+      '  <button class="pcc-close" type="button" aria-label="关闭确认窗口" data-act="close">×</button>',
+      '  <div class="pcc-body">',
+      '    <div class="pcc-client">',
+      '      <div class="pcc-client-mark" aria-hidden="true" data-ref="clientMark">?</div>',
+      '      <div class="pcc-client-text">',
+      '        <span class="pcc-client-label">请求方</span>',
+      '        <strong class="pcc-client-name" data-ref="requester">—</strong>',
+      '        <span class="pcc-client-id" data-ref="clientId" hidden></span>',
+      '      </div>',
+      '      <span class="pcc-tag">L1 信任模式</span>',
+      '    </div>',
+      '    <div class="pcc-action-line">',
+      '      <span class="pcc-action-label">本次动作</span>',
+      '      <span class="pcc-action-value" data-ref="action">—</span>',
+      '    </div>',
+      '    <div class="pcc-detail" data-ref="detail" hidden></div>',
+      '    <section class="pcc-section">',
+      '      <h3 class="pcc-section-title">请求的权限</h3>',
+      '      <ul class="pcc-perms" data-ref="perms"></ul>',
+      '    </section>',
+      '    <p class="pcc-warn">',
+      '      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
+      '      <span>当前是 L1 信任模式：请求方身份来自对方自述，页面脚本可能伪造。<strong>只有在你信任该扩展时才选择「长期允许」</strong>；只想放行一次可选「仅本次允许」。真正的身份校验会在 v1.1 配对后生效。</span>',
+      '    </p>',
       '  </div>',
-      '  <div class="pcc-detail" data-ref="detail" hidden></div>',
-      '  <div class="pcc-perms-wrap">',
-      '    <p class="pcc-section">请求的权限</p>',
-      '    <ul class="pcc-perms" data-ref="perms"></ul>',
-      '  </div>',
-      '  <p class="pcc-warn">当前是 L1 信任模式：请求方身份来自对方自述，页面脚本可能伪造。只有在你信任该扩展时才选择「长期允许」；只想放行一次可选「仅本次允许」。真正的身份校验会在 v1.1 配对后生效。</p>',
-      '  <div class="pcc-actions">',
-      '    <button class="pcc-btn pcc-btn-deny" type="button" data-act="deny">拒绝</button>',
-      '    <div class="pcc-actions-main">',
-      '      <button class="pcc-btn pcc-btn-allow" type="button" data-act="allow">长期允许</button>',
-      '      <button class="pcc-btn pcc-btn-once" type="button" data-act="once">仅本次允许</button>',
+      '  <div class="pcc-footer">',
+      '    <p class="pcc-once-hint">「仅本次允许」只放行这一次请求，不写入长期授权，下次同一权限项会再次询问；长期允许后可随时在「设置 → 开放接口 → 已授权扩展」中撤销。</p>',
+      '    <div class="pcc-actions">',
+      '      <button class="pcc-btn pcc-btn-deny" type="button" data-act="deny">拒绝</button>',
+      '      <div class="pcc-actions-main">',
+      '        <button class="pcc-btn pcc-btn-allow" type="button" data-act="allow">长期允许</button>',
+      '        <button class="pcc-btn pcc-btn-once" type="button" data-act="once">仅本次允许</button>',
+      '      </div>',
       '    </div>',
       '  </div>',
-      '  <p class="pcc-once-hint">「仅本次允许」只放行这一次请求，不写入长期授权，下次同一权限项会再次询问。</p>',
-      '  <p class="pcc-foot">长期允许后可在「设置 → 开放接口 → 已授权扩展」中随时撤销。</p>',
       '</div>'
     ].join('');
 
     (document.body || document.documentElement).appendChild(root);
     card = root.querySelector('.pcc-card');
     requesterEl = root.querySelector('[data-ref="requester"]');
+    clientIdEl = root.querySelector('[data-ref="clientId"]');
+    clientMarkEl = root.querySelector('[data-ref="clientMark"]');
     actionEl = root.querySelector('[data-ref="action"]');
     permsEl = root.querySelector('[data-ref="perms"]');
     detailEl = root.querySelector('[data-ref="detail"]');
@@ -92,17 +113,27 @@
     return root;
   }
 
-  function clientText(client) {
+  /** 请求方：名称与 ID 分开渲染，名称独占一行，ID 小字兜底 */
+  function renderClient(client) {
     const c = client && typeof client === 'object' ? client : {};
     const name = typeof c.name === 'string' ? c.name.trim() : '';
     const id = typeof c.extensionId === 'string' ? c.extensionId.trim() : '';
-    if (name && id && name !== id) return name + '（ID: ' + id + '）';
-    return name || id || '未提供名称或 ID';
+    const showId = !!(name && id && name !== id);
+
+    requesterEl.textContent = name || id || '未提供名称或 ID';
+    if (clientIdEl) {
+      clientIdEl.textContent = showId ? 'ID：' + id : '';
+      clientIdEl.hidden = !showId;
+    }
+    if (clientMarkEl) {
+      const seed = (name || id || '?').trim();
+      clientMarkEl.textContent = seed ? seed.charAt(0).toUpperCase() : '?';
+    }
   }
 
   function render(entry) {
     const msg = entry.msg || {};
-    requesterEl.textContent = clientText(msg.client);
+    renderClient(msg.client);
     actionEl.textContent = msg.actionLabel || msg.action || '未知动作';
 
     // 本次动作的实际影响：写入替换多少个字符 / 插入多少字符 / 是否会调用模型

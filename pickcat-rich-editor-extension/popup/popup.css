@@ -76,6 +76,7 @@ body {
 .btn {
   width: 100%; border: 1px solid var(--border); background: var(--bg); color: var(--text);
   border-radius: 8px; padding: 7px 0; font: inherit; font-size: 13px; cursor: pointer;
-  transition: background .26s cubic-bezier(.22,1,.36,1);
+  transition: background .26s cubic-bezier(.22,1,.36,1), transform .12s ease;
 }
 .btn:hover { background: var(--accent-soft); }
+.btn:active { transform: scale(0.97); }

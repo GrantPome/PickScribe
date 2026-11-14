@@ -5,12 +5,20 @@
  */
 import { streamChat, chat, LLMError, estimateMessagesTokens, estimateTokens } from './llm-client.js';
 import { getConfig, getCached, putCached, recordUsage } from '../shared/storage.js';
-import { sendTestNotification } from './notifications.js';
+import { sendTestNotification, showUpdateNotice } from './notifications.js';
 import { GUIDE_VERSION, GUIDE_KEYS, getProvider } from '../shared/constants.js';
 
 // 新手引导：首次安装写入初始状态；升级时只补未看过的步骤，不整段重播。
 // 具体播放时机由内容脚本 guide/guide.js 决定（等欢迎卡关闭 + 浮层落定）。
 chrome.runtime.onInstalled.addListener((details) => {
+  // 升级到新版本：弹一条系统通知，询问是否查看该版本的更新内容（同一版本只提示一次）
+  if (details.reason === 'update') {
+    const current = chrome.runtime.getManifest().version;
+    if (!details.previousVersion || details.previousVersion !== current) {
+      showUpdateNotice(current);
+    }
+  }
+
   chrome.storage.local.get(GUIDE_KEYS.state, (raw) => {
     const saved = raw && raw[GUIDE_KEYS.state];
 

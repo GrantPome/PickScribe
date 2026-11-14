@@ -611,12 +611,7 @@
   }
 
   /**
-   * 插件 LOGO：先用一根线把猫头轮廓勾出来，再淡入真实的实心 LOGO。
-   * 线稿与 icons/logo.svg 共用同一份路径，所以「画出来的形状」和最终图标完全对得上；
-   * 拿不到扩展图标时（比如上下文失效）只保留线稿，不至于空一块。
-   */
-  /**
-   * 欢迎屏的大 LOGO：由粒子汇聚而成。
+   * 插件 LOGO：欢迎屏的大图标，由粒子汇聚而成。
    * 结构是「粒子画布 → 实心图」，粒子聚齐后画布淡出、实心图淡入；
    * 取不到扩展内图标时退回线稿小图标，仍然能播。
    */
@@ -632,12 +627,10 @@
       '</span>';
   }
 
-  /** 与 icons/logo.svg 同一条路径（64 口径）：粒子采样靠它重绘，不依赖跨源图片 */
+  /** 与 icons/logo.svg 同一套路径（64 口径）：粒子采样靠它重绘，不依赖跨源图片 */
+  // 字母 P + 笔尖，字怀是路径里的第二个子路径，按 evenodd 挖空
   const LOGO_HEAD = typeof Path2D === 'function'
-    ? new Path2D('M32 53C21.5 53 15.5 46.5 15.5 36.5c0-5.5 1-9 3-12L13 12s8.5 4 13.5 6.5c3.5-1.3 7.5-1.3 11 0C42.5 16 51 12 51 12l-5.5 12.5c2 3 3 6.5 3 12 0 10-6 16.5-16.5 16.5Z')
-    : null;
-  const LOGO_FACE = typeof Path2D === 'function'
-    ? new Path2D('M24.5 24h15c-.5 7.6-3.2 14.6-7.5 21.5-4.3-6.9-7-13.9-7.5-21.5Z')
+    ? new Path2D('M16.15 9.1H33.75A14.1 14.1 0 0 1 33.75 37.3H27.15C25.75 43.5 23.75 48.7 22.25 53.3Q21.65 54.9 21.05 53.3C19.75 49.3 18.15 44.9 16.15 41.5Z M33.75 16.6a6.6 6.6 0 1 0 0 13.2 6.6 6.6 0 1 0 0-13.2Z')
     : null;
 
   /** 按 WELCOME_FLOW 生成每一屏；只有第一屏带 is-on，后续只由按钮切换 */
@@ -1154,7 +1147,7 @@
    */
   function runLogoParticles(canvas, onForm, speed, opts) {
     const ctx = canvas.getContext('2d');
-    if (!ctx || !LOGO_HEAD || !LOGO_FACE) { onForm(); return; }
+    if (!ctx || !LOGO_HEAD) { onForm(); return; }
 
     // ---- 离屏重绘 LOGO（放大到 128 口径，采样更密、轮廓更准）----
     const S = 128;
@@ -1165,25 +1158,13 @@
     const k = S / 64;
     octx.setTransform(k, 0, 0, k, 0, 0);
 
-    const grad = octx.createLinearGradient(10, 8, 54, 56);
+    const grad = octx.createLinearGradient(14, 8, 50, 56);
     grad.addColorStop(0, '#ff6a4d');
     grad.addColorStop(0.55, '#fa322d');
-    grad.addColorStop(1, '#df1a15');
+    grad.addColorStop(1, '#d81510');
     octx.fillStyle = grad;
-    octx.fill(LOGO_HEAD);
-    octx.fillStyle = '#ffffff';
-    octx.fill(LOGO_FACE);
-    octx.fillStyle = '#fa322d';
-    octx.beginPath();
-    octx.arc(32, 31.5, 2.4, 0, Math.PI * 2);
-    octx.fill();
-    octx.strokeStyle = '#fa322d';
-    octx.lineWidth = 1.5;
-    octx.lineCap = 'round';
-    octx.beginPath();
-    octx.moveTo(32, 35);
-    octx.lineTo(32, 43);
-    octx.stroke();
+    // 字怀在路径内部，用 evenodd 挖空，和 SVG 的 fill-rule 保持一致
+    octx.fill(LOGO_HEAD, 'evenodd');
 
     let data;
     try {
@@ -1216,7 +1197,7 @@
     for (let y = 0; y < S; y += 1) {
       for (let x = 0; x < S; x += 1) {
         const i = (y * S + x) * 4;
-        // 只取红色部分：白色面部留空，粒子聚起来就是 LOGO 的轮廓
+        // 只取有颜色的部分：字怀是镂空，粒子聚起来就是 P 的轮廓
         if (data[i + 3] < 110 || (data[i] > 235 && data[i + 1] > 235 && data[i + 2] > 235)) continue;
         // 起点在画布边缘一圈的随机位置，始终不越出这个容器
         const ang = Math.random() * Math.PI * 2;
@@ -2060,7 +2041,7 @@
       }
       bits.push({
         x: Math.random() * w,
-        y: -20 - Math.random() * h * 0.6,
+        y: -20 - Math.random() * h * 0.35,
         vx: (Math.random() - 0.5) * 60,
         vy: 90 + Math.random() * 140,
         rot: Math.random() * Math.PI,
@@ -2070,9 +2051,9 @@
       });
     }
 
-    const draw = (t, speed) => {
+    const draw = (t, speed, alpha) => {
       ctx.clearRect(0, 0, w, h);
-      ctx.globalAlpha = 0.92;
+      ctx.globalAlpha = 0.92 * (alpha == null ? 1 : alpha);
       for (let i = 0; i < bits.length; i += 1) {
         const b = bits[i];
         const y = b.y + b.vy * t * speed;
@@ -2096,14 +2077,19 @@
 
     const speed = Number(animSpeed) > 0 ? Number(animSpeed) : 1;
     const start = performance.now();
-    const life = 2400 / speed;
+    const life = 3200 / speed;
+    // 收尾淡出：纸屑不再被整块清掉，而是在最后 600ms 内自然淡走
+    const fade = 600 / speed;
     const tick = (now) => {
       const elapsed = now - start;
-      draw(elapsed / 1000, speed);
+      const rest = life - elapsed;
+      const alpha = rest >= fade ? 1 : Math.max(0, rest / fade);
+      draw(elapsed / 1000, speed, alpha);
       if (elapsed < life) {
         confettiRaf = requestAnimationFrame(tick);
       } else {
         confettiRaf = 0;
+        ctx.globalAlpha = 1;
         ctx.clearRect(0, 0, w, h);
       }
     };

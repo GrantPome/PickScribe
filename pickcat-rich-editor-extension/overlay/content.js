@@ -359,6 +359,12 @@
     return s.length > 10 ? s.slice(0, 8) : s;
   }
 
+  /** 个人主页地址：站内路由是 /profile/<用户 id>；没有 id 就不做成链接 */
+  function profileHref(user) {
+    const id = user && user.id ? String(user.id) : '';
+    return id ? '/profile/' + encodeURIComponent(id) : '';
+  }
+
   /** 把单个 @ 节点换成用户名；没有名字就显示 @短id，绝不留空 */
   function applyMentionName(node) {
     const id = node.getAttribute('data-user-id');
@@ -1009,6 +1015,9 @@
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-detail">在详情页打开</button>' +
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-newtab">在新标签页打开</button>' +
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-copy">复制帖子链接</button>' +
+              '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-export">导出 Markdown</button>' +
+              '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-copy-md">复制 Markdown</button>' +
+              '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-copy-summary">复制分享摘要</button>' +
               '<button type="button" class="pco-menu-item" role="menuitem" data-act="more-guide">功能引导</button>' +
             '</div>' +
           '</div>' +
@@ -1751,6 +1760,7 @@
   function renderTopic(topic) {
     if (!root || !contentEl || !topic) return;
     const author = topic.author || {};
+    const authorHref = profileHref(author);
     const first = topic.firstPost || {};
     const map = buildMentionMap(topic, view && view.posts ? view.posts : null);
 
@@ -1772,10 +1782,17 @@
         '</button>' +
       '</div>' +
       '<div class="pco-author">' +
-        avatarHtml(author, 'pco-avatar') +
+        (authorHref
+          ? '<a class="pco-author-avatar" href="' + esc(authorHref) + '"' +
+              ' aria-label="打开 ' + esc(author.username || '') + ' 的个人主页">' +
+              avatarHtml(author, 'pco-avatar') + '</a>'
+          : avatarHtml(author, 'pco-avatar')) +
         '<div class="pco-author-main">' +
           '<div class="pco-author-line">' +
-            '<span class="pco-author-name">' + esc(author.username || '匿名用户') + '</span>' +
+            (authorHref
+              ? '<a class="pco-author-name" href="' + esc(authorHref) + '">' +
+                  esc(author.username || '匿名用户') + '</a>'
+              : '<span class="pco-author-name">' + esc(author.username || '匿名用户') + '</span>') +
             badgeHtml(author, false) +
             '<span class="pco-time">' + esc(timeAgo(topic.createdAt)) + '</span>' +
           '</div>' +
@@ -2279,12 +2296,14 @@
     if (prev) {
       const on = index > 0;
       prev.disabled = !on;
-      prev.title = on ? '上一个帖子' : '已经是第一个帖子';
+      prev.title = on ? '上一个帖子（←）' : '已经是第一个帖子';
+      prev.setAttribute('aria-label', prev.title);
     }
     if (next) {
       const on = index !== -1 && index < ids.length - 1;
       next.disabled = !on;
-      next.title = on ? '下一个帖子' : '已经是最后一个帖子';
+      next.title = on ? '下一个帖子（→）' : '已经是最后一个帖子';
+      next.setAttribute('aria-label', next.title);
     }
   }
 
@@ -2582,6 +2601,237 @@
       if (ta.parentNode) ta.parentNode.removeChild(ta);
       toast(ok ? '链接已复制到剪贴板' : '复制失败，请手动复制', ok ? 'ok' : 'err');
     }
+  }
+
+  // ============================ 6.2.1 导出与分享 ============================
+
+  /** 纯文本复制：优先剪贴板接口，被拒时退回临时 textarea */
+  async function copyPlainText(text) {
+    if (!text) return false;
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) { /* 降级到 execCommand */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '-9999px';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+      if (ta.parentNode) ta.parentNode.removeChild(ta);
+      return ok;
+    } catch (e3) {
+      return false;
+    }
+  }
+
+  /** 下载文件名：去掉非法字符并截断，标题为空时用帖子 id 兜底 */
+  function safeFileName(name) {
+    const s = String(name || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim();
+    const id = view && view.topic ? view.topic.id : '';
+    return (s || ('post-' + (id || Date.now()))).slice(0, 60);
+  }
+
+  /** 日期格式化为 YYYY-MM-DD；无效值返回空串 */
+  function formatDate(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return '';
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  /**
+   * 站点正文 HTML → Markdown。
+   * 用 DOM 递归而不是大正则，保证嵌套列表、表格、代码块与公式结构正确；
+   * 公式直接取 KaTeX 的 annotation 原始 LaTeX，避免把渲染用的多层 span 写成乱码。
+   */
+  function htmlToMarkdown(html) {
+    const box = document.createElement('div');
+    box.innerHTML = html || '';
+
+    /** 行内元素拼成一行 Markdown */
+    function inline(node) {
+      if (node.nodeType === 3) return (node.nodeValue || '').replace(/\s+/g, ' ');
+      if (node.nodeType !== 1) return '';
+      const el = node;
+      const tag = el.tagName.toLowerCase();
+      // 公式：取 KaTeX 的 LaTeX 注解；没有注解时按普通内容降级
+      if (el.classList && el.classList.contains('katex')) {
+        const tex = el.querySelector('annotation[encoding="application/x-tex"]');
+        if (tex) {
+          const src = (tex.textContent || '').trim();
+          return el.closest('.katex-display') ? '$$' + src + '$$' : '$' + src + '$';
+        }
+      }
+      if (tag === 'br') return '\n';
+      if (tag === 'img') {
+        const src = absUrl(el.getAttribute('src') || el.getAttribute('data-src'));
+        if (!src) return (el.getAttribute('alt') || '').trim();
+        return '![' + (el.getAttribute('alt') || '') + '](' + src + ')';
+      }
+      if (tag === 'code') {
+        return '`' + (el.textContent || '').replace(/`/g, '\\`') + '`';
+      }
+      const inner = Array.from(el.childNodes).map(inline).join('');
+      if (tag === 'strong' || tag === 'b') return inner.trim() ? '**' + inner.trim() + '**' : '';
+      if (tag === 'em' || tag === 'i') return inner.trim() ? '*' + inner.trim() + '*' : '';
+      if (tag === 'del' || tag === 's' || tag === 'strike') return inner.trim() ? '~~' + inner.trim() + '~~' : '';
+      if (tag === 'a') {
+        const href = absUrl(el.getAttribute('href'));
+        const t = inner.trim() || href;
+        return href ? '[' + t + '](' + href + ')' : t;
+      }
+      return inner;
+    }
+
+    /** 块级元素拆成多个 Markdown 块 */
+    function blocks(node, depth) {
+      const out = [];
+      const walk = (n) => {
+        if (n.nodeType === 3) {
+          const t = (n.nodeValue || '').replace(/\s+/g, ' ').trim();
+          if (t) out.push(t);
+          return;
+        }
+        if (n.nodeType !== 1) return;
+        const el = n;
+        const tag = el.tagName.toLowerCase();
+        // 块级公式
+        if (el.classList && el.classList.contains('katex-display')) {
+          const tex = el.querySelector('annotation[encoding="application/x-tex"]');
+          if (tex) { out.push('$$\n' + (tex.textContent || '').trim() + '\n$$'); return; }
+        }
+        const hm = tag.match(/^h([1-6])$/);
+        if (hm) {
+          const t = inline(el).trim();
+          if (t) out.push('#'.repeat(Number(hm[1])) + ' ' + t);
+          return;
+        }
+        if (tag === 'p') {
+          const t = inline(el).trim();
+          if (t) out.push(t);
+          return;
+        }
+        if (tag === 'pre') {
+          const codeEl = el.querySelector('code') || el;
+          const cm = String(codeEl.className || '').match(/language-([\w-]+)/);
+          const code = (codeEl.textContent || '').replace(/\s+$/, '');
+          out.push('```' + (cm ? cm[1] : '') + '\n' + code + '\n```');
+          return;
+        }
+        if (tag === 'blockquote') {
+          const inner = blocks(el, depth).join('\n\n');
+          out.push(inner.split('\n').map((l) => '> ' + l).join('\n'));
+          return;
+        }
+        if (tag === 'ul' || tag === 'ol') {
+          const items = Array.from(el.children).filter((li) => li.tagName && li.tagName.toLowerCase() === 'li');
+          const pad = '  '.repeat(depth);
+          const lines = items.map((li, i) => {
+            const marker = tag === 'ol' ? (i + 1) + '. ' : '- ';
+            const body = blocks(li, depth + 1).join('\n\n').split('\n');
+            return pad + marker + body[0] +
+              body.slice(1).map((l) => '\n' + pad + '  ' + l).join('');
+          });
+          if (lines.length) out.push(lines.join('\n'));
+          return;
+        }
+        if (tag === 'table') {
+          const rows = Array.from(el.querySelectorAll('tr'));
+          if (!rows.length) return;
+          const cells = (tr) => Array.from(tr.children)
+            .map((td) => inline(td).replace(/\|/g, '\\|').trim());
+          const head = cells(rows[0]);
+          const bodyRows = rows.slice(1).map(cells);
+          const width = Math.max(head.length, 1, ...bodyRows.map((r) => r.length));
+          const pad = (r) => { const c = r.slice(); while (c.length < width) c.push(''); return c; };
+          const lines = ['| ' + pad(head).join(' | ') + ' |',
+            '| ' + pad(head).map(() => '---').join(' | ') + ' |']
+            .concat(bodyRows.map((r) => '| ' + pad(r).join(' | ') + ' |'));
+          out.push(lines.join('\n'));
+          return;
+        }
+        if (tag === 'hr') { out.push('---'); return; }
+        if (tag === 'br') return;
+        // 常见块级容器：继续向下拆，避免把整段挤成一行
+        if (/^(div|section|article|figure|figcaption|main|header|footer|details|summary|dl|dt|dd)$/.test(tag)) {
+          Array.from(el.childNodes).forEach(walk);
+          return;
+        }
+        const t = inline(el).trim();
+        if (t) out.push(t);
+      };
+      Array.from(node.childNodes).forEach(walk);
+      return out.filter(Boolean);
+    }
+
+    return blocks(box, 0).join('\n\n')
+      .replace(/[ \t]+$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  /** 拼装导出文档：标题 + 作者/原文/日期 + 正文 */
+  function buildPostMarkdown() {
+    if (!view || !view.topic) return '';
+    const topic = view.topic;
+    const first = topic.firstPost || {};
+    const author = topic.author || first.author || {};
+    const name = author.displayName || author.name || author.username || '';
+    const meta = [];
+    if (name) meta.push('> 作者：' + name);
+    meta.push('> 原文：' + topicUrl());
+    const date = formatDate(first.createdAt || first.publishedAt || topic.createdAt);
+    if (date) meta.push('> 发布时间：' + date);
+    const parts = ['# ' + (topic.title || '无标题帖子'), ''];
+    if (meta.length) parts.push(meta.join('\n'), '');
+    parts.push('---', '', htmlToMarkdown(first.cookedHtml || ''));
+    return parts.join('\n').trim() + '\n';
+  }
+
+  /** 导出为 .md 文件 */
+  function exportMarkdown() {
+    const md = buildPostMarkdown();
+    if (!md.trim()) { toast('暂时没有可导出的内容', 'err'); return; }
+    try {
+      const blob = new Blob(['\ufeff' + md], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = safeFileName(view && view.topic ? view.topic.title : '') + '.md';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* noop */ } }, 4000);
+      toast('Markdown 已导出');
+    } catch (e) {
+      toast('导出失败：' + ((e && e.message) || e), 'err');
+    }
+  }
+
+  /** 复制 Markdown 全文 */
+  async function copyMarkdown() {
+    const md = buildPostMarkdown();
+    if (!md.trim()) { toast('暂时没有可复制的内容', 'err'); return; }
+    const ok = await copyPlainText(md);
+    toast(ok ? 'Markdown 已复制' : '复制失败，请手动复制', ok ? 'ok' : 'err');
+  }
+
+  /** 复制分享摘要：标题 + 正文前 120 字 + 链接 */
+  async function copyShareSummary() {
+    if (!view || !view.topic) return;
+    const topic = view.topic;
+    const first = topic.firstPost || {};
+    const text = plainText(first.cookedHtml || '').replace(/\s+/g, ' ').trim();
+    const brief = text.length > 120 ? text.slice(0, 120) + '…' : text;
+    const summary = (topic.title || '无标题帖子') + '\n\n' + (brief || '（暂无正文）') + '\n\n' + topicUrl();
+    const ok = await copyPlainText(summary);
+    toast(ok ? '分享摘要已复制' : '复制失败，请手动复制', ok ? 'ok' : 'err');
   }
 
   function openOriginal() {
@@ -3235,6 +3485,8 @@
     const rendered = new Set();
     const renderComment = (post, depth) => {
       const a = post.author || {};
+      const aHref = profileHref(a);
+      const aName = userName(a) || (a.id ? shortMentionId(a.id) : '已删除用户');
       const body = post.deleted
         ? '<p class="pco-empty">这条回复已被删除</p>'
         : (post.cookedHtml || '');
@@ -3256,15 +3508,22 @@
           icon('heart', 12) +
           '<span data-role="comment-like-count">' + esc(fmtCount(post.likeCount)) + '</span>' +
         '</button>';
+      const avatarLink = aHref
+        ? '<a class="pco-comment-avatar" href="' + esc(aHref) + '"' +
+            ' aria-label="打开 ' + esc(aName) + ' 的个人主页">' +
+            avatarHtml(a, 'pco-avatar pco-avatar--sm') + '</a>'
+        : avatarHtml(a, 'pco-avatar pco-avatar--sm');
+      const nameLink = aHref
+        ? '<a class="pco-comment-name" href="' + esc(aHref) + '">' + esc(aName) + '</a>'
+        : '<span class="pco-comment-name">' + esc(aName) + '</span>';
       return '<article class="pco-comment' + (depth ? ' pco-comment--child' : '') +
           '" style="--i:' + (seq++) + '"' +
           ' data-role="comment" data-id="' + esc(post.id || '') + '"' +
           ' data-no="' + esc(post.postNumber || '') + '">' +
-        avatarHtml(a, 'pco-avatar pco-avatar--sm') +
+        avatarLink +
         '<div class="pco-comment-main">' +
           '<div class="pco-comment-head">' +
-            '<span class="pco-comment-name">' +
-              esc(userName(a) || (a.id ? shortMentionId(a.id) : '已删除用户')) + '</span>' +
+            nameLink +
             badgeHtml(a, true) +
             '<span class="pco-comment-time">' + esc(timeAgo(post.createdAt)) + '</span>' +
           '</div>' +
@@ -4299,6 +4558,8 @@
   function onDocClick(e) {
     if (!e || e.defaultPrevented) return;
     if (!overlayEnabled) return;   // 未开启时完全交给站点原生跳转
+    // 桌面窗口模式：由桌面壳接管站内跳转（新窗口/替换窗口），浮层让位
+    if (window.__PCS_DESKTOP__ && window.__PCS_DESKTOP__.enabled) return;
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 
     const target = e.target instanceof Element ? e.target : null;
@@ -4429,6 +4690,18 @@
         e.preventDefault();
         closeRailMenu();
         sharePost();
+      } else if (act === 'more-export') {
+        e.preventDefault();
+        closeRailMenu();
+        exportMarkdown();
+      } else if (act === 'more-copy-md') {
+        e.preventDefault();
+        closeRailMenu();
+        copyMarkdown();
+      } else if (act === 'more-copy-summary') {
+        e.preventDefault();
+        closeRailMenu();
+        copyShareSummary();
       } else if (act === 'more-guide') {
         e.preventDefault();
         closeRailMenu();
@@ -4623,6 +4896,27 @@
 
   function onDocKeydown(e) {
     if (!root) return;
+
+    // 左右方向键切换相邻帖子（← 上一个 / → 下一个）。
+    // 输入框、弹层、全屏回复、评论对话框内不接管，保证正常编辑与切词不受影响。
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (closing) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      const isEditable = (n) => !!(n && n.nodeType === 1 &&
+        (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA' || n.tagName === 'SELECT' || n.isContentEditable));
+      if (isEditable(e.target) || isEditable(document.activeElement)) return;
+      const t = e.target;
+      if (t && t.closest &&
+          t.closest('.pco-pop, .pco-lightbox, [data-role="comment-menu"], [data-role="rail-menu"], .pco-composer-full')) {
+        return;
+      }
+      if (dialogHost()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      goNeighbor(e.key === 'ArrowRight' ? 1 : -1);
+      return;
+    }
+
     if (e.key !== 'Escape') return;
     e.preventDefault();
     e.stopImmediatePropagation();   // 不让站点起始页 / 其他模块同时响应 Esc

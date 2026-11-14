@@ -1307,6 +1307,88 @@
 .${NS}-pop-help b{color:var(--pcr-text);}
 .${NS}-pop-help ul{margin:6px 0 0;padding-left:1.1em;}
 
+/* —— 斜杠命令面板 ——
+   复用 .pcr-pop 的边框 / 阴影 / 入场动画，这里只负责尺寸与列表布局。
+   面板挂在 body 上、按光标 fixed 定位，避免被编辑区滚动容器裁掉。 */
+.${NS}-slash{position:fixed;width:320px;max-height:340px;display:flex;flex-direction:column;padding:0;
+  overflow:hidden;transform-origin:top left;}
+.${NS}-slash-list{flex:1;min-height:0;overflow:auto;padding:5px;display:flex;flex-direction:column;gap:1px;}
+.${NS}-slash-item{display:flex;align-items:center;gap:9px;width:100%;border:0;background:transparent;
+  color:var(--pcr-text);font:inherit;font-size:13.5px;padding:8px 9px;
+  border-radius:var(--pcr-r-control);cursor:pointer;text-align:left;
+  transition:background .2s cubic-bezier(.22,1,.36,1),color .2s;}
+.${NS}-slash-ico{width:18px;height:18px;flex:none;display:inline-flex;align-items:center;
+  justify-content:center;color:var(--pcr-subtle);}
+.${NS}-slash-ico svg{width:16px;height:16px;}
+.${NS}-slash-ico .${NS}-glyph{font-size:12.5px;min-width:16px;text-align:center;}
+.${NS}-slash-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.${NS}-slash-tag{flex:none;font-size:11px;color:var(--pcr-subtle);opacity:.85;}
+.${NS}-slash-item.is-on{background:var(--pcr-accent-soft);color:var(--pcr-accent);}
+.${NS}-slash-item.is-on .${NS}-slash-ico,
+.${NS}-slash-item.is-on .${NS}-slash-tag{color:var(--pcr-accent);}
+.${NS}-slash-empty{padding:16px 10px;text-align:center;font-size:12.5px;color:var(--pcr-subtle);}
+.${NS}-slash-foot{display:flex;gap:6px;padding:6px;border-top:1px solid var(--pcr-border);flex:none;}
+.${NS}-slash-foot-btn{flex:1;height:28px;border:1px solid var(--pcr-border);background:var(--pcr-surface);
+  color:var(--pcr-subtle);font:inherit;font-size:12px;border-radius:var(--pcr-r-control);cursor:pointer;
+  transition:background .22s cubic-bezier(.22,1,.36,1),color .22s,border-color .22s;}
+.${NS}-slash-foot-btn:hover{background:var(--pcr-surface-hover);color:var(--pcr-text);
+  border-color:var(--pcr-accent);}
+.${NS}-slash-foot-btn:active{transform:scale(.97);}
+
+/* —— 模板库弹窗 —— */
+.${NS}-tpl-mask{position:fixed;inset:0;z-index:10004;display:flex;align-items:center;
+  justify-content:center;padding:20px;background:rgba(0,0,0,.45);}
+.${NS}-tpl-modal{width:min(520px,100%);max-height:min(620px,86vh);display:flex;flex-direction:column;
+  overflow:hidden;background:var(--pcr-surface);color:var(--pcr-text);
+  border:1px solid var(--pcr-border);border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.32);
+  font-family:var(--pcr-font);animation:${NS}TplIn .28s cubic-bezier(.16,1,.3,1) both;}
+@keyframes ${NS}TplIn{from{opacity:0;transform:translateY(8px) scale(.984);}to{opacity:1;transform:none;}}
+.${NS}-tpl-head{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:16px 18px 10px;flex:none;}
+.${NS}-tpl-title{font-size:15px;font-weight:600;}
+.${NS}-tpl-close{width:28px;height:28px;border:0;border-radius:7px;background:transparent;
+  color:var(--pcr-subtle);font:inherit;font-size:18px;line-height:1;cursor:pointer;
+  transition:background .2s,color .2s;}
+.${NS}-tpl-close:hover{background:var(--pcr-surface-hover);color:var(--pcr-text);}
+.${NS}-tpl-body{flex:1;min-height:0;overflow:auto;padding:0 12px 10px;}
+.${NS}-tpl-row{display:flex;align-items:center;gap:8px;padding:8px 6px;
+  border-bottom:1px solid var(--pcr-border);}
+.${NS}-tpl-row:last-child{border-bottom:0;}
+.${NS}-tpl-name{flex:1;min-width:0;height:30px;padding:0 8px;border:1px solid transparent;
+  border-radius:7px;background:transparent;color:var(--pcr-text);font:inherit;font-size:13.5px;}
+.${NS}-tpl-name:hover{border-color:var(--pcr-border);}
+.${NS}-tpl-name:focus{outline:none;border-color:var(--pcr-accent);background:var(--pcr-canvas);}
+.${NS}-tpl-meta{flex:none;font-size:11.5px;color:var(--pcr-subtle);font-variant-numeric:tabular-nums;}
+.${NS}-tpl-act{flex:none;height:28px;padding:0 10px;border:1px solid var(--pcr-border);
+  background:var(--pcr-surface);color:var(--pcr-text);font:inherit;font-size:12px;
+  border-radius:var(--pcr-r-control);cursor:pointer;
+  transition:background .2s,border-color .2s,color .2s,transform .18s;}
+.${NS}-tpl-act:hover{background:var(--pcr-surface-hover);}
+.${NS}-tpl-act:active{transform:scale(.96);}
+.${NS}-tpl-act.is-danger{color:var(--pcr-error);border-color:var(--pcr-error);}
+.${NS}-tpl-act.is-danger:hover{background:color-mix(in oklab,var(--pcr-error) 10%,transparent);}
+.${NS}-tpl-empty{padding:28px 10px;text-align:center;font-size:13px;color:var(--pcr-subtle);}
+.${NS}-tpl-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;flex:none;
+  border-top:1px solid var(--pcr-border);}
+.${NS}-tpl-btn{height:32px;padding:0 14px;border:1px solid var(--pcr-border);border-radius:var(--pcr-r-control);
+  background:var(--pcr-surface);color:var(--pcr-text);font:inherit;font-size:13px;cursor:pointer;
+  transition:background .2s,border-color .2s,transform .18s;}
+.${NS}-tpl-btn:hover{background:var(--pcr-surface-hover);}
+.${NS}-tpl-btn:active{transform:scale(.97);}
+.${NS}-tpl-btn.is-primary{background:var(--pcr-accent);border-color:var(--pcr-accent);color:#fff;}
+.${NS}-tpl-btn.is-primary:hover{filter:brightness(1.07);}
+/* 命名弹窗复用模板弹窗结构，只收窄宽度 */
+.${NS}-tpl-name-dialog{width:min(360px,100%);}
+.${NS}-tpl-name-row{padding:4px 18px 8px;}
+.${NS}-tpl-name-input{width:100%;height:36px;padding:0 10px;border:1px solid var(--pcr-border);
+  border-radius:8px;background:var(--pcr-canvas);color:var(--pcr-text);font:inherit;font-size:14px;
+  outline:none;transition:border-color .22s,background .22s;}
+.${NS}-tpl-name-input:focus{border-color:var(--pcr-accent);background:var(--pcr-surface);}
+
+@media (prefers-reduced-motion: reduce){
+  .${NS}-tpl-modal,.${NS}-slash{animation:none;}
+}
+
 /* —— 查找替换浮层 —— */
 .${NS}-find{width:314px;padding:10px;transform-origin:top left;}
 .${NS}-find-row{display:flex;align-items:center;gap:6px;}
@@ -1748,6 +1830,12 @@
   function closePopups() {
     // AI 写作助手是独立窗口：用 :not 排除，空白点击 / 打开其他浮层都不会把它一并收起
     document.querySelectorAll('.' + NS + '-pop:not(.' + NS + '-ai):not(.' + NS + '-af), .' + NS + '-float').forEach((el) => el.remove());
+    // 斜杠面板复用 .pcr-pop，被统一清掉时必须复位状态，否则下次输入不再触发
+    slashEl = null;
+    slashState.open = false;
+    slashState.items = [];
+    slashState.index = 0;
+    slashState.query = '';
     // 浮层被统一清掉时同步重置查找状态，避免残留高亮与悬空的定时器
     if (findTimer) { clearTimeout(findTimer); findTimer = null; }
     findPop = null;
@@ -2490,6 +2578,585 @@
     richToSource();
   }
 
+  // ============================ 5.3 斜杠命令与模板库 ============================
+
+  const TPL_KEY = 'pcr_templates';        // 模板库存储键（chrome.storage.local，失效时降级 localStorage）
+  const TPL_MAX = 30;                     // 模板数量上限，避免无限增长
+  const SLASH_GROUP_TAG = { heading: '标题', list: '列表', code: '代码', insert: '插入', tpl: '模板', ai: 'AI' };
+  // 触发字符：英文斜杠 + 中文输入法下同一按键打出的顿号 + 全角斜杠
+  const SLASH_TRIGGERS = ['/', '、', '／'];
+
+  let slashEl = null;                     // 斜杠面板节点（挂在 body 上、按光标 fixed 定位）
+  let slashState = { open: false, items: [], index: 0, query: '' };
+  let slashTemplates = [];                // 当前缓存的模板列表（面板与「管理模板」共用）
+  let tplMask = null;                     // 模板库弹窗的遮罩根节点
+  let tplEscHandler = null;               // 弹窗的 Esc 监听（关闭时移除，避免残留）
+
+  /** 取光标所在块级元素中、光标之前的文本（斜杠判定与过滤词都基于它） */
+  function blockTextBeforeCaret() {
+    try {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !editor) return null;
+      const range = sel.getRangeAt(0);
+      if (!editor.contains(range.startContainer)) return null;
+      let block = range.startContainer.nodeType === 1
+        ? range.startContainer
+        : range.startContainer.parentElement;
+      while (block && block !== editor && !/^(p|div|h[1-6]|li|blockquote|pre|td|th)$/i.test(block.tagName)) {
+        block = block.parentElement;
+      }
+      if (!block || block === editor) block = editor;
+      // 从块起点量到光标，得到「光标之前的文本」
+      const r = document.createRange();
+      r.selectNodeContents(block);
+      try { r.setEnd(range.startContainer, range.startOffset); } catch (e) { return null; }
+      return { text: r.toString(), block };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** 光标（折叠选区）在视口中的矩形，空段落时退回所在块的矩形 */
+  function caretClientRect() {
+    try {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return null;
+      const range = sel.getRangeAt(0).cloneRange();
+      range.collapse(true);
+      const rects = range.getClientRects();
+      let r = rects && rects.length ? rects[rects.length - 1] : range.getBoundingClientRect();
+      if (!r || (!r.width && !r.height)) {
+        const info = blockTextBeforeCaret();
+        if (info && info.block && info.block !== editor) r = info.block.getBoundingClientRect();
+      }
+      return r || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** 直接把当前块设为指定级别标题（与工具栏「切换」不同，这里不做还原） */
+  function setHeading(level) {
+    editor.focus();
+    try {
+      document.execCommand('styleWithCSS', false, false);
+      document.execCommand('formatBlock', false, 'H' + level);
+    } catch (e) { /* 个别浏览器差异，忽略 */ }
+    refreshToolbarState();
+    richToSource();
+  }
+
+  /** 斜杠面板的命令表；模板组按当前缓存动态拼接 */
+  function slashCommands() {
+    const list = [
+      { id: 'h1', group: 'heading', label: '一级标题', keywords: 'h1 title biaoti 标题', icon: ICONS.text('H1'), run: () => setHeading(1) },
+      { id: 'h2', group: 'heading', label: '二级标题', keywords: 'h2 title biaoti 标题', icon: ICONS.text('H2'), run: () => setHeading(2) },
+      { id: 'h3', group: 'heading', label: '三级标题', keywords: 'h3 title biaoti 标题', icon: ICONS.text('H3'), run: () => setHeading(3) },
+      { id: 'h4', group: 'heading', label: '四级标题', keywords: 'h4 title biaoti 标题', icon: ICONS.text('H4'), run: () => setHeading(4) },
+      { id: 'ul', group: 'list', label: '无序列表', keywords: 'ul bullet list 列表', icon: ICONS.ul, run: () => exec('insertUnorderedList') },
+      { id: 'ol', group: 'list', label: '有序列表', keywords: 'ol number list 列表', icon: ICONS.ol, run: () => exec('insertOrderedList') },
+      { id: 'task', group: 'list', label: '任务列表', keywords: 'task todo check 待办 任务', icon: ICONS.ul, run: () => insertTaskList() },
+      { id: 'quote', group: 'code', label: '引用块', keywords: 'quote yinyong 引用', icon: ICONS.quote, run: () => exec('formatBlock', 'blockquote') },
+      { id: 'inlinecode', group: 'code', label: '行内代码', keywords: 'code inline 代码', icon: ICONS.code, run: () => insertInlineCode() },
+      { id: 'codeblock', group: 'code', label: '代码块', keywords: 'code block pre 代码', icon: ICONS.code, run: () => {
+        insertHtml('<pre><code>' + escapeHtml(getSelectedText()) + '</code></pre><p><br></p>');
+        richToSource();
+      } },
+      { id: 'table', group: 'insert', label: '插入表格', keywords: 'table biaoge 表格', icon: ICONS.table, run: () => insertTable() },
+      { id: 'hr', group: 'insert', label: '分割线', keywords: 'hr line 分割线', icon: ICONS.hr, run: () => { insertHtml('<hr><p><br></p>'); richToSource(); } },
+      { id: 'mathinline', group: 'insert', label: '行内公式', keywords: 'math inline formula 公式', icon: ICONS.mathInline, run: () => insertInlineMath() },
+      { id: 'mathblock', group: 'insert', label: '块级公式', keywords: 'math block formula 公式', icon: ICONS.mathBlock, run: () => insertBlockMath() }
+    ];
+    // 模板组：最多直接列 8 条，超出时给一条「查看全部模板」的入口
+    slashTemplates.slice(0, 8).forEach((tpl) => {
+      list.push({
+        id: 'tpl:' + tpl.id, group: 'tpl', label: tpl.name || '未命名模板',
+        keywords: 'template tpl muban 模板 ' + String(tpl.content || '').slice(0, 40),
+        icon: ICONS.text('T'),
+        run: () => {
+          insertHtml(mdToHtml(tpl.content || ''));
+          richToSource();
+          toast('已插入模板「' + (tpl.name || '未命名模板') + '」');
+        }
+      });
+    });
+    if (slashTemplates.length > 8) {
+      list.push({
+        id: 'tpl-more', group: 'tpl', label: '查看全部模板', keywords: 'template 模板 全部',
+        icon: ICONS.text('…'), run: () => openTemplateManager()
+      });
+    }
+    list.push(
+      { id: 'ai-polish', group: 'ai', label: 'AI 润色', keywords: 'ai polish 润色', icon: aiIcon(), run: () => runAISlash('请润色下面的文字，保持原意与语气，只输出修改后的内容。') },
+      { id: 'ai-continue', group: 'ai', label: 'AI 续写', keywords: 'ai continue 续写', icon: aiIcon(), run: () => runAISlash('请顺着正文继续往下写一段，保持原有语气与节奏。') },
+      { id: 'ai-translate', group: 'ai', label: 'AI 翻译', keywords: 'ai translate 翻译', icon: aiIcon(), run: () => runAISlash('请把下面的文字翻译成英文，只输出译文。') }
+    );
+    return list;
+  }
+
+  /** 打开写作助手并预填指令（沿用既有 prefill 通道） */
+  function runAISlash(prompt) {
+    if (!aiOn('aiWriter')) { toast('AI 写作助手已在设置中关闭'); return; }
+    openAIWriter(true);
+    if (aiRefs && aiRefs.input) {
+      aiRefs.input.value = prompt;
+      aiRefs.input.dispatchEvent(new Event('input', { bubbles: true }));
+      aiRefs.input.focus();
+    }
+  }
+
+  /** 按查询词过滤后的命令列表 */
+  function slashFiltered() {
+    const q = (slashState.query || '').toLowerCase();
+    const all = slashCommands();
+    if (!q) return all;
+    return all.filter((it) => (it.label + ' ' + (it.keywords || '')).toLowerCase().indexOf(q) !== -1);
+  }
+
+  /** 创建并打开面板（模板异步加载后重绘一次） */
+  function openSlashPanel() {
+    closeSlash();
+    const el = document.createElement('div');
+    el.className = NS + '-pop ' + NS + '-slash';
+    el.dataset.pcrOwn = '1';
+    el.innerHTML = '<div class="' + NS + '-slash-list" role="listbox" aria-label="斜杠命令"></div>' +
+      '<div class="' + NS + '-slash-foot">' +
+        '<button type="button" class="' + NS + '-slash-foot-btn" data-slash-act="save">保存为模板</button>' +
+        '<button type="button" class="' + NS + '-slash-foot-btn" data-slash-act="manage">管理模板</button>' +
+      '</div>';
+    const saveBtn = el.querySelector('[data-slash-act="save"]');
+    const manageBtn = el.querySelector('[data-slash-act="manage"]');
+    // 保住编辑区焦点与选区：否则点击底部按钮时斜杠文本已随失焦提交/丢失
+    [saveBtn, manageBtn].forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()));
+    saveBtn.addEventListener('click', () => {
+      // 先把输入框里的「/查询词」清掉，避免把斜杠文本一起存进模板
+      const len = (slashState.query || '').length + 1;
+      closeSlash();
+      removeSlashText(len);
+      saveCurrentAsTemplate();
+    });
+    manageBtn.addEventListener('click', () => {
+      const len = (slashState.query || '').length + 1;
+      closeSlash();
+      removeSlashText(len);
+      openTemplateManager();
+    });
+    document.body.appendChild(el);
+    slashEl = el;
+    slashState.open = true;
+    slashState.index = 0;
+    slashState.query = '';
+    renderSlash();
+    positionSlash();
+    loadTemplates().then((list) => {
+      slashTemplates = list;
+      if (slashState.open) { renderSlash(); positionSlash(); }
+    });
+  }
+
+  /** 重绘列表（沿用同一个面板节点，避免过滤时反复建 DOM 抖动） */
+  function renderSlash() {
+    if (!slashEl) return;
+    const box = slashEl.querySelector('.' + NS + '-slash-list');
+    if (!box) return;
+    const items = slashFiltered();
+    slashState.items = items;
+    if (slashState.index >= items.length) slashState.index = 0;
+    box.innerHTML = '';
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = NS + '-slash-empty';
+      empty.textContent = '没有匹配的命令';
+      box.appendChild(empty);
+      return;
+    }
+    items.forEach((it, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = NS + '-slash-item' + (i === slashState.index ? ' is-on' : '');
+      b.setAttribute('role', 'option');
+      b.setAttribute('aria-selected', i === slashState.index ? 'true' : 'false');
+      b.innerHTML = '<span class="' + NS + '-slash-ico">' + (it.icon || '') + '</span>' +
+        '<span class="' + NS + '-slash-label">' + escapeHtml(it.label) + '</span>' +
+        '<span class="' + NS + '-slash-tag">' + (SLASH_GROUP_TAG[it.group] || '') + '</span>';
+      b.addEventListener('mousedown', (e) => e.preventDefault());
+      b.addEventListener('mouseenter', () => { slashState.index = i; paintSlashActive(); });
+      b.addEventListener('click', (e) => { e.preventDefault(); runSlashItem(it); });
+      box.appendChild(b);
+    });
+    paintSlashActive();
+  }
+
+  /** 同步高亮项与滚动位置 */
+  function paintSlashActive() {
+    if (!slashEl) return;
+    slashEl.querySelectorAll('.' + NS + '-slash-item').forEach((el, i) => {
+      const on = i === slashState.index;
+      el.classList.toggle('is-on', on);
+      el.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) { try { el.scrollIntoView({ block: 'nearest' }); } catch (e) { /* noop */ } }
+    });
+  }
+
+  /** 面板贴着光标定位；下方空间不足时上翻，左右夹取 8px 边距 */
+  function positionSlash() {
+    if (!slashEl) return;
+    const r = caretClientRect();
+    const w = slashEl.offsetWidth || 320;
+    const h = slashEl.offsetHeight || 320;
+    let left = r ? r.left : 24;
+    let top = r ? r.bottom + 6 : 120;
+    if (top + h > window.innerHeight - 8) top = (r ? r.top : 120) - h - 6;
+    left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+    top = Math.max(8, top);
+    slashEl.style.left = left + 'px';
+    slashEl.style.top = top + 'px';
+  }
+
+  function closeSlash() {
+    if (slashEl && slashEl.parentElement) slashEl.parentElement.removeChild(slashEl);
+    slashEl = null;
+    slashState.open = false;
+    slashState.items = [];
+    slashState.index = 0;
+    slashState.query = '';
+  }
+
+  /** 删除光标前的「/ + 查询词」，并把焦点还给编辑区 */
+  function removeSlashText(len) {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    if (range.startContainer.nodeType !== 3) return;   // 只处理最普通的文本节点情况
+    const end = range.startOffset;
+    const start = Math.max(0, end - len);
+    const r = document.createRange();
+    r.setStart(range.startContainer, start);
+    r.setEnd(range.startContainer, end);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    try { document.execCommand('delete', false); } catch (e) { /* noop */ }
+  }
+
+  /** 执行选中的命令：先清掉输入的 /查询词，再执行命令本身 */
+  function runSlashItem(item) {
+    if (!item) return;
+    const len = (slashState.query || '').length + 1;
+    closeSlash();
+    removeSlashText(len);
+    try { editor.focus(); } catch (e) { /* noop */ }
+    try { item.run(); } catch (e) { /* 单条命令失败不影响编辑器 */ }
+  }
+
+  /** 斜杠面板的键盘操作；返回 true 表示已消费本次按键 */
+  function onSlashKeydown(e) {
+    if (!slashState.open) return false;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = slashState.items.length;
+      if (!n) return true;
+      slashState.index = (slashState.index + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+      paintSlashActive();
+      return true;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runSlashItem(slashState.items[slashState.index]);
+      return true;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSlash();
+      return true;
+    }
+    return false;
+  }
+
+  /** 输入时维护面板：未打开则判定是否要打开，已打开则更新过滤词 */
+  function onEditorInputForSlash() {
+    if (slashState.open) { updateSlashQuery(); return; }
+    if (!editor || mode === 'source') return;
+    const info = blockTextBeforeCaret();
+    // 只认「光标所在块里仅有触发字符」这一种输入：行首或空段落输入斜杠 / 顿号
+    if (!info) return;
+    const t = info.text.trim();
+    if (t.length !== 1 || SLASH_TRIGGERS.indexOf(t) === -1) return;
+    openSlashPanel();
+  }
+
+  /** 面板打开后继续输入：块内以 / 开头才保留，查询词过长或光标离开即关闭 */
+  function updateSlashQuery() {
+    if (!slashState.open) return;
+    const info = blockTextBeforeCaret();
+    if (!info) { closeSlash(); return; }
+    const head = info.text.replace(/^\s+/, '');
+    if (SLASH_TRIGGERS.indexOf(head.charAt(0)) === -1) { closeSlash(); return; }
+    const query = head.slice(1).trim();
+    if (query.length > 20) { closeSlash(); return; }
+    if (query === slashState.query) return;
+    slashState.query = query;
+    slashState.index = 0;
+    renderSlash();
+    positionSlash();
+  }
+
+  // —— 模板库存储 ——
+
+  /** 扩展存储是否可用：扩展被重载后 chrome.runtime.id 会缺失 */
+  function tplStorageOk() {
+    try {
+      return !!(window.chrome && chrome.storage && chrome.storage.local && chrome.runtime && chrome.runtime.id);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** 读取模板列表（按更新时间的倒序由 saveTemplates 保证） */
+  function loadTemplates() {
+    return new Promise((resolve) => {
+      const fallback = () => {
+        try {
+          const raw = localStorage.getItem(TPL_KEY);
+          const list = raw ? JSON.parse(raw) : [];
+          resolve(Array.isArray(list) ? list : []);
+        } catch (e) { resolve([]); }
+      };
+      if (!tplStorageOk()) { fallback(); return; }
+      try {
+        chrome.storage.local.get({ [TPL_KEY]: [] }, (raw) => {
+          if (chrome.runtime.lastError) { fallback(); return; }
+          const list = raw && raw[TPL_KEY];
+          resolve(Array.isArray(list) ? list : []);
+        });
+      } catch (e) { fallback(); }
+    });
+  }
+
+  /** 写入模板列表（统一排序，保证「最近用过/保存过」的排在前面） */
+  function saveTemplates(list) {
+    const clean = (Array.isArray(list) ? list : [])
+      .slice()
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    return new Promise((resolve) => {
+      const fallback = () => {
+        try { localStorage.setItem(TPL_KEY, JSON.stringify(clean)); resolve(true); }
+        catch (e) { resolve(false); }
+      };
+      if (!tplStorageOk()) { fallback(); return; }
+      try {
+        chrome.storage.local.set({ [TPL_KEY]: clean }, () => resolve(!chrome.runtime.lastError));
+      } catch (e) { fallback(); }
+    });
+  }
+
+  // —— 模板弹窗 ——
+
+  /** 统一弹窗外壳；Esc 与点遮罩都会关闭 */
+  function openTplShell(opts) {
+    closeTplShell();
+    const mask = document.createElement('div');
+    mask.className = NS + '-tpl-mask';
+    const modal = document.createElement('div');
+    modal.className = NS + '-tpl-modal' + (opts && opts.extraClass ? ' ' + opts.extraClass : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    const head = document.createElement('div');
+    head.className = NS + '-tpl-head';
+    const title = document.createElement('div');
+    title.className = NS + '-tpl-title';
+    title.textContent = (opts && opts.title) || '';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = NS + '-tpl-close';
+    close.innerHTML = '&times;';
+    close.title = '关闭';
+    close.addEventListener('click', closeTplShell);
+    head.appendChild(title);
+    head.appendChild(close);
+    modal.appendChild(head);
+    mask.appendChild(modal);
+    mask.addEventListener('mousedown', (e) => { if (e.target === mask) closeTplShell(); });
+    document.body.appendChild(mask);
+    tplMask = mask;
+    tplEscHandler = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeTplShell();
+    };
+    document.addEventListener('keydown', tplEscHandler, true);
+    return { mask, modal };
+  }
+
+  function closeTplShell() {
+    if (tplMask && tplMask.parentElement) tplMask.parentElement.removeChild(tplMask);
+    tplMask = null;
+    if (tplEscHandler) {
+      document.removeEventListener('keydown', tplEscHandler, true);
+      tplEscHandler = null;
+    }
+  }
+
+  /** 轻量命名弹窗（不用 window.prompt，保证深色模式与视觉统一） */
+  function openTemplateNameDialog(defaultName, onConfirm) {
+    const shell = openTplShell({ title: '保存为模板', extraClass: NS + '-tpl-name-dialog' });
+    const row = document.createElement('div');
+    row.className = NS + '-tpl-name-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = NS + '-tpl-name-input';
+    input.value = defaultName || '';
+    input.placeholder = '模板名称';
+    input.maxLength = 40;
+    row.appendChild(input);
+    shell.modal.appendChild(row);
+
+    const foot = document.createElement('div');
+    foot.className = NS + '-tpl-foot';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = NS + '-tpl-btn';
+    cancel.textContent = '取消';
+    cancel.addEventListener('click', closeTplShell);
+    const ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = NS + '-tpl-btn is-primary';
+    ok.textContent = '保存';
+    const submit = () => {
+      const name = (input.value || '').trim();
+      if (!name) { toast('请填写模板名称'); input.focus(); return; }
+      closeTplShell();
+      onConfirm(name);
+    };
+    ok.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+    });
+    foot.appendChild(cancel);
+    foot.appendChild(ok);
+    shell.modal.appendChild(foot);
+    setTimeout(() => { try { input.focus(); input.select(); } catch (e) { /* noop */ } }, 30);
+  }
+
+  /** 把当前编辑区内容存为模板（内容为空时不写库） */
+  async function saveCurrentAsTemplate() {
+    if (!editor) return;
+    const md = htmlToMd(editor);
+    if (!md || !md.trim()) { toast('当前内容为空，无法保存为模板'); return; }
+    const list = await loadTemplates();
+    if (list.length >= TPL_MAX) { toast('模板过多，请先删除旧模板'); return; }
+    openTemplateNameDialog('模板 ' + (list.length + 1), async (name) => {
+      const now = Date.now();
+      const item = {
+        id: 'tpl_' + now.toString(36) + Math.random().toString(36).slice(2, 6),
+        name,
+        content: md,
+        createdAt: now,
+        updatedAt: now
+      };
+      const next = [item].concat(list);
+      const ok = await saveTemplates(next);
+      slashTemplates = next;
+      if (!ok) { toast('模板保存失败'); return; }
+      toast(list.some((t) => t.name === name) ? '已另存同名模板「' + name + '」' : '已保存模板「' + name + '」');
+    });
+  }
+
+  /** 打开模板库：改名、插入、删除、新建 */
+  async function openTemplateManager() {
+    slashTemplates = await loadTemplates();
+    renderTplManager(slashTemplates);
+  }
+
+  function renderTplManager(list) {
+    const shell = openTplShell({ title: '模板库' });
+    const body = document.createElement('div');
+    body.className = NS + '-tpl-body';
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = NS + '-tpl-empty';
+      empty.textContent = '还没有模板。写好内容后点「保存为模板」，之后在空行输入 / 就能快速插入。';
+      body.appendChild(empty);
+    }
+    list.forEach((tpl) => {
+      const row = document.createElement('div');
+      row.className = NS + '-tpl-row';
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.className = NS + '-tpl-name';
+      name.value = tpl.name || '';
+      name.title = '点击可重命名';
+      name.maxLength = 40;
+      name.addEventListener('change', async () => {
+        const v = (name.value || '').trim();
+        if (!v) { name.value = tpl.name || ''; toast('模板名称不能为空'); return; }
+        if (v === tpl.name) return;
+        tpl.name = v;
+        tpl.updatedAt = Date.now();
+        const ok = await saveTemplates(slashTemplates);
+        toast(ok ? '已重命名' : '重命名失败');
+      });
+      const meta = document.createElement('span');
+      meta.className = NS + '-tpl-meta';
+      meta.textContent = (tpl.content || '').length + ' 字';
+      const ins = document.createElement('button');
+      ins.type = 'button';
+      ins.className = NS + '-tpl-act';
+      ins.textContent = '插入';
+      ins.addEventListener('click', () => {
+        closeTplShell();
+        insertHtml(mdToHtml(tpl.content || ''));
+        richToSource();
+        toast('已插入模板「' + (tpl.name || '未命名模板') + '」');
+      });
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = NS + '-tpl-act is-danger';
+      del.textContent = '删除';
+      let armed = 0;   // 二次确认计时器：3 秒内再点一次才真正删除
+      del.addEventListener('click', async () => {
+        if (!armed) {
+          del.textContent = '确认删除';
+          armed = setTimeout(() => { armed = 0; del.textContent = '删除'; }, 3000);
+          return;
+        }
+        clearTimeout(armed);
+        armed = 0;
+        const next = slashTemplates.filter((x) => x.id !== tpl.id);
+        const ok = await saveTemplates(next);
+        if (!ok) { toast('删除失败'); return; }
+        slashTemplates = next;
+        toast('已删除模板');
+        renderTplManager(next);
+      });
+      row.appendChild(name);
+      row.appendChild(meta);
+      row.appendChild(ins);
+      row.appendChild(del);
+      body.appendChild(row);
+    });
+    shell.modal.appendChild(body);
+
+    const foot = document.createElement('div');
+    foot.className = NS + '-tpl-foot';
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = NS + '-tpl-btn';
+    add.textContent = '新建模板';
+    add.addEventListener('click', () => {
+      closeTplShell();
+      saveCurrentAsTemplate();
+    });
+    const done = document.createElement('button');
+    done.type = 'button';
+    done.className = NS + '-tpl-btn is-primary';
+    done.textContent = '完成';
+    done.addEventListener('click', closeTplShell);
+    foot.appendChild(add);
+    foot.appendChild(done);
+    shell.modal.appendChild(foot);
+  }
+
   let splitNativeRestore = null;  // 全屏左右对照时，站点源码区被临时移到面板内，这里记录它的原位
 
   /** 全屏 + 分屏对照：把站点源码区移到面板右侧，形成左右对照；退出时还原原位 */
@@ -2915,6 +3582,8 @@
     add(makeBtn({ key: 'mathinline', html: I(SITE_LABELS.mathinline, ICONS.mathInline), tip: '行内公式', onClick: insertInlineMath }));
     add(makeBtn({ key: 'mathblock', html: I(SITE_LABELS.mathblock, ICONS.mathBlock), tip: '块级公式', onClick: insertBlockMath }));
     add(makeBtn({ key: 'hr', html: I(SITE_LABELS.hr, ICONS.hr), tip: '分割线', onClick: () => { insertHtml('<hr><p><br></p>'); richToSource(); } }));
+    // 模板库：与编辑区输入「/」或「、」唤起的斜杠面板共用同一份模板数据
+    add(makeBtn({ key: 'tpl', html: ICONS.text('T'), tip: '模板库（保存并复用常用内容）', onClick: () => openTemplateManager() }));
 
     // —— 视图 ——
     group('视图');
@@ -2990,7 +3659,9 @@
   function bindEditorEvents() {
     // 输入 → 同步到 Markdown 源码
     editor.addEventListener('input', () => { richToSource(); updateFloatMenu(); refreshFindSoon(); });
-    editor.addEventListener('blur', () => setTimeout(closeFloatMenu, 180));
+    // 输入 → 维护斜杠命令面板（开面板 / 过滤 / 关闭）
+    editor.addEventListener('input', onEditorInputForSlash);
+    editor.addEventListener('blur', () => { setTimeout(closeFloatMenu, 180); closeSlash(); });
 
     // 任务列表：点击左侧复选框区域切换勾选状态（复选框由 CSS 伪元素绘制在 li 左侧）
     editor.addEventListener('click', (e) => {
@@ -3005,6 +3676,8 @@
 
     // 键盘快捷键兜底（部分浏览器 contenteditable 对 Ctrl+B 等支持不一致）
     editor.addEventListener('keydown', (e) => {
+      // 斜杠面板打开时优先接管 ↑↓ / Enter / Esc
+      if (onSlashKeydown(e)) return;
       if (!(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();
       if (k === 'b') { e.preventDefault(); exec('bold'); }
@@ -3050,6 +3723,8 @@
       }
     });
     editor.addEventListener('mouseup', () => setTimeout(updateFloatMenu, 0));
+    // 在编辑区内重新落点时收起斜杠面板：面板只在刚刚输入 / 的位置有意义
+    editor.addEventListener('mouseup', () => closeSlash());
     editor.addEventListener('keyup', () => setTimeout(updateFloatMenu, 0));
 
     // 点击面板外关闭浮层
@@ -3163,6 +3838,8 @@
    * 其它情况返回 null。
    */
   function setMode(next) {
+    // 切视图前收起斜杠面板，避免源码视图上残留一个定位在旧光标处的浮层
+    closeSlash();
     // 任何视图切换都先清掉上一轮遗留的「插入完成自动返回」监听，避免之后被意外触发
     if (pendingBack) {
       pendingBack();

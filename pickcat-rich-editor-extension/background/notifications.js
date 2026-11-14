@@ -244,6 +244,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.notifications.onClicked.addListener(async (notifId) => {
   if (!notifId || notifId.indexOf('pco-') !== 0) return;
   try { await chrome.notifications.clear(notifId); } catch (_) { /* 已自动关闭 */ }
+  // 版本更新提示：点击通知正文等同于「查看更新内容」
+  if (notifId.indexOf(UPDATE_NOTIF_PREFIX) === 0) {
+    openReleaseNotes(notifId.slice(UPDATE_NOTIF_PREFIX.length));
+    return;
+  }
   const state = await getState();
   const target = state.pending[notifId];
   if (target && target.url) {
@@ -251,6 +256,52 @@ chrome.notifications.onClicked.addListener(async (notifId) => {
     await setState(state);
     try { await chrome.tabs.create({ url: target.url }); } catch (_) { /* 忽略 */ }
   }
+});
+
+// ============================ 版本更新提示 ============================
+// 每次扩展升级到新版本时弹一条系统通知，询问是否查看本次更新内容。
+// 版本号写入 storage 去重，同一版本只提示一次，避免 onInstalled 重放时重复弹。
+
+const UPDATE_NOTICE_KEY = 'pco_update_notice';
+const UPDATE_NOTIF_PREFIX = 'pco-update-';
+const RELEASE_TAG_URL = 'https://github.com/GrantPome/PickScribe/releases/tag/v';
+
+/** 打开该版本的发行版页面（更新日志随 Release 一同发布） */
+function openReleaseNotes(version) {
+  if (!version) return;
+  try {
+    chrome.tabs.create({ url: RELEASE_TAG_URL + encodeURIComponent(version) });
+  } catch (_) { /* 无 tabs 权限等异常忽略 */ }
+}
+
+/** 升级后询问是否查看更新内容；同一版本只弹一次 */
+export async function showUpdateNotice(version) {
+  const ver = String(version || '').trim();
+  if (!ver) return;
+
+  try {
+    const raw = await chrome.storage.local.get(UPDATE_NOTICE_KEY);
+    const saved = raw[UPDATE_NOTICE_KEY];
+    if (saved && saved.version === ver) return;   // 该版本已提示过
+    await chrome.storage.local.set({ [UPDATE_NOTICE_KEY]: { version: ver, at: Date.now() } });
+  } catch (_) { /* 存储异常不拦截提示 */ }
+
+  await notify(UPDATE_NOTIF_PREFIX + ver, {
+    type: 'basic',
+    iconUrl: chrome.runtime.getURL('icons/icon128.png'),
+    title: 'PickScribe 已更新到 v' + ver,
+    message: '要看看这个版本更新了什么吗？',
+    buttons: [{ title: '查看更新内容' }, { title: '以后再说' }],
+    priority: 1
+  });
+}
+
+// 更新通知的按钮：0 = 查看更新内容，1 = 以后再说（仅关闭）
+chrome.notifications.onButtonClicked.addListener(async (notifId, index) => {
+  if (!notifId || notifId.indexOf(UPDATE_NOTIF_PREFIX) !== 0) return;
+  const version = notifId.slice(UPDATE_NOTIF_PREFIX.length);
+  try { await chrome.notifications.clear(notifId); } catch (_) { /* 已自动关闭 */ }
+  if (index === 0) openReleaseNotes(version);
 });
 
 /** 设置页「发送测试通知」 */
