@@ -1415,9 +1415,18 @@
   background:var(--pcr-surface-hover);font-size:11px;font-weight:600;
   font-variant-numeric:tabular-nums;}
 .${NS}-lib-tab.is-active .${NS}-lib-count{background:color-mix(in oklab,var(--pcr-accent) 18%,transparent);}
-/* 卡片列表 */
-.${NS}-lib-body{flex:1;min-height:0;overflow:auto;padding:0 16px 12px;
-  display:flex;flex-direction:column;gap:10px;}
+/* 左右分栏：左侧条目列表，右侧预览区 */
+.${NS}-lib-modal{width:min(960px,100%);height:min(660px,88vh);}
+.${NS}-lib-cols{flex:1;min-height:0;display:flex;}
+.${NS}-lib-body{width:352px;flex:none;min-height:0;overflow:auto;padding:12px;
+  display:flex;flex-direction:column;gap:8px;
+  border-right:1px solid var(--pcr-border);}
+.${NS}-lib-view{flex:1;min-width:0;display:flex;flex-direction:column;}
+.${NS}-lib-view-head{flex:none;padding:14px 20px 8px;font-size:15px;font-weight:650;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.${NS}-lib-view-body{flex:1;min-height:0;overflow:auto;padding:0 20px 18px;
+  font-size:14px;line-height:1.75;color:var(--pcr-text);}
+.${NS}-lib-view-hint{color:var(--pcr-subtle);font-size:13px;}
 .${NS}-lib-card{border:1px solid var(--pcr-border);border-radius:12px;
   background:var(--pcr-surface);transition:border-color .2s,background .2s;}
 .${NS}-lib-card:hover{border-color:color-mix(in oklab,var(--pcr-accent) 42%,var(--pcr-border));}
@@ -1425,6 +1434,7 @@
 .${NS}-lib-row{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;}
 .${NS}-lib-main{flex:1;min-width:0;display:block;padding:0;border:0;background:transparent;
   color:inherit;font:inherit;text-align:left;cursor:pointer;}
+.${NS}-lib-main:focus-visible{outline:2px solid var(--pcr-accent);outline-offset:2px;border-radius:8px;}
 .${NS}-lib-name{font-size:15px;font-weight:650;line-height:1.35;color:var(--pcr-text);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .${NS}-lib-meta{margin-top:4px;font-size:12.5px;color:var(--pcr-text);opacity:.72;
@@ -1446,25 +1456,29 @@
 .${NS}-lib-icon:active{transform:scale(.94);}
 .${NS}-lib-icon.is-armed{color:var(--pcr-error);border-color:var(--pcr-error);
   background:color-mix(in oklab,var(--pcr-error) 10%,transparent);}
-/* 点击卡片展开的预览区 */
-.${NS}-lib-preview{display:none;margin:0 14px 12px;padding-top:10px;
-  border-top:1px solid var(--pcr-border);max-height:200px;overflow:auto;
-  font-size:13px;line-height:1.66;color:var(--pcr-text);}
-.${NS}-lib-card.is-open .${NS}-lib-preview{display:block;}
-.${NS}-lib-preview>:first-child{margin-top:0;}
-.${NS}-lib-preview>:last-child{margin-bottom:0;}
-.${NS}-lib-preview p{margin:0 0 8px;}
-.${NS}-lib-preview h1{font-size:17px;margin:0 0 8px;}
-.${NS}-lib-preview h2{font-size:15.5px;margin:0 0 8px;}
-.${NS}-lib-preview h3,h4,h5,h6{font-size:14px;margin:0 0 8px;}
-.${NS}-lib-preview ul,.${NS}-lib-preview ol{margin:0 0 8px;padding-left:20px;}
-.${NS}-lib-preview li{margin:2px 0;}
-.${NS}-lib-preview pre{margin:0 0 8px;padding:8px 10px;border-radius:8px;
-  background:var(--pcr-canvas);overflow:auto;font-size:12px;}
-.${NS}-lib-preview code{font-size:12.5px;}
-.${NS}-lib-preview img{max-width:100%;height:auto;border-radius:8px;}
-.${NS}-lib-preview blockquote{margin:0 0 8px;padding-left:10px;
+/* 右侧预览区排版（Markdown 渲染结果） */
+.${NS}-lib-view-body>:first-child{margin-top:0;}
+.${NS}-lib-view-body>:last-child{margin-bottom:0;}
+.${NS}-lib-view-body p{margin:0 0 10px;}
+.${NS}-lib-view-body h1{font-size:19px;margin:14px 0 10px;}
+.${NS}-lib-view-body h2{font-size:17px;margin:12px 0 10px;}
+.${NS}-lib-view-body h3,.${NS}-lib-view-body h4,
+.${NS}-lib-view-body h5,.${NS}-lib-view-body h6{font-size:15px;margin:10px 0 8px;}
+.${NS}-lib-view-body ul,.${NS}-lib-view-body ol{margin:0 0 10px;padding-left:22px;}
+.${NS}-lib-view-body li{margin:3px 0;}
+.${NS}-lib-view-body pre{margin:0 0 10px;padding:10px 12px;border-radius:8px;
+  background:var(--pcr-canvas);overflow:auto;font-size:12.5px;}
+.${NS}-lib-view-body code{font-size:13px;}
+.${NS}-lib-view-body img{max-width:100%;height:auto;border-radius:8px;}
+.${NS}-lib-view-body blockquote{margin:0 0 10px;padding-left:12px;
   border-left:2px solid var(--pcr-border);color:var(--pcr-subtle);}
+/* 窄屏：列表在上、预览在下 */
+@media (max-width:760px){
+  .${NS}-lib-modal{height:min(700px,92vh);}
+  .${NS}-lib-cols{flex-direction:column;}
+  .${NS}-lib-body{width:auto;max-height:38%;border-right:0;
+    border-bottom:1px solid var(--pcr-border);}
+}
 .${NS}-tpl-empty{padding:28px 10px;text-align:center;font-size:13px;color:var(--pcr-subtle);}
 .${NS}-tpl-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;flex:none;
   border-top:1px solid var(--pcr-border);}
@@ -3444,46 +3458,12 @@
     return btn;
   }
 
-  /** 内容变化前后平滑过渡弹窗高度：不重播打开动画，也不重建整个窗口 */
-  function libMorph(fn) {
-    const modal = libShell && libShell.modal;
-    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!modal || reduce) { if (fn) fn(); return; }
-    const from = modal.getBoundingClientRect().height;
-    if (fn) fn();
-    // 先量出内容需要的新高度，再退回旧高度开始过渡
-    modal.style.height = 'auto';
-    const to = modal.getBoundingClientRect().height;
-    if (Math.abs(to - from) < 1) { modal.style.height = ''; return; }
-    modal.style.height = from + 'px';
-    void modal.offsetHeight;   // 强制回流，让起始高度先落地
-    const body = libShell.body;
-    const oldOverflow = body.style.overflow;
-    body.style.overflow = 'hidden';   // 过渡期间不出现内层滚动条抖动
-    modal.style.transition = 'height .28s cubic-bezier(.22,1,.36,1)';
-    const finish = () => {
-      modal.style.transition = '';
-      modal.style.height = '';
-      body.style.overflow = oldOverflow;
-    };
-    // transitionend 被下一次过渡打断时不会触发，用定时器兜底复位
-    const fallback = setTimeout(finish, 420);
-    const onEnd = (e) => {
-      if (e.target !== modal || e.propertyName !== 'height') return;
-      clearTimeout(fallback);
-      modal.removeEventListener('transitionend', onEnd);
-      finish();
-    };
-    modal.addEventListener('transitionend', onEnd);
-    requestAnimationFrame(() => { modal.style.height = to + 'px'; });
-  }
-
   /** 重新读取两个页签数据并原地重绘（改名、覆盖、删除后调用） */
   async function libRefresh() {
     libCache.draft = await loadDrafts();
     libCache.tpl = await loadTemplates();
     slashTemplates = libCache.tpl;
-    if (libShell) libMorph(() => paintLibrary());
+    if (libShell) paintLibrary();
   }
 
   /** 打开资料库，tab 传 'draft' 或 'tpl' */
@@ -3503,7 +3483,7 @@
 
   /** 构建固定外壳：标题、页签、内容区、底栏都只建一次 */
   function buildLibraryShell() {
-    const shell = openTplShell({ title: '' });
+    const shell = openTplShell({ title: '', extraClass: NS + '-lib-modal' });
     const modal = shell.modal;
     const lib = {
       modal: modal,
@@ -3532,8 +3512,24 @@
     });
 
     lib.body.className = NS + '-lib-body';
+
+    // 右侧预览区：标题 + Markdown 正文，比内联预览有更大的阅读面积
+    lib.viewHead = document.createElement('div');
+    lib.viewHead.className = NS + '-lib-view-head';
+    lib.viewBody = document.createElement('div');
+    lib.viewBody.className = NS + '-lib-view-body';
+    const view = document.createElement('div');
+    view.className = NS + '-lib-view';
+    view.appendChild(lib.viewHead);
+    view.appendChild(lib.viewBody);
+
+    const main = document.createElement('div');
+    main.className = NS + '-lib-cols';
+    main.appendChild(lib.body);
+    main.appendChild(view);
+
     modal.appendChild(lib.tabs);
-    modal.appendChild(lib.body);
+    modal.appendChild(main);
 
     const foot = document.createElement('div');
     foot.className = NS + '-tpl-foot';
@@ -3616,20 +3612,15 @@
       main.appendChild(metaEl);
       main.appendChild(timeEl);
       main.addEventListener('click', () => {
-        const open = item.id !== libOpenId;
-        // 展开 / 收起预览时同样平滑过渡高度
-        libMorph(() => {
-          libOpenId = open ? item.id : '';
-          body.querySelectorAll('.' + NS + '-lib-card.is-open').forEach((el) => {
-            el.classList.remove('is-open');
-            const b = el.querySelector('.' + NS + '-lib-main');
-            if (b) b.setAttribute('aria-expanded', 'false');
-          });
-          if (open) {
-            card.classList.add('is-open');
-            main.setAttribute('aria-expanded', 'true');
-          }
+        libOpenId = item.id;
+        body.querySelectorAll('.' + NS + '-lib-card.is-open').forEach((el) => {
+          el.classList.remove('is-open');
+          const b = el.querySelector('.' + NS + '-lib-main');
+          if (b) b.setAttribute('aria-expanded', 'false');
         });
+        card.classList.add('is-open');
+        main.setAttribute('aria-expanded', 'true');
+        renderLibPreview();
       });
 
       const acts = document.createElement('div');
@@ -3728,20 +3719,39 @@
       row.appendChild(main);
       row.appendChild(acts);
 
-      // 预览区：默认折叠，展开后渲染 Markdown
-      const preview = document.createElement('div');
-      preview.className = NS + '-lib-preview';
-      if (content.trim()) preview.innerHTML = mdToHtml(content);
-      else preview.textContent = '（空内容）';
-
       card.appendChild(row);
-      card.appendChild(preview);
       body.appendChild(card);
     });
 
+    renderLibPreview();
     };
 
     paint();
+  }
+
+  /** 把选中条目渲染到右侧预览区 */
+  function renderLibPreview() {
+    if (!libShell) return;
+    const list = libCache[libTab] || [];
+    const item = list.find((x) => x.id === libOpenId);
+    libShell.viewHead.textContent = item ? (item.name || '未命名' + libLabel(libTab)) : '';
+    libShell.viewBody.textContent = '';
+    if (!item) {
+      const hint = document.createElement('p');
+      hint.className = NS + '-lib-view-hint';
+      hint.textContent = '点击左侧条目，在这里查看内容。';
+      libShell.viewBody.appendChild(hint);
+      return;
+    }
+    const content = item.content || '';
+    if (!content.trim()) {
+      const hint = document.createElement('p');
+      hint.className = NS + '-lib-view-hint';
+      hint.textContent = '（空内容）';
+      libShell.viewBody.appendChild(hint);
+      return;
+    }
+    libShell.viewBody.innerHTML = mdToHtml(content);
   }
 
   // —— 草稿箱 ——
