@@ -254,6 +254,7 @@ $('replayGuide').addEventListener('click', async () => {
       state: 'pending',      // 等同首装：等待欢迎卡
       done: [],              // 清空已看步骤
       welcomeDone: false,    // 欢迎卡重新出现
+      welcomeVer: '',        // 清空「已完成的欢迎流程版本」，下次打开站点重播
       skipped: false,
       skippedAt: 0,
       replay: false,
@@ -901,6 +902,8 @@ const FONT_MODE_KEY = 'pcr_font_mode';
 const FONT_CUSTOM_KEY = 'pcr_custom_font';
 /** 键 pcr_image_zoom：与 overlay/content.js 的 IMAGE_ZOOM_KEY 保持一致，控制点击图片查看大图 */
 const IMAGE_ZOOM_KEY = 'pcr_image_zoom';
+/** 键 pcr_g2_radius：与 content.js 的 RADIUS_KEY 保持一致，控制全站 G2 连续圆角（默认开启） */
+const G2_RADIUS_KEY = 'pcr_g2_radius';
 /** 键 pcr_plus_link：与 content.js 的 PLUS_LINK_KEY 保持一致，控制是否响应 PICKCAT Plus 的唤起指令 */
 const PLUS_LINK_KEY = 'pcr_plus_link';
 
@@ -1068,10 +1071,11 @@ async function removeFontFace(id, pending) {
 
 async function loadAppearance() {
   const raw = await chrome.storage.local.get([
-    HARMONY_FONT_KEY, IMAGE_ZOOM_KEY, FONT_MODE_KEY, FONT_CUSTOM_KEY
+    HARMONY_FONT_KEY, IMAGE_ZOOM_KEY, FONT_MODE_KEY, FONT_CUSTOM_KEY, G2_RADIUS_KEY
   ]);
   $('appearanceHarmonyFont').checked = raw[HARMONY_FONT_KEY] !== false && raw[HARMONY_FONT_KEY] !== '0';
   $('appearanceImageZoom').checked = raw[IMAGE_ZOOM_KEY] !== false && raw[IMAGE_ZOOM_KEY] !== '0';
+  $('appearanceG2Radius').checked = raw[G2_RADIUS_KEY] !== false && raw[G2_RADIUS_KEY] !== '0';
 
   const spec = raw[FONT_CUSTOM_KEY];
   savedFaces = (spec && Array.isArray(spec.faces) ? spec.faces : []).map((f) => ({
@@ -1090,6 +1094,12 @@ $('appearanceHarmonyFont').addEventListener('change', async (e) => {
   await chrome.storage.local.set({ [HARMONY_FONT_KEY]: e.target.checked });
   syncFontUi();
   setStatus(e.target.checked ? '已启用整站字体替换' : '已恢复站点原字体', 'ok');
+});
+
+// G2 圆角：即时生效，无需刷新站点页面
+$('appearanceG2Radius').addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ [G2_RADIUS_KEY]: e.target.checked });
+  setStatus(e.target.checked ? '已启用全站 G2 连续圆角' : '已恢复站点原圆角', 'ok');
 });
 
 $('fontModeHarmony').addEventListener('change', async () => {

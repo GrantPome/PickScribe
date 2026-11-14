@@ -36,7 +36,10 @@
   const FONT_MODE_KEY = 'pcr_font_mode';  // 字体来源：'harmony'（内置鸿蒙）| 'custom'（用户上传）
   const FONT_CUSTOM_KEY = 'pcr_custom_font'; // 自定义字体描述符：{ faces:[{ id, name, size, weight }] }
   const FONT_STYLE_ID = NS + '-font-style'; // 字体样式节点 id，开关与兜底恢复都靠它定位
+  const RADIUS_KEY = 'pcr_g2_radius';      // 全站 G2 圆角开关：默认开启，关掉恢复站点原圆角
+  const RADIUS_STYLE_ID = NS + '-g2-style'; // G2 圆角样式节点 id
   let fontOn = true;                       // 字体增强开关状态（设置页写入 storage.local）
+  let radiusOn = true;                     // G2 圆角开关状态
   let fontMode = 'harmony';                // 当前字体来源
   let customSpec = null;                   // 自定义字体描述符（字体字节在扩展域 IndexedDB）
 
@@ -985,6 +988,77 @@
           customSpec = changes[FONT_CUSTOM_KEY].newValue || null;
         }
         applyFontConfig();
+      });
+    } catch (e) {
+      // 非扩展环境（油猴等）不支持 storage，沿用默认开启
+    }
+  }
+
+  /**
+   * 全站 G2 圆角（曲率连续，squircle）。
+   *
+   * 只改转角轮廓、不改半径数值：`corner-shape` 与现有 border-radius 叠加。
+   * 注意：这里绝不能写成 `*` 全量命中——图片、视频、画布等大元素一旦也要
+   * 生成圆角遮罩，显存 / 内存会明显上涨。因此只挑「面」与控件，
+   * 并用 :where(:not(img, video, canvas)) 排除媒体元素（不增加选择器权重）。
+   * CSS 无法按计算后的半径筛选，所以「保圆名单」按类名兜住头像、圆形图标、
+   * 胶囊按钮与开关圆点这些不该变形的写法；帖子浮层容器（.pco-shell）体量大、
+   * 遮罩合成最贵，单独排除。
+   * 不支持的浏览器会整段忽略 @supports，自动保持站点原圆角。
+   */
+  const G2_RADIUS_CSS = `
+@supports (corner-shape: squircle) {
+  :is(button, input, textarea, select,
+      [role="dialog"], [role="menu"], [role="listbox"], [role="tooltip"],
+      [class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"], [class*="rounded-3xl"],
+      [class*="card"], [class*="panel"], [class*="modal"], [class*="dialog"],
+      [class*="popover"], [class*="dropdown"], [class*="sheet"],
+      [class*="pco-"], [class*="pcr-"], [class*="pch-"], [class*="pcs-"],
+      [class*="pcg-"], [class*="pcai-"], [class*="pcrr-"]):where(:not(img, video, canvas)) {
+    corner-shape: squircle;
+  }
+  :is([class*="rounded-full"], [class*="rounded-pill"], [class*="pill"],
+      [class*="avatar"], [class*="circle"], [class*="dot"], [class*="switch"],
+      [class*="btn"], [class*="button"], [class*="chip"], [class*="tag"],
+      [class*="ghost"], [class*="primary"], [class*="toast"], [class*="wave"]),
+  .pcg-dots i { corner-shape: round; }
+  /* 帖子浮层容器体量最大，曲率连续圆角的遮罩合成开销也最明显，单独排除，保持站点原圆角 */
+  #pco-root .pco-shell { corner-shape: round; }
+}
+`;
+
+  /** 注入 G2 圆角样式；开关状态直接落到 disabled 上，切换即时生效且可逆 */
+  function injectRadiusStyle() {
+    let style = document.getElementById(RADIUS_STYLE_ID);
+    if (!style) {
+      style = document.createElement('style');
+      style.id = RADIUS_STYLE_ID;
+      style.textContent = G2_RADIUS_CSS;
+      (document.head || document.documentElement).appendChild(style);
+    }
+    applyRadiusState();
+  }
+
+  function applyRadiusState() {
+    const el = document.getElementById(RADIUS_STYLE_ID);
+    if (el) el.disabled = !radiusOn;
+  }
+
+  /**
+   * 读取 G2 圆角开关（默认开启），并跟随设置页改动即时切换：
+   * pcr_g2_radius —— 布尔
+   */
+  function loadRadiusSetting() {
+    try {
+      chrome.storage.local.get([RADIUS_KEY], (raw) => {
+        radiusOn = raw[RADIUS_KEY] !== false && raw[RADIUS_KEY] !== '0';
+        applyRadiusState();
+      });
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local' || !changes[RADIUS_KEY]) return;
+        const v = changes[RADIUS_KEY].newValue;
+        radiusOn = v !== false && v !== '0';
+        applyRadiusState();
       });
     } catch (e) {
       // 非扩展环境（油猴等）不支持 storage，沿用默认开启
@@ -3509,6 +3583,10 @@
   // 字体：与编辑页无关，整站生效，脚本启动即注入；具体来源（鸿蒙 / 自定义）随后由设置决定
   injectFontStyle(false);
   loadFontSetting();
+
+  // G2 圆角：同样整站生效，先按默认开启注入，再按存储里的开关校正
+  injectRadiusStyle();
+  loadRadiusSetting();
 
   // 悬浮提示用全局事件委托，启动时绑定一次即可（面板会被站点重渲染重建，不需要重复绑定）
   initTips();
