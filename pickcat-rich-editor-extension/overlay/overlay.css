@@ -964,11 +964,43 @@ html.pco-lock body {
   outline-offset: 2px;
 }
 
+/* 后台补页时列表底部的占位：先占住位置，避免内容补齐时整列往上跳 */
+#pco-root .pco-comments-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 14px 4px 8px;
+  font-size: 12.5px;
+  color: var(--pco-dim);
+}
+
+#pco-root .pco-comments-loading i {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in oklab, var(--pco-dim) 32%, transparent);
+  border-top-color: var(--pco-primary);
+  animation: pco-spin 0.7s linear infinite;
+}
+
+@keyframes pco-spin {
+  to { transform: rotate(360deg); }
+}
+
 #pco-root .pco-comment {
   display: flex;
   gap: 10px;
   padding: 15px 6px 15px 2px;
   border-bottom: 1px solid color-mix(in oklab, var(--pco-border) 62%, transparent);
+  border-radius: 10px;
+  /* 发布定位后的强调用背景 + 描边渐变，不改尺寸也不动 animation，避免入场动画重播 */
+  transition: background-color 0.42s ease, box-shadow 0.42s ease;
+}
+
+#pco-root .pco-comment.is-flash {
+  background-color: color-mix(in oklab, var(--pco-primary) 13%, transparent);
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--pco-primary) 32%, transparent);
 }
 
 #pco-root .pco-comment:last-child {
@@ -1001,6 +1033,11 @@ html.pco-lock body {
 #pco-root.is-side-loaded .pco-comment {
   animation: pco-rise 0.46s var(--pco-ease) both;
   animation-delay: calc(var(--i, 0) * 26ms);
+}
+
+/* 补页 / 排序 / 发布后的重渲染：列表已经显示过，不再重播入场动画 */
+#pco-root .pco-comments-inner.pco-quiet .pco-comment {
+  animation: none;
 }
 
 #pco-root .pco-comment-main {
@@ -1245,6 +1282,151 @@ html.pco-lock body {
 #pco-root .pco-composer-box:focus-within {
   border-color: color-mix(in oklab, var(--pco-primary) 50%, var(--pco-border));
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--pco-primary) 12%, transparent);
+}
+
+/* 发送进行中：输入内容降噪，底部走一条进度光带 */
+#pco-root .pco-composer-box.is-sending {
+  position: relative;
+}
+
+#pco-root .pco-composer-box.is-sending .pco-editor {
+  opacity: 0.55;
+}
+
+#pco-root .pco-composer-box.is-sending::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background-image: linear-gradient(90deg, transparent, var(--pco-primary), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  animation: pco-send-run 1.1s linear infinite;
+}
+
+@keyframes pco-send-run {
+  0% { background-position: -40% 0; }
+  100% { background-position: 140% 0; }
+}
+
+/* 发送成功的「文字气泡 → 新评论」飞行层：
+   宽度从文字本身展开到评论区宽度，位移与宽度分别补间（不缩放文字） */
+#pco-root .pco-send-ghost {
+  position: fixed;
+  z-index: 9;
+  pointer-events: none;
+  will-change: transform, opacity, width;
+}
+
+#pco-root .pco-send-ghost.is-waiting {
+  opacity: 0.92;
+}
+
+#pco-root .pco-send-ghost-body {
+  display: flex;
+  align-items: flex-start;
+}
+
+/* 头像栏：起始宽度为 0，飞行途中撑开，头像随之从左侧滑入 */
+#pco-root .pco-send-ghost-gutter {
+  flex: none;
+  width: 0;
+  overflow: hidden;
+}
+
+#pco-root .pco-send-ghost-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-right: 10px;
+  border-radius: 50%;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(-6px) scale(0.88);
+}
+
+#pco-root .pco-send-ghost-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 昵称行：起始高度为 0，随气泡展开让出位置 */
+#pco-root .pco-send-ghost-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+#pco-root .pco-send-ghost-name {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--pco-text);
+}
+
+#pco-root .pco-send-ghost-time {
+  font-size: 12px;
+  color: var(--pco-dim);
+}
+
+#pco-root .pco-send-ghost .pco-composer-box {
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 12px 30px -16px rgba(8, 10, 16, 0.42);
+}
+
+/* 等待列表刷新时，飞行层自己也带一条进度光带，避免看起来像卡住 */
+#pco-root .pco-send-ghost.is-waiting .pco-composer-box::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background-image: linear-gradient(90deg, transparent, var(--pco-primary), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: pco-send-run 1.1s linear infinite;
+}
+
+#pco-root .pco-send-ghost-editor {
+  width: 100%;
+  max-height: 140px;
+  padding: 9px 11px 6px;
+  overflow: hidden;
+  color: var(--pco-text);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* 审核中：气泡右下角的小状态字，绝对定位不占正文布局 */
+#pco-root .pco-send-ghost-status {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--pco-dim) 14%, transparent);
+  color: var(--pco-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#pco-root .pco-send-ghost-status:empty {
+  display: none;
 }
 
 /* 回复某一楼时，输入框上方的目标提示条 */
@@ -2990,6 +3172,9 @@ html.pco-lock body {
   width: 288px;
   min-height: 0;
   padding: 0 12px 22px 0;
+  /* 只保留纵向滚动：overflow-y:auto 会让 overflow-x 也变成 auto，
+     标题换行 / 折线 SVG 在亚像素下哪怕多出不到 1px，也会冒出横向滚动条 */
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;

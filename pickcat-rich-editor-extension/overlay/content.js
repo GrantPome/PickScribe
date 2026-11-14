@@ -35,12 +35,22 @@
   /** 视为「信息流」的路径：只有这些页面才把帖子点击转成浮层 */
   const FEED_PATH = /^\/$|^\/forum(?:\/category\/[^/?#]+)?$|^\/search$/;
   const POST_HREF = /\/forum\/post\/([^/?#]+)/;
-  /** 浮层首屏展示的回复条数；点「查看所有评论」后在原地加载全部 */
+  /** 首屏兜底页大小（正常路径首屏直接走 COMMENT_PAGE 并自动补齐） */
   const COMMENT_LIMIT = 24;
   /** 一次加载全部评论时的上限，避免超大帖把浮层拖垮 */
   const COMMENT_ALL_MAX = 500;
   /** 接口是游标分页，逐页拉取时每页条数 */
   const COMMENT_PAGE = 60;
+  /** 自动补页的间隔：翻页之间留一点空档，别把站点请求打得太密 */
+  const COMMENT_PAGE_GAP = 140;
+  /** 发送成功后「输入框 → 新评论」的飞行时长（毫秒，基准值） */
+  const SEND_FLY_MS = 520;
+  /** 审核中的回复最多等多久（毫秒）：期间飞行层一直停在输入框上转圈 */
+  const REVIEW_WAIT_MS = 90000;
+  /** 审核期间的轮询间隔（毫秒，逐步放缓） */
+  const REVIEW_POLL_MS = 1500;
+  /** 新评论定位后强调高亮的时长 */
+  const LOCATE_FLASH_MS = 1800;
   /** 详情数据内存缓存：重复打开同一帖秒开 */
   const CACHE_TTL = 5 * 60 * 1000;
   /** 关闭动画时长（对齐 overlay.css：0.54s 位移结束 + 0.14s 交接淡出） */
@@ -196,6 +206,23 @@
   const commentCache = new Map();
   /** 正在预取的帖子 id，避免同一目标重复请求 */
   const prefetching = new Set();
+  /**
+   * 缓存条目上限：TTL 只让旧条目不参与命中，过期数据仍留在 Map 里占内存，
+   * 长时间连续刷帖会一路涨上去，所以写入时主动淘汰。
+   */
+  const CACHE_MAX_TOPICS = 30;
+  const CACHE_MAX_COMMENTS = 12;
+
+  /** 写入缓存并淘汰：先清过期条目，再按写入顺序丢掉最旧的，控制内存上限 */
+  function putCache(map, key, value, limit) {
+    map.delete(key);
+    map.set(key, value);
+    const now = Date.now();
+    for (const [k, v] of map) {
+      if (now - v.at >= CACHE_TTL) map.delete(k);
+    }
+    while (map.size > limit) map.delete(map.keys().next().value);
+  }
 
   /** 回复排序：与站点 /posts 接口的 sort 取值一致 */
   const SORTS = [
@@ -483,18 +510,28 @@
     }
 
     const base = '/api/v1/topics/' + encodeURIComponent(topicId);
+    const sort = view ? view.sort : 'hot';
     try {
       const result = await Promise.all([
         fetchJson(base, signal),
-        fetchJson(postsUrl(topicId, view ? view.sort : 'hot'), signal).catch(() => null)
+        fetchJson(postsUrl(topicId, sort, COMMENT_PAGE), signal).catch(() => null)
       ]);
       if (!current || current.id !== topicId) return;
       const topic = result[0];
       const posts = result[1];
-      cache.set(topicId, { topic: topic, at: Date.now() });
-      if (posts && view) commentCache.set(topicId + '|' + view.sort, { posts: posts, at: Date.now() });
+      putCache(cache, topicId, { topic: topic, at: Date.now() }, CACHE_MAX_TOPICS);
+      if (posts && view) {
+        const partial = !!(posts.pageInfo && posts.pageInfo.hasNextPage);
+        putCache(commentCache, topicId + '|' + sort, { posts: posts, at: Date.now(), all: !partial }, CACHE_MAX_COMMENTS);
+        view.partial = partial;
+        view.allLoaded = !partial;
+      }
       applyTopic(topic);
       applyPosts(topic, posts);
+      // 首屏先出，剩余页在后台补齐（带限速），不阻塞打开动画
+      if (posts && posts.pageInfo && posts.pageInfo.hasNextPage) {
+        loadRemaining(topicId, sort, posts);
+      }
     } catch (err) {
       if (err && err.name === 'AbortError') return;
       if (!current || current.id !== topicId) return;
@@ -502,13 +539,40 @@
     }
   }
 
-  /** 游标分页把所有回复拉全：单页 60 条，直到没有下一页或触顶 */
-  async function fetchAllPosts(topicId, sort, signal) {
+  /** 翻页间的空档：可被 AbortSignal 打断，避免切帖后还在傻等 */
+  function pageGap(signal) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (signal && signal.aborted) {
+          const err = new Error('Aborted');
+          err.name = 'AbortError';
+          reject(err);
+          return;
+        }
+        resolve();
+      }, COMMENT_PAGE_GAP);
+      if (signal && signal.addEventListener) {
+        signal.addEventListener('abort', () => {
+          clearTimeout(timer);
+          const err = new Error('Aborted');
+          err.name = 'AbortError';
+          reject(err);
+        }, { once: true });
+      }
+    });
+  }
+
+  /**
+   * 游标分页把所有回复拉全：单页 60 条，直到没有下一页或触顶。
+   * first 是已经拿到的首屏数据，复用它可省掉一次请求；每翻一页之间限速。
+   */
+  async function fetchAllPosts(topicId, sort, signal, first) {
     const seen = new Set();
     const items = [];
+    let page = first || null;
     let cursor = '';
     while (true) {
-      const page = await fetchJson(postsUrl(topicId, sort, COMMENT_PAGE, cursor), signal);
+      if (!page) page = await fetchJson(postsUrl(topicId, sort, COMMENT_PAGE, cursor), signal);
       const list = (page && page.items) || [];
       list.forEach((post) => {
         const no = String(post.postNumber);
@@ -517,9 +581,11 @@
         items.push(post);
       });
       const info = page && page.pageInfo;
+      page = null;
       if (!info || !info.hasNextPage || !info.nextCursor) break;
       if (items.length >= COMMENT_ALL_MAX) break;
       cursor = info.nextCursor;
+      await pageGap(signal);
     }
     return { items: items };
   }
@@ -530,9 +596,10 @@
     const key = topicId + '|' + sort;
     const all = !!view.showAll;
     const cached = commentCache.get(key);
-    // 缓存里只有首屏 24 条时，即使已展开全部也不能直接用它凑数
+    // 缓存里只有首屏时，即使要展示全部也不能直接用它凑数
     const cachedEnough = cached && (!all || !!cached.all);
     if (!force && cached && cachedEnough && Date.now() - cached.at < CACHE_TTL) {
+      view.allLoaded = !!cached.all;
       applyPosts(view.topic, cached.posts);
       return;
     }
@@ -543,11 +610,22 @@
         ? await fetchAllPosts(topicId, sort, signal)
         : await fetchJson(postsUrl(topicId, sort, COMMENT_LIMIT), signal);
       if (!current || current.id !== topicId) return;
-      commentCache.set(key, { posts: posts, at: Date.now(), all: all });
+      if (view) {
+        view.partial = !all && !!(posts && posts.pageInfo && posts.pageInfo.hasNextPage);
+        view.allLoaded = all;
+        view.allFailed = false;
+      }
+      putCache(commentCache, key, { posts: posts, at: Date.now(), all: all }, CACHE_MAX_COMMENTS);
       applyPosts(view.topic, posts);
     } catch (err) {
       if (err && err.name === 'AbortError') return;
       if (!current || current.id !== topicId) return;
+      if (view) {
+        view.allFailed = true;
+        view.allLoaded = false;
+      }
+      // 已经有内容时不要整列清空，只标记没拉全，底部保留重试入口
+      if (view && view.posts && (view.posts.items || []).length) return;
       view.posts = null;
       root.classList.remove('is-side-loaded');
       root.classList.add('is-side-error');
@@ -636,8 +714,8 @@
         fetchJson(base, signal),
         fetchJson(postsUrl(topicId, 'hot'), signal).catch(() => null)
       ]);
-      cache.set(topicId, { topic: result[0], at: Date.now() });
-      if (result[1]) commentCache.set(topicId + '|hot', { posts: result[1], at: Date.now() });
+      putCache(cache, topicId, { topic: result[0], at: Date.now() }, CACHE_MAX_TOPICS);
+      if (result[1]) putCache(commentCache, topicId + '|hot', { posts: result[1], at: Date.now() }, CACHE_MAX_COMMENTS);
     } catch (err) {
       /* 预取失败静默：真正切过去时会再请求一次 */
     } finally {
@@ -1300,7 +1378,13 @@
       posts: null,
       sort: 'hot',
       keyword: '',
-      showAll: false,
+      // 进入即补齐整个评论区：默认就渲染已拿到的全部，剩余页后台补
+      showAll: true,
+      allLoaded: false,
+      partial: false,
+      loadingAll: false,
+      allFailed: false,
+      pendingLocate: null,
       liked: false,
       likeCount: 0,
       bookmarkId: null,
@@ -2253,7 +2337,11 @@
     if (countEl) countEl.textContent = '…';
     if (contentEl) contentEl.innerHTML = '';
     const inner = root.querySelector('[data-role="comments-inner"]');
-    if (inner) inner.innerHTML = '';
+    if (inner) {
+      inner.innerHTML = '';
+      // 换帖时恢复入场动画（只在每个帖子的首屏播一次）
+      inner.classList.remove('pco-quiet');
+    }
     const out = aiOut();
     if (out) {
       out.hidden = true;
@@ -2313,6 +2401,12 @@
       view.likeBusy = false;
       view.bookmarkBusy = false;
       view.commentBusy = false;
+      view.showAll = true;
+      view.allLoaded = false;
+      view.partial = false;
+      view.loadingAll = false;
+      view.allFailed = false;
+      view.pendingLocate = null;
       if (view.commentLikeBusy) view.commentLikeBusy.clear();
     }
     paintSorts();
@@ -2537,6 +2631,408 @@
     if (composerFull) fillComposerFullHeader();
   }
 
+  /** 发送按钮 / 输入框的进行中状态 */
+  function setSendBusy(busy) {
+    if (!root) return;
+    const btn = root.querySelector('[data-act="submit"]');
+    const box = root.querySelector('.pco-composer-box');
+    if (btn) {
+      btn.disabled = busy;
+      btn.classList.toggle('is-busy', busy);
+      btn.textContent = busy ? '发送中' : '回复';
+    }
+    if (box) box.classList.toggle('is-sending', busy);
+  }
+
+  /** 从发布接口的返回值里尽力取出新回复的 id / 楼层号 */
+  function createdPostOf(res) {
+    if (!res || typeof res !== 'object') return null;
+    const post = res.post || (res.item && res.item.post) ||
+      (res.submission && res.submission.post) || null;
+    const src = post || res;
+    const id = src.id || res.postId || '';
+    const no = src.postNumber || res.postNumber || '';
+    if (!id && !no) return null;
+    return {
+      id: String(id || ''),
+      no: no ? String(no) : '',
+      // 响应里带了完整回复时可以直接并进列表，省掉一次整表重拉
+      post: post && post.id ? post : null
+    };
+  }
+
+  /** 从发布响应里取审核状态：不同版本可能放在 status / submission.status / post.status */
+  function publishStatusOf(res) {
+    if (!res || typeof res !== 'object') return '';
+    const raw = res.status ||
+      (res.submission && res.submission.status) ||
+      (res.post && res.post.status) ||
+      (res.item && (res.item.status || (res.item.post && res.item.post.status))) ||
+      (res.moderation && res.moderation.status) || '';
+    return String(raw).toUpperCase();
+  }
+
+  /**
+   * 发送成功的连贯动画：把输入的文字收成一个「聊天气泡」——宽度先贴合文字本身，
+   * 落到新评论位置时再展开到评论区能给的宽度；头像与昵称在飞行途中一起滑入。
+   * 返回 null 表示当前环境不适合做（减弱动效、没有内容、量不到尺寸）。
+   */
+  function beginSendFlight() {
+    if (!root || reducedMotion()) return null;
+    const box = root.querySelector('.pco-composer-box');
+    const host = composerInput();
+    if (!box || !host) return null;
+    const editorRect = host.getBoundingClientRect();
+    if (!editorRect.width || !editorRect.height) return null;
+    const html = host.innerHTML || '';
+    if (!html.trim()) return null;
+
+    // 评论正文一栏最多能有多宽：气泡的起始宽度不超过它，展开时就不会反过来变窄
+    const inner = root.querySelector('[data-role="comments-inner"]');
+    const innerW = inner ? inner.getBoundingClientRect().width : 0;
+    const cap = Math.max(160, Math.round(innerW ? innerW - 48 : editorRect.width));
+
+    const ghost = document.createElement('div');
+    ghost.className = 'pco-send-ghost is-waiting';
+    ghost.innerHTML =
+      '<div class="pco-send-ghost-body">' +
+        '<div class="pco-send-ghost-gutter"><span class="pco-send-ghost-avatar"></span></div>' +
+        '<div class="pco-send-ghost-main">' +
+          '<div class="pco-send-ghost-head">' +
+            '<span class="pco-send-ghost-name"></span>' +
+            '<span class="pco-send-ghost-time"></span>' +
+          '</div>' +
+          '<div class="pco-composer-box pco-send-ghost-box">' +
+            '<div class="pco-editor pco-send-ghost-editor"></div>' +
+            '<span class="pco-send-ghost-status"></span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    ghost.querySelector('.pco-send-ghost-editor').innerHTML = html;
+
+    // 先离屏按 max-content 量出「文字本身」的宽高，再把气泡摆回输入框里文字的位置
+    ghost.style.left = '-99999px';
+    ghost.style.top = '0px';
+    ghost.style.width = 'max-content';
+    ghost.style.maxWidth = cap + 'px';
+    // 飞行层必须挂在 #pco-root 下：shell 有 transform + overflow，
+    // fixed 元素挂在里面会被当成相对 shell 定位并且被裁掉
+    root.appendChild(ghost);
+    const natural = ghost.getBoundingClientRect();
+    ghost.style.maxWidth = '';
+    ghost.style.left = Math.round(editorRect.left) + 'px';
+    ghost.style.top = Math.round(editorRect.top) + 'px';
+    // +1px 吸收亚像素取整，避免起始宽度差一点又折一行
+    ghost.style.width = Math.ceil(natural.width) + 1 + 'px';
+
+    // 真身先藏起来但保留占位，飞行结束后再清空恢复，避免布局在动画中跳动
+    box.style.visibility = 'hidden';
+    return { ghost: ghost, rect: ghost.getBoundingClientRect(), box: box };
+  }
+
+  /** 飞行层右下角的小状态字：审核期间明确告诉用户「还在审核」，通过后自动飞过去 */
+  function setFlightStatus(flight, text) {
+    if (!flight || !flight.ghost) return;
+    const el = flight.ghost.querySelector('.pco-send-ghost-status');
+    if (el) el.textContent = text || '';
+  }
+
+  /** 收尾：清掉输入框内容并恢复输入区（此时内容已经交给飞行层） */
+  function clearComposerAfterSend(ta) {
+    if (composerEditor) composerEditor.clear();
+    else if (ta) ta.innerHTML = '';
+    if (ta) growComposer(ta);
+    if (view) view.replyTo = null;
+    paintReplyTarget();
+    insertPoint = null;
+  }
+
+  /**
+   * 把飞行层落到新评论的位置：气泡从「文字宽度」展开到评论区宽度，头像与昵称
+   * 同时从左侧滑入，位移只补间 transform，宽度单独补间 width；落点后移除飞行层、
+   * 显形目标并短暂高亮。全程同一时刻只有一个可见元素。
+   */
+  function landSendFlight(flight, target) {
+    const restoreBox = () => {
+      if (flight && flight.box && flight.box.isConnected) flight.box.style.visibility = '';
+    };
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    if (!flight) {
+      if (target) flashComment(target);
+      return Promise.resolve();
+    }
+
+    const ghost = flight.ghost;
+    ghost.classList.remove('is-waiting');
+    // 开始飞行时把「审核中」小字收掉，别跟着气泡一起飞过去
+    setFlightStatus(flight, '');
+
+    // 没落到具体评论（比如进了审核队列）：原地淡出，不做长距离飞行
+    if (!target) {
+      ghost.style.transition = 'opacity ' + sec(0.18) + ' ease';
+      ghost.style.opacity = '0';
+      return wait(200 / animSpeed).then(() => {
+        if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+        restoreBox();
+      });
+    }
+
+    const to = target.getBoundingClientRect();
+    const from = flight.rect;
+    // 目标在飞行期间不能可见，否则会出现「两个元素同时在」
+    target.style.visibility = 'hidden';
+
+    // 头像 / 昵称 / 时间直接取自这条新评论，飞行途中就位后与列表里的完全一致
+    const avatarNode = target.querySelector('.pco-avatar');
+    const nameNode = target.querySelector('.pco-comment-name');
+    const timeNode = target.querySelector('.pco-comment-time');
+    const gutter = ghost.querySelector('.pco-send-ghost-gutter');
+    const avatar = ghost.querySelector('.pco-send-ghost-avatar');
+    const head = ghost.querySelector('.pco-send-ghost-head');
+    const nameEl = ghost.querySelector('.pco-send-ghost-name');
+    const timeEl = ghost.querySelector('.pco-send-ghost-time');
+    if (avatar && avatarNode) avatar.appendChild(avatarNode.cloneNode(true));
+    if (nameEl && nameNode) nameEl.textContent = nameNode.textContent;
+    if (timeEl && timeNode) timeEl.textContent = timeNode.textContent;
+    const hasHead = !!(avatarNode || nameNode);
+
+    const ease = 'var(--pco-move)';
+    const dur = sec(SEND_FLY_MS / 1000);
+    const dx = to.left - from.left;
+    const dy = to.top - from.top;
+
+    // 起点：气泡贴合文字宽度、头像栏与昵称行为 0；终点：评论区宽度 + 头像/昵称就位
+    ghost.style.transformOrigin = 'top left';
+    ghost.style.transform = 'translate(0px, 0px)';
+    void ghost.offsetWidth;
+    ghost.style.transition =
+      'transform ' + dur + ' ' + ease +
+      ', width ' + dur + ' ' + ease +
+      ', opacity ' + sec(0.16) + ' ease ' + sec(SEND_FLY_MS / 1000 - 0.06);
+    ghost.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)';
+    ghost.style.width = Math.round(to.width) + 'px';
+    ghost.style.opacity = '0';
+
+    // 头像栏从 0 撑开到 30 + 10（与评论里头像 + 间距一致），气泡里的文字随之前移
+    if (gutter) {
+      gutter.style.transition = 'width ' + dur + ' ' + ease + ' ' + sec(0.06);
+      gutter.style.width = hasHead ? '40px' : '0px';
+    }
+    if (avatar) {
+      avatar.style.transition = 'opacity ' + sec(0.26) + ' ease ' + sec(0.1) +
+        ', transform ' + dur + ' ' + ease + ' ' + sec(0.06);
+      avatar.style.opacity = hasHead ? '1' : '0';
+      avatar.style.transform = 'none';
+    }
+    if (head) {
+      head.style.transition = 'height ' + dur + ' ' + ease + ' ' + sec(0.04) +
+        ', opacity ' + sec(0.24) + ' ease ' + sec(0.1);
+      head.style.height = hasHead ? '19px' : '0px';
+      head.style.opacity = hasHead ? '1' : '0';
+    }
+
+    return new Promise((resolve) => {
+      let done = false;
+      const end = () => {
+        if (done) return;
+        done = true;
+        if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+        restoreBox();
+        if (target.isConnected) {
+          target.style.visibility = '';
+          flashComment(target);
+        }
+        resolve();
+      };
+      ghost.addEventListener('transitionend', (e) => {
+        if (e.target === ghost && e.propertyName === 'transform') end();
+      });
+      setTimeout(end, Math.round(SEND_FLY_MS / animSpeed) + 140);
+    });
+  }
+
+  /** 按 id 单独拉一条回复；没公开 / 未过审时接口会失败，这里直接当作没找到 */
+  async function fetchPostById(postId) {
+    if (!postId) return null;
+    const signal = current && current.controller && current.controller.signal;
+    try {
+      const res = await fetchJson('/api/v1/posts/' + encodeURIComponent(postId), signal);
+      const post = res && (res.post || (res.item && res.item.post) || res);
+      return post && post.id ? post : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /** 回复去重键：楼层号优先（同一条回复在不同响应里可能 id 不同） */
+  function postKey(post) {
+    if (!post) return '';
+    if (post.postNumber != null) return 'n' + post.postNumber;
+    return post.id ? 'i' + post.id : '';
+  }
+
+  /** 归一化文本：用于按内容认领刚发出的那条回复（服务端不回 id 时的兜底） */
+  function normalizeText(str) {
+    return String(str || '').replace(/\s+/g, ' ').trim();
+  }
+
+  /** 把单条（或一批）新回复并进当前列表，已经存在的跳过，并立刻重渲染 */
+  function mergePosts(list) {
+    if (!view || !view.posts || !list || !list.length) return 0;
+    const items = view.posts.items || [];
+    const seen = new Set(items.map(postKey));
+    let added = 0;
+    list.forEach((post) => {
+      const key = postKey(post);
+      if (!post || !key || seen.has(key)) return;
+      seen.add(key);
+      items.push(post);
+      added += 1;
+    });
+    if (added) {
+      view.posts.items = items;
+      applyPosts(view.topic, view.posts);
+    }
+    return added;
+  }
+
+  /** 只补第一页：比整表重拉便宜得多，用于发布后确认新回复是否已经进列表 */
+  async function mergeFirstPage(topicId, sort) {
+    const signal = current && current.controller && current.controller.signal;
+    try {
+      const page = await fetchJson(postsUrl(topicId, sort, COMMENT_PAGE), signal);
+      if (!root || !view || (current && current.id !== topicId)) return;
+      mergePosts((page && page.items) || []);
+    } catch (err) {
+      // 补页失败不影响定位流程，后面还有整表重拉兜底
+    }
+  }
+
+  /** 在已渲染的列表里定位并返回元素（找不到时记下待定位，等下一次渲染） */
+  function landOnTarget(target) {
+    if (!target) return null;
+    const no = target.postNumber ? String(target.postNumber) : '';
+    const el = locateComment(no, target.id, false);
+    if (!el && view) {
+      // 这一轮渲染被推迟（含重媒体的开合动画）时，等下次渲染再定位
+      view.pendingLocate = { no: no, id: target.id, flash: true };
+    }
+    return { el: el };
+  }
+
+  /**
+   * 在当前列表里认领刚发出的那条回复：
+   * 先按响应 id / 楼层号，再按内容（只接受发布快照之后新增、正文一致的条目）。
+   * 一条都对不上就返回 null，调用方必须按「还没公开」处理，绝不盲取。
+   */
+  function matchCreatedPost(items, before, created, markdown) {
+    const list = items || [];
+    if (created && created.id) {
+      const hit = list.find((p) => p && String(p.id) === created.id);
+      if (hit) return hit;
+    }
+    if (created && created.no) {
+      const hit = list.find((p) => p && String(p.postNumber) === created.no);
+      if (hit) return hit;
+    }
+    const wantText = normalizeText(markdown);
+    if (!wantText) return null;
+    // 正文里可能带 markdown 语法（**加粗**、`代码`），渲染后的纯文本不含这些符号
+    const loose = (str) => normalizeText(str).replace(/[`*_~#>\[\]()!|]/g, '');
+    const wantLoose = loose(wantText);
+    const fresh = list.filter((p) => {
+      if (!p) return false;
+      const key = postKey(p);
+      if (!key || before.has(key) || before.has(String(p.postNumber))) return false;
+      const text = normalizeText(plainText(p.cookedHtml));
+      return text === wantText || loose(text) === wantLoose;
+    });
+    if (!fresh.length) return null;
+    // 同内容连发时取楼层号最大的一条（最新那条）
+    fresh.sort((a, b) => (Number(b.postNumber) || 0) - (Number(a.postNumber) || 0));
+    return fresh[0];
+  }
+
+  /**
+   * 审核中：飞行层停在输入框上保持加载态，按间隔轮询这条回复是否已经公开；
+   * 一旦查到就返回它（由调用方接着播放飞行落位），超时返回 null。
+   */
+  async function awaitPublicPost(topicId, before, created, markdown) {
+    const deadline = Date.now() + REVIEW_WAIT_MS;
+    let gap = REVIEW_POLL_MS;
+    let round = 0;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, gap));
+      if (!root || !view || (current && current.id !== topicId)) return null;
+      round += 1;
+
+      if (created && created.id) {
+        const post = await fetchPostById(created.id);
+        if (post) {
+          mergePosts([post]);
+          const hit = matchCreatedPost((view.posts && view.posts.items) || [], before, created, markdown);
+          if (hit) return landOnTarget(hit);
+        }
+      }
+      // 列表轮询比单条查询贵，隔一轮查一次
+      if (round % 2 === 1) {
+        await mergeFirstPage(topicId, view.sort);
+        if (!root || !view) return null;
+        const hit = matchCreatedPost((view.posts && view.posts.items) || [], before, created, markdown);
+        if (hit) return landOnTarget(hit);
+      }
+      // 等待越久查得越稀，避免长时间审核把站点接口刷爆
+      gap = Math.min(6000, gap + 500);
+    }
+    return null;
+  }
+
+  /**
+   * 发布成功后找到并定位这条新回复。按成本从低到高：
+   * 响应自带完整回复 → 按 id 单取 → 补第一页 → 整表重拉 → 半秒后再补第一页。
+   * 不能确定是哪条时返回 null，调用方必须按「已提交但未显示」处理。
+   */
+  async function refreshAndLocate(topicId, before, created, markdown) {
+    if (!view) return null;
+
+    const pick = () => matchCreatedPost((view.posts && view.posts.items) || [], before, created, markdown);
+
+    // 1) 响应里带了完整的新回复：并进列表即可，连请求都不用发
+    if (created && created.post) {
+      mergePosts([created.post]);
+      const hit = pick();
+      if (hit) return landOnTarget(hit);
+    }
+    // 2) 只有 id：单独取这一条（未过审时接口会失败，当作还没公开）
+    if (created && created.id) {
+      const post = await fetchPostById(created.id);
+      if (post) {
+        mergePosts([post]);
+        const hit = pick();
+        if (hit) return landOnTarget(hit);
+      }
+    }
+    // 3) 补第一页，把新出现的并进现有列表
+    await mergeFirstPage(topicId, view.sort);
+    if (!root || !view) return null;
+    let hit = pick();
+    if (hit) return landOnTarget(hit);
+
+    // 4) 整表重拉一次（站点批量列表可能有写入延迟）
+    await loadComments(topicId, view.sort, true);
+    if (!root || !view) return null;
+    hit = pick();
+    if (hit) return landOnTarget(hit);
+
+    // 5) 再给站点半秒
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    if (!root || !view) return null;
+    await mergeFirstPage(topicId, view.sort);
+    hit = pick();
+    return hit ? landOnTarget(hit) : null;
+  }
+
   async function submitComment() {
     if (!view || !view.topic || view.commentBusy) return;
     if (aiBusy) { toast('AI 正在生成，等它写完再发送'); return; }
@@ -2558,13 +3054,13 @@
 
     const topicId = view.topic.id;
     view.commentBusy = true;
-    const btn = root.querySelector('[data-act="submit"]');
-    if (btn) {
-      btn.disabled = true;
-      btn.classList.add('is-busy');
-      btn.textContent = '发送中';
-    }
+    setSendBusy(true);
+    // 发布前记住已有楼层：服务端不回新帖信息时用差集找出这条回复
+    const before = new Set(((view.posts && view.posts.items) || [])
+      .map((p) => String(p && p.postNumber)));
 
+    let flight = null;
+    let published = false;
     try {
       // 与站点回复编辑器一致的请求体：topicId + markdown；未指定楼层时回主楼
       const res = await apiSend('/posts', 'POST', {
@@ -2573,42 +3069,83 @@
         replyToPostNumber: (view.replyTo && view.replyTo.no) || 1
       });
 
-      if (composerEditor) composerEditor.clear();
-      else ta.innerHTML = '';
-      growComposer(ta);
-      view.replyTo = null;
-      paintReplyTarget();
-      insertPoint = null;
-      if (composerFull) toggleComposerFull(false);
-
-      const status = res && (res.status || (res.submission && res.submission.status));
-      if (status === 'PENDING' || status === 'PENDING_ADMIN_REVIEW') {
-        toast('回复已提交，等待人工审核');
-      } else if (status === 'REJECTED' || status === 'PROVIDER_FAILED' ||
-                 status === 'PUBLICATION_FAILED') {
+      const status = publishStatusOf(res);
+      if (/REJECT|FAILED/.test(status)) {
+        // 审核没过：保留已输入内容，用户改一改就能再发
         toast('回复未通过审核，换个说法再试试', 'err');
-      } else {
-        toast('回复已发布');
-        if (view && view.topic) {
-          view.topic.replyCount = (Number(view.topic.replyCount) || 0) + 1;
-          if (countEl) countEl.textContent = fmtCount(view.topic.replyCount);
-          paintRail();
-        }
+        return;
       }
-      if (view && view.topic) loadComments(topicId, view.sort, true);
+      published = true;
+      // 审核中：这条回复还没公开，但动画不能消失——飞行层停在输入框上继续转圈，
+      // 等审核通过（列表里能查到）后再连贯地飞到它自己的位置
+      const waiting = /PENDING|REVIEW|MODERAT|FLAG|HOLD/.test(status);
+
+      // 全屏编辑时先收回侧栏，飞行层才有稳定的起点
+      if (composerFull) toggleComposerFull(false, true);
+      flight = beginSendFlight();
+      clearComposerAfterSend(ta);
+      if (waiting) setFlightStatus(flight, '审核中…');
+
+      // 发布后要定位这条新回复：先清掉关键词筛选，否则新回复可能被过滤掉
+      if (view && view.keyword) {
+        view.keyword = '';
+        const filter = root && root.querySelector('[data-role="filter"]');
+        if (filter) filter.value = '';
+      }
+
+      // 先等列表刷新完再飞：整个等待期飞行层留在输入区，就是「发送中 / 审核中」的样子
+      const created = createdPostOf(res);
+      let found = null;
+      try {
+        found = await refreshAndLocate(topicId, before, created, markdown);
+        if (!found && waiting) found = await awaitPublicPost(topicId, before, created, markdown);
+      } catch (err) {
+        // 定位失败不代表没发出去：走下面「已提交但没显示」的收尾，别让飞行层突然消失
+        found = null;
+      }
+      await landSendFlight(flight, found ? found.el : null);
+      if (!found) {
+        // 评论没进列表：可能还在审核 / 站点还没写进列表，不能报「已发布」
+        toast(waiting
+          ? '回复仍在审核中，通过后重新打开浮层就能看到'
+          : '回复已提交，列表里还没显示（可能还在审核），稍后重新打开浮层看看');
+        return;
+      }
+
+      if (view && view.topic) {
+        view.topic.replyCount = (Number(view.topic.replyCount) || 0) + 1;
+        if (countEl) countEl.textContent = fmtCount(view.topic.replyCount);
+        paintRail();
+      }
+      toast(waiting ? '审核通过，回复已发布' : '回复已发布');
     } catch (err) {
+      // 已经发出去之后才出错（刷新 / 动画）：不能报「回复失败」，内容也不该退回输入框
+      if (published) {
+        // 让飞行层按正常收尾淡出，别让它在半途突然消失
+        try {
+          await landSendFlight(flight, null);
+        } catch (e) {
+          if (flight && flight.ghost && flight.ghost.parentNode) {
+            flight.ghost.parentNode.removeChild(flight.ghost);
+          }
+          if (flight && flight.box && flight.box.isConnected) flight.box.style.visibility = '';
+        }
+        toast('回复已发布，列表暂时没刷新出来，重新打开浮层即可看到');
+        return;
+      }
       let msg = err.message;
       if (err.status === 401) msg = '请先登录后再发表回复';
       else if (err.status === 403) msg = '当前账号暂时不能回复这个帖子';
       else if (err.status === 422) msg = '内容未通过校验或审核';
       toast('回复失败：' + msg, 'err');
+      // 失败：撤掉飞行层，把输入框原样还回来（内容一直没清，可直接重发）
+      if (flight) {
+        if (flight.ghost.parentNode) flight.ghost.parentNode.removeChild(flight.ghost);
+        if (flight.box && flight.box.isConnected) flight.box.style.visibility = '';
+      }
     } finally {
       if (view) view.commentBusy = false;
-      if (btn) {
-        btn.disabled = false;
-        btn.classList.remove('is-busy');
-        btn.textContent = '回复';
-      }
+      setSendBusy(false);
     }
   }
 
@@ -2620,12 +3157,36 @@
     return box.textContent || '';
   }
 
+  /**
+   * 回复排序：排序在浮层里做，热度并列时也保持确定顺序。
+   * hot 按点赞数从多到少，热度一样时最新的在前；latest / earliest 按楼层号。
+   * 同时按 id / 楼层号去重，避免补页或本地补插后同一条回复出现两次。
+   */
+  function orderComments(items, sort) {
+    const seen = new Set();
+    const list = [];
+    (items || []).forEach((post) => {
+      if (!post) return;
+      const key = postKey(post);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      list.push(post);
+    });
+    const no = (p) => Number(p.postNumber) || 0;
+    const likes = (p) => Number(p.likeCount) || 0;
+    if (sort === 'earliest') return list.sort((a, b) => no(a) - no(b));
+    if (sort === 'latest') return list.sort((a, b) => no(b) - no(a));
+    return list.sort((a, b) => (likes(b) - likes(a)) || (no(b) - no(a)));
+  }
+
   function renderComments(topic, posts, mentionMap) {
     if (!countEl) return;
     countEl.textContent = fmtCount(topic.replyCount);
 
     const inner = root.querySelector('[data-role="comments-inner"]');
     if (!inner) return;
+    // 首屏之后的重渲染（补页、排序、发布）不再重播入场动画，否则整列会闪一下
+    const hadContent = inner.children.length > 0;
 
     if (!posts) {
       root.classList.add('is-side-error');
@@ -2637,16 +3198,18 @@
     const all = posts.items || [];
     const shown = view && view.showAll ? all : all.slice(0, COMMENT_LIMIT);
     const keyword = view && view.keyword ? view.keyword.toLowerCase() : '';
-    const items = keyword ? shown.filter((post) => {
+    const filtered = keyword ? shown.filter((post) => {
       const name = (post.author && post.author.username) || '';
       return name.toLowerCase().indexOf(keyword) !== -1 ||
         plainText(post.cookedHtml).toLowerCase().indexOf(keyword) !== -1;
     }) : shown;
+    const items = orderComments(filtered, view ? view.sort : 'hot');
 
     if (!items.length) {
       inner.innerHTML = '<div class="pco-comments-empty">' +
         (keyword ? '没有匹配「' + esc(view.keyword) + '」的回复' : '还没有回复，来抢沙发吧') +
       '</div>';
+      paintCommentsFoot();
       return;
     }
 
@@ -2745,18 +3308,24 @@
       (keyword ? items : roots).map((post) => renderBranch(post, 0)).join('')
     );
 
-    // 首屏有折叠时，底部提供「查看所有评论」，点开后原地加载全部
-    const more = moreCommentsHtml(topic, shown);
-    if (more) holder.insertAdjacentHTML('beforeend', more);
-
+    // 首屏先渲染，底部「正在加载完整评论」由 paintCommentsFoot 统一维护
     prepareVideoFacades(holder);
     teardownMedia(inner);
+    if (hadContent) inner.classList.add('pco-quiet');
     inner.innerHTML = '';
     while (holder.firstChild) inner.appendChild(holder.firstChild);
     restoreAudioSources(inner);
 
     localizeMentions(inner, mentionMap);
     deferHeavyMedia(inner);
+    paintCommentsFoot();
+
+    // 发布后的定位如果赶上了这次重渲染，就在这里补上
+    if (view && view.pendingLocate) {
+      const target = view.pendingLocate;
+      view.pendingLocate = null;
+      locateComment(target.no, target.id, target.flash);
+    }
   }
 
   /** 按楼层号 / id 在当前回复列表里定位 post（浮层只认 view.posts 这一份数据） */
@@ -2764,6 +3333,63 @@
     const items = (view && view.posts && view.posts.items) || [];
     return items.find((p) => p && ((id && p.id === id) ||
       (no && String(p.postNumber) === String(no)))) || null;
+  }
+
+  /** 在 DOM 里找某条评论；楼层号优先，id 兜底 */
+  function findCommentEl(no, id) {
+    const inner = root && root.querySelector('[data-role="comments-inner"]');
+    if (!inner) return null;
+    const nodes = inner.querySelectorAll('[data-role="comment"]');
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (no && node.getAttribute('data-no') === String(no)) return node;
+      if (id && node.getAttribute('data-id') === id) return node;
+    }
+    return null;
+  }
+
+  /** 把评论滚到回复区可视范围中间；只动容器 scrollTop，不带动整页 */
+  function scrollCommentIntoView(el) {
+    const box = root && root.querySelector('[data-role="comments"]');
+    if (!box || !el) return;
+    const boxRect = box.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const delta = elRect.top - boxRect.top;
+    const top = box.scrollTop + delta - Math.max(12, (box.clientHeight - elRect.height) / 2);
+    box.scrollTop = Math.max(0, Math.round(top));
+  }
+
+  /** 定位后的短暂强调：只闪背景，不改尺寸，不会推动列表 */
+  function flashComment(el) {
+    if (!el) return;
+    el.classList.remove('is-flash');
+    void el.offsetWidth;
+    el.classList.add('is-flash');
+    setTimeout(() => {
+      if (el && el.isConnected) el.classList.remove('is-flash');
+    }, LOCATE_FLASH_MS / animSpeed);
+  }
+
+  /**
+   * 定位到某条评论：展开它所有被折叠的父楼（当前版本楼中楼默认全展开，
+   * 这里为后续折叠能力预留），滚动到视野中间，可选短暂高亮。
+   * 返回命中的元素，没找到就是 null。
+   */
+  function locateComment(no, id, flash) {
+    const el = findCommentEl(no, id);
+    if (!el) return null;
+    // 祖先里有折叠容器就先展开，避免定位到看不见的地方
+    let node = el.parentElement;
+    while (node && node !== root) {
+      if (node.hidden) node.hidden = false;
+      if (node.classList && node.classList.contains('is-collapsed')) {
+        node.classList.remove('is-collapsed');
+      }
+      node = node.parentElement;
+    }
+    scrollCommentIntoView(el);
+    if (flash) flashComment(el);
+    return el;
   }
 
   /** 只刷新这一条评论的点赞外观，不重渲染整列，避免计数闪动与入场动画重播 */
@@ -3189,45 +3815,85 @@
     window.open('/forum/editor?type=edit&id=' + encodeURIComponent(post.id), '_blank', 'noopener');
   }
 
-  /** 「查看所有评论」入口：只有首屏被折叠时才出现 */
+  /** 「加载全部 / 重试」入口：只在自动补页失败、列表还没拉全时出现 */
   function moreCommentsHtml(topic, shown) {
-    if (!view || view.showAll) return '';
+    if (!view || view.allLoaded) return '';
+    if (!view.allFailed && !view.partial) return '';
     const total = Number(topic.replyCount) || 0;
     if (total <= shown.length && shown.length < COMMENT_LIMIT) return '';
     return '<button type="button" class="pco-comments-more" data-act="all-comments">' +
-      '<span>查看所有评论</span>' + icon('chevronRight', 14) + '</button>';
+      '<span>加载全部评论</span>' + icon('chevronRight', 14) + '</button>';
   }
 
-  /** 原地加载全部回复：首屏只取 24 条，这里按游标逐页补齐 */
+  /** 列表底部状态：加载中占位 / 加载失败后的重试入口，直接增删节点不重渲染整列 */
+  function paintCommentsFoot() {
+    const inner = root && root.querySelector('[data-role="comments-inner"]');
+    if (!inner) return;
+    let foot = inner.querySelector('[data-role="comments-loading"]');
+    if (view && view.loadingAll) {
+      if (!foot) {
+        foot = document.createElement('div');
+        foot.className = 'pco-comments-loading';
+        foot.setAttribute('data-role', 'comments-loading');
+        foot.innerHTML = '<i aria-hidden="true"></i><span>正在加载完整评论…</span>';
+        inner.appendChild(foot);
+      }
+    } else if (foot && foot.parentNode) {
+      foot.parentNode.removeChild(foot);
+    }
+
+    const retry = inner.querySelector('[data-act="all-comments"]');
+    const need = !!(view && !view.loadingAll && !view.allLoaded &&
+      (view.allFailed || view.partial));
+    if (need && !retry && view.topic) {
+      inner.insertAdjacentHTML('beforeend',
+        moreCommentsHtml(view.topic, (view.posts && view.posts.items) || []));
+    } else if (!need && retry) {
+      retry.parentNode.removeChild(retry);
+    }
+  }
+
+  /**
+   * 后台补齐剩余分页：首屏数据已经渲染出来，这里只补后面的页。
+   * first 为已拿到的首屏数据，复用它省掉一次重复请求。
+   */
+  async function loadRemaining(topicId, sort, first) {
+    if (!root || !view || view.loadingAll) return;
+    const topic = view.topic;
+    view.loadingAll = true;
+    view.allFailed = false;
+    paintCommentsFoot();
+
+    const signal = current && current.controller ? current.controller.signal : undefined;
+    try {
+      const posts = await fetchAllPosts(topicId, sort, signal, first);
+      if (!current || current.id !== topicId || !view) return;
+      view.showAll = true;
+      view.allLoaded = true;
+      view.partial = false;
+      view.loadingAll = false;
+      view.posts = posts;
+      putCache(commentCache, topicId + '|' + sort, { posts: posts, at: Date.now(), all: true }, CACHE_MAX_COMMENTS);
+      applyPosts(topic, posts);
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      if (!view) return;
+      view.allFailed = true;
+      view.loadingAll = false;
+      paintCommentsFoot();
+      toast('评论只加载了一部分，可以点底部的「加载全部评论」重试', 'err');
+    }
+  }
+
+  /** 「加载全部评论」入口：自动补页失败后手动重试 */
   async function loadAllComments() {
     if (!root || !view || !view.topic || view.loadingAll) return;
-    const topic = view.topic;
     const btn = root.querySelector('[data-act="all-comments"]');
-    view.loadingAll = true;
     if (btn) {
       btn.disabled = true;
       btn.innerHTML = '<span>正在加载…</span>';
     }
-
-    const signal = current && current.controller ? current.controller.signal : undefined;
-    try {
-      const posts = await fetchAllPosts(topic.id, view.sort, signal);
-      if (!current || current.id !== topic.id) return;
-      view.showAll = true;
-      view.posts = posts;
-      commentCache.set(topic.id + '|' + view.sort, { posts: posts, at: Date.now(), all: true });
-      renderComments(topic, posts, buildMentionMap(topic, posts));
-    } catch (err) {
-      if (err && err.name === 'AbortError') return;
-      if (!root) return;
-      // 失败时把按钮恢复原样，用户可以直接重试
-      if (btn && btn.isConnected) {
-        btn.disabled = false;
-        btn.innerHTML = '<span>查看所有评论</span>' + icon('chevronRight', 14);
-      }
-      toast('评论加载失败，请稍后重试', 'err');
-    }
-    view.loadingAll = false;
+    await loadRemaining(view.topic.id, view.sort, null);
   }
 
   function showError() {
@@ -6031,7 +6697,7 @@
     const hit = cache.get(topicId);
     if (hit && Date.now() - hit.at < CACHE_TTL) return hit.topic;
     const topic = await fetchJson('/api/v1/topics/' + encodeURIComponent(topicId));
-    cache.set(topicId, { topic: topic, at: Date.now() });
+    putCache(cache, topicId, { topic: topic, at: Date.now() }, CACHE_MAX_TOPICS);
     return topic;
   }
 
