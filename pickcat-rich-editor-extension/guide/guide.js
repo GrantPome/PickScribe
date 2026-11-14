@@ -628,8 +628,6 @@
       return '<span class="pcg-logo-fallback">' + drawIcon('welcome', 'pcg-draw pcg-logo-line') + '</span>';
     }
     return '<span class="pcg-logo-trace-wrap">' +
-      '<span class="pcg-logo-wave" aria-hidden="true"></span>' +
-      '<span class="pcg-logo-wave pcg-logo-wave--late" aria-hidden="true"></span>' +
       '<img class="pcg-logo-img" src="' + url + '" alt="" width="68" height="68">' +
       '</span>';
   }
@@ -1350,6 +1348,88 @@
    */
   let welcomeIntroRun = 0;
 
+  /* ---------------- 第一幕 LOGO 成形波纹（与 AI 能力屏同款折射） ---------------- */
+
+  let logoWaveEl = null;
+  let logoWaveRaf = 0;
+  let logoWaveRun = 0;
+
+  /** 波前层挂在卡片里、绝对定位铺满卡片：由卡片自己的 overflow: hidden 与圆角裁切，
+   *  只折射卡片内部，不会溢到窗口外面的遮罩上 */
+  function ensureLogoWave(modal) {
+    if (!modal) return null;
+    if (logoWaveEl && logoWaveEl.isConnected) return logoWaveEl;
+    const el = document.createElement('div');
+    el.className = 'pcg-logo-wave-screen';
+    el.setAttribute('aria-hidden', 'true');
+    modal.appendChild(el);
+    logoWaveEl = el;
+    return el;
+  }
+
+  function stopLogoWave() {
+    logoWaveRun += 1;
+    if (logoWaveRaf) {
+      cancelAnimationFrame(logoWaveRaf);
+      logoWaveRaf = 0;
+    }
+    // backdrop-filter 层不留在页面上：演完就摘掉，避免持续读回背景
+    if (logoWaveEl) {
+      logoWaveEl.remove();
+      logoWaveEl = null;
+    }
+  }
+
+  /**
+   * LOGO 成形瞬间推出去的水波折射：圆心量在 LOGO 上，半径从中心扫到 LOGO 外两倍多，
+   * 边扩边淡。环带扫过的地方，卡片里的文字与 LOGO 会被折射，但不会超出卡片。
+   */
+  function startLogoWave(logo, modal) {
+    stopLogoWave();
+    if (!logo || !modal) return;
+    const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (reduced) return;
+    const el = ensureLogoWave(modal);
+    if (!el) return;
+
+    const rect = logo.getBoundingClientRect();
+    if (!rect.width) return;
+    // 圆心要换算成卡片内坐标：波前层是卡片的绝对定位子元素
+    const box = modal.getBoundingClientRect();
+    const speed = Number(animSpeed) > 0 ? Number(animSpeed) : 1;
+    const time = 760 / speed;
+    // 扫到 LOGO 外两倍多：刚好掠过左栏与标题，演出「从图标扩散出去」的感觉
+    const reach = rect.width * 2.3;
+    el.style.setProperty('--pcg-wave-x', (rect.left - box.left + rect.width / 2).toFixed(1) + 'px');
+    el.style.setProperty('--pcg-wave-y', (rect.top - box.top + rect.height / 2).toFixed(1) + 'px');
+    el.style.setProperty('--pcg-wave-r', '0px');
+
+    const run = logoWaveRun;
+    const started = performance.now();
+    const tick = (now) => {
+      if (run !== logoWaveRun || !el.isConnected) {
+        logoWaveRaf = 0;
+        return;
+      }
+      const p = Math.min(1, (now - started) / time);
+      // 与 AI 屏一致：先快后慢地推开
+      const r = reach * (1 - Math.pow(1 - p, 2));
+      el.style.setProperty('--pcg-wave-r', r.toFixed(1) + 'px');
+      const fade = p < 0.15 ? p / 0.15 : 1 - (p - 0.15) / 0.85;
+      el.style.opacity = Math.max(0, fade).toFixed(3);
+      if (p < 1) {
+        logoWaveRaf = requestAnimationFrame(tick);
+        return;
+      }
+      logoWaveRaf = 0;
+      if (el === logoWaveEl) {
+        el.remove();
+        logoWaveEl = null;
+      }
+    };
+    logoWaveRaf = requestAnimationFrame(tick);
+  }
+
   /**
    * 欢迎屏的入场编排：先把 LOGO 挪到卡片正中，让粒子汇聚 → 超出回 → 光波演完；
    * 然后再加 is-reveal，图标滑回左栏，文案与底部按钮同时渐显上移。
@@ -1407,7 +1487,10 @@
     const form = () => {
       if (run !== welcomeIntroRun || formedOnce) return;
       formedOnce = true;
-      if (logo) logo.classList.add('is-formed');
+      if (logo) {
+        logo.classList.add('is-formed');
+        startLogoWave(logo, modal);
+      }
       setTimeout(reveal, Math.round(1040 * dur));
     };
 
@@ -1458,6 +1541,7 @@
     // 回到「未入场」：撤销入场类，图标退回模糊态、粒子层与文案清空
     modal.classList.remove('is-intro', 'is-reveal', 'is-typing');
     if (logo) logo.classList.remove('is-formed');
+    stopLogoWave();
     if (typerEl) typerEl.textContent = '';
     if (canvas) {
       canvas.style.opacity = '';

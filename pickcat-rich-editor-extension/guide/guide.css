@@ -325,9 +325,10 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   opacity: 1;
 }
 
-/* 图标滑回左栏时文字先退场，避免和右栏文案打架 */
+/* 图标滑回左栏的一瞬间文字直接收掉（不走淡出），避免细体字跟着图标一起横移 */
 .pcg-modal.is-reveal .pcg-typer {
   opacity: 0;
+  transition: none;
 }
 
 .pcg-typer-caret {
@@ -431,26 +432,32 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   pointer-events: none;
 }
 
-/* 成形瞬间推出去的光波：两圈错开，余韵留在「超出回」之后 */
-.pcg-logo-wave {
+/* 成形瞬间推出去的波纹：与 AI 能力屏同一套「水波折射」——
+   backdrop-filter 把环带扫过的画面糊开并提亮，mask 收成环带，环外完全不受影响：
+   只看到扭曲，看不到实线圆环。
+   这一层是卡片的绝对定位子元素，被卡片自己的 overflow: hidden 与圆角裁住，
+   只会折射卡片内部，不会溢到窗口外面。 */
+.pcg-logo-wave-screen {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--pcg-primary) 55%, transparent);
-  opacity: 0;
+  inset: 0;
+  z-index: 3;
   pointer-events: none;
-  transform: translate(-50%, -50%) scale(0.45);
-}
-
-.pcg-logo.is-formed .pcg-logo-wave {
-  animation: pcg-logo-wave calc(0.86s * var(--pcg-dur)) var(--pcg-ease) both;
-}
-
-.pcg-logo.is-formed .pcg-logo-wave--late {
-  animation-delay: calc(0.12s * var(--pcg-dur));
+  --pcg-wave-x: 50%;
+  --pcg-wave-y: 50%;
+  --pcg-wave-r: 0px;
+  opacity: 0;
+  -webkit-backdrop-filter: blur(10px) saturate(1.5) brightness(1.12);
+  backdrop-filter: blur(10px) saturate(1.5) brightness(1.12);
+  -webkit-mask-image: radial-gradient(circle at var(--pcg-wave-x) var(--pcg-wave-y),
+    transparent calc(var(--pcg-wave-r) - 104px),
+    #000 calc(var(--pcg-wave-r) - 46px),
+    #000 calc(var(--pcg-wave-r) + 46px),
+    transparent calc(var(--pcg-wave-r) + 104px));
+  mask-image: radial-gradient(circle at var(--pcg-wave-x) var(--pcg-wave-y),
+    transparent calc(var(--pcg-wave-r) - 104px),
+    #000 calc(var(--pcg-wave-r) - 46px),
+    #000 calc(var(--pcg-wave-r) + 46px),
+    transparent calc(var(--pcg-wave-r) + 104px));
 }
 
 /* 粒子聚齐后整块做一次「超出回」：冲过头再收回来，幅度依次收敛 */
@@ -1268,13 +1275,6 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   68% { transform: scale(1.045); }
   84% { transform: scale(0.992); }
   100% { transform: scale(1); }
-}
-
-/* 光波：从 LOGO 内圈推出去，边扩边淡 */
-@keyframes pcg-logo-wave {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.45); }
-  16% { opacity: 0.9; }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.95); }
 }
 
 @keyframes pcg-check-draw {
