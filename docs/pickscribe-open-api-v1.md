@@ -1,7 +1,7 @@
 # PickScribe 开放接口方案（v1）
 
 > 状态：设计稿 + v1.0 落地记录（本文的命名是设计稿；实际接口以 [INTEGRATION.md](./INTEGRATION.md) 为准）
-> 适用范围：PickScribe（`pickcat-rich-editor-extension`，当前 3.11.0）与第三方 Chromium 扩展
+> 适用范围：PickScribe（`pickcat-rich-editor-extension`，当前 4.0.0）与第三方 Chromium 扩展
 > 目标站点：`https://pickcat.dao3.fun/`、`https://cdsq.dao3.fun/`
 >
 > **v1.0 落地差异**：实际实现采用统一信封 `{ source, v, id, action, payload, ts }`，已实现 `ping` / `state` / `ai.open` / `post.open` / `post.context` / `editor.read` / `editor.write` / `post.summarize`，与本文正文里的 `type: pickscribe:v1.*` 属于设计稿命名差异。数据动作在当前版本以「L1 + 首次访问确认」落地；L1 之外的配对 / HMAC 尚未实现，接入点预留在 `background/service-worker.js` 的 `apiAuthorize`。
@@ -167,7 +167,7 @@ PickScribe 的响应统一为：
 {
   "source": "pickscribe",
   "type": "pickscribe:v1.hello",
-  "version": "3.11.0",
+  "version": "4.0.0",
   "protocol": { "min": "1.0", "max": "1.1" },
   "session": { "bootId": "b-20261108-1", "nonce": "s-...", "pairId": "" },
   "page": { "type": "editor|post|feed|other", "postId": "" },
@@ -329,7 +329,7 @@ ai.summary.post
 
 - 协议版本用 `{ min, max }`，主版本放在 type 里（`v1`），次版本只做加法。
 - 客户端 `ping` 带自己支持的 `min/max`；PickScribe 取交集最高值，在 `hello.protocol` 回传。
-- **扩展版本号（示例中为 3.11.0，随版本变化）只作展示**，任何能力判断都必须用 `actions` / features，不允许 `if (version >= '3.11')`。
+- **扩展版本号（示例中为 4.0.0，随版本变化）只作展示**，任何能力判断都必须用 `actions` / features，不允许 `if (version >= '3.11')`。
 - 同一 `hello` 里 `bootId` 标识一次页面生命周期；扩展重载 / 页面刷新后 `bootId` 变化，客户端应丢弃旧请求状态。
 
 ### 5.3 后向兼容规则
