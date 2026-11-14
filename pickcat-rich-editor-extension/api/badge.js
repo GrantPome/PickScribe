@@ -29,7 +29,7 @@
   const PROFILE_TTL = 2 * 60 * 1000;
   const WORKS_SAMPLE = 50;
   const THEME_KEY = 'pickcat-theme';
-  const ROPE_GAP = 28;
+  const ROPE_GAP = 38;
   const THEMES = [
     ['system', '跟随系统'],
     ['light', '亮色'],
@@ -284,11 +284,19 @@
     if (replies !== null) meta.push(replies + ' 回复');
     if (fish !== null) meta.push(fish + ' 小鱼干');
 
-    // 头部：左头像、右身份，下面是统计面板；信息按「谁 → 数据 → 等级」自上而下分层
+    // 证件编号取自账号 id 末 4 位，仅作工牌装饰，不额外请求数据
+    const serial = String((user && user.id) || '').replace(/[^0-9a-z]/gi, '').slice(-4).toUpperCase();
+
+    // 正面按证件工牌排版：品牌行 → 证件照 + 身份 → 数据条 → 底部条码与编号
     return '<div class="pcr-badge-holo" aria-hidden="true"></div>' +
+      '<div class="pcr-badge-watermark" aria-hidden="true">' + escapeHtml(initial) + '</div>' +
       '<div class="pcr-badge-clip" aria-hidden="true"><span></span></div>' +
       '<div class="pcr-badge-front-body">' +
-        '<div class="pcr-badge-brand"><i aria-hidden="true"></i>PICKCAT</div>' +
+        '<div class="pcr-badge-brand">' +
+          '<i aria-hidden="true"></i>' +
+          '<span class="pcr-badge-brand-name">PICKCAT</span>' +
+          '<span class="pcr-badge-brand-tag">MEMBER CARD</span>' +
+        '</div>' +
         '<div class="pcr-badge-head">' +
           '<div class="pcr-badge-avatar">' +
             (avatar
@@ -303,13 +311,20 @@
             '</div>' +
           '</div>' +
         '</div>' +
+        '<div class="pcr-badge-divider" aria-hidden="true"><span>ACCOUNT INFO</span></div>' +
         '<div class="pcr-badge-stats">' + cards + '</div>' +
         (meta.length
           ? '<p class="pcr-badge-meta">' +
               meta.map((text) => '<span>' + escapeHtml(text) + '</span>').join('<i aria-hidden="true"></i>') +
             '</p>'
           : '') +
-        '<p class="pcr-badge-hint">拖动摆动 · 点击翻面</p>' +
+        '<div class="pcr-badge-foot">' +
+          '<div class="pcr-badge-barcode" aria-hidden="true"></div>' +
+          '<div class="pcr-badge-foot-row">' +
+            '<span class="pcr-badge-serial">NO. ' + escapeHtml(serial || '—') + '</span>' +
+            '<span class="pcr-badge-hint">拖动摆动 · 点击翻面</span>' +
+          '</div>' +
+        '</div>' +
       '</div>';
   }
 
@@ -445,7 +460,7 @@
     if (top + height > window.innerHeight - 12) {
       top = Math.max(ay + 8, window.innerHeight - height - 12);
     }
-    const left = clamp(ax - width / 2, 12, window.innerWidth - width - 12);
+    const left = clamp(ax - width / 2, 22, window.innerWidth - width - 22);
     const bx = left + width / 2;
     const by = top;
     const dx = bx - ax;
@@ -663,9 +678,6 @@
           '<div class="pcr-badge-face pcr-badge-front" data-pcr-front></div>' +
           '<div class="pcr-badge-face pcr-badge-back" data-pcr-back></div>' +
         '</div>' +
-        '<button type="button" class="pcr-badge-close" data-pcr-badge-close aria-label="关闭账号工牌">' +
-          icon('close', 16) +
-        '</button>' +
       '</div>';
 
     try {
@@ -963,13 +975,6 @@
     const card = state.card;
 
     root.addEventListener('click', (e) => {
-      const closer = e.target.closest('[data-pcr-badge-close]');
-      if (closer) {
-        e.preventDefault();
-        close();
-        return;
-      }
-
       const themeBtn = e.target.closest('[data-pcr-theme]');
       if (themeBtn) {
         e.preventDefault();
