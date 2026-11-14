@@ -19,14 +19,23 @@ section[aria-label$="帖子"].pcf-grid > * {
   margin-block: 0 !important;
 }
 
-/* 帖子卡片撑满整行高度，底部信息才能对齐 */
-section[aria-label$="帖子"].pcf-grid > article[data-slot="root"] {
+/* 帖子卡片撑满整行高度，底部信息才能对齐。
+ * 站点当前结构是 section > div(无 class) > article[data-slot="root"]，
+ * 早期版本 article 直接挂在 section 下，两种结构都要兼容。 */
+section[aria-label$="帖子"].pcf-grid > article[data-slot="root"],
+section[aria-label$="帖子"].pcf-grid > *:has(> article[data-slot="root"]) {
   height: 100%;
   min-width: 0;
 }
 
-/* 容器里的非帖子节点（加载提示、空状态等）独占整行 */
-section[aria-label$="帖子"].pcf-grid > :not(article[data-slot="root"]) {
+/* 包裹层撑满后，内层卡片才能跟着等高 */
+section[aria-label$="帖子"].pcf-grid > *:has(> article[data-slot="root"]) > article[data-slot="root"] {
+  height: 100%;
+}
+
+/* 容器里的非帖子节点（加载提示、空状态等）独占整行。
+ * 必须排除「包裹着卡片的 div」，否则每个包裹层都会跨整行，网格退化成单列。 */
+section[aria-label$="帖子"].pcf-grid > :not(article[data-slot="root"]):not(:has(> article[data-slot="root"])) {
   grid-column: 1 / -1;
 }
 
@@ -105,6 +114,11 @@ section[aria-label$="帖子"].pcf-grid > :not(article[data-slot="root"]) {
 
 /* 命中规则的卡片直接不占位；只加类名，不改站点节点 */
 article[data-slot="root"].pcf-filtered {
+  display: none !important;
+}
+
+/* 卡片被过滤时连外层包裹 div 一起收起，避免网格里留下空位 */
+section[aria-label$="帖子"].pcf-grid > *:has(> article.pcf-filtered) {
   display: none !important;
 }
 

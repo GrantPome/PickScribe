@@ -1373,10 +1373,16 @@
 .${NS}-slash-ico svg{width:16px;height:16px;}
 .${NS}-slash-ico .${NS}-glyph{font-size:12.5px;min-width:16px;text-align:center;}
 .${NS}-slash-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* 缩写标签：面板内直接展示每条命令可输入的短码，如 /h1、/todo */
+.${NS}-slash-abbr{flex:none;font-size:10.5px;line-height:1;padding:2px 5px;border-radius:5px;
+  border:1px solid var(--pcr-border);background:var(--pcr-surface);color:var(--pcr-subtle);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;opacity:.9;}
 .${NS}-slash-tag{flex:none;font-size:11px;color:var(--pcr-subtle);opacity:.85;}
 .${NS}-slash-item.is-on{background:var(--pcr-accent-soft);color:var(--pcr-accent);}
 .${NS}-slash-item.is-on .${NS}-slash-ico,
+.${NS}-slash-item.is-on .${NS}-slash-abbr,
 .${NS}-slash-item.is-on .${NS}-slash-tag{color:var(--pcr-accent);}
+.${NS}-slash-item.is-on .${NS}-slash-abbr{border-color:var(--pcr-accent);background:transparent;}
 .${NS}-slash-empty{padding:16px 10px;text-align:center;font-size:12.5px;color:var(--pcr-subtle);}
 .${NS}-slash-foot{display:flex;gap:6px;padding:6px;border-top:1px solid var(--pcr-border);flex:none;}
 .${NS}-slash-foot-btn{flex:1;height:28px;border:1px solid var(--pcr-border);background:var(--pcr-surface);
@@ -2822,31 +2828,32 @@
     richToSource();
   }
 
-  /** 斜杠面板的命令表；模板组按当前缓存动态拼接 */
+  /** 斜杠面板的命令表；模板组按当前缓存动态拼接
+   *  abbr 为面板内展示的输入缩写，输入「/ + 缩写」即可直接定位到该命令 */
   function slashCommands() {
     const list = [
-      { id: 'h1', group: 'heading', label: '一级标题', keywords: 'h1 title biaoti 标题', icon: ICONS.text('H1'), run: () => setHeading(1) },
-      { id: 'h2', group: 'heading', label: '二级标题', keywords: 'h2 title biaoti 标题', icon: ICONS.text('H2'), run: () => setHeading(2) },
-      { id: 'h3', group: 'heading', label: '三级标题', keywords: 'h3 title biaoti 标题', icon: ICONS.text('H3'), run: () => setHeading(3) },
-      { id: 'h4', group: 'heading', label: '四级标题', keywords: 'h4 title biaoti 标题', icon: ICONS.text('H4'), run: () => setHeading(4) },
-      { id: 'ul', group: 'list', label: '无序列表', keywords: 'ul bullet list 列表', icon: ICONS.ul, run: () => exec('insertUnorderedList') },
-      { id: 'ol', group: 'list', label: '有序列表', keywords: 'ol number list 列表', icon: ICONS.ol, run: () => exec('insertOrderedList') },
-      { id: 'task', group: 'list', label: '任务列表', keywords: 'task todo check 待办 任务', icon: ICONS.ul, run: () => insertTaskList() },
-      { id: 'quote', group: 'code', label: '引用块', keywords: 'quote yinyong 引用', icon: ICONS.quote, run: () => exec('formatBlock', 'blockquote') },
-      { id: 'inlinecode', group: 'code', label: '行内代码', keywords: 'code inline 代码', icon: ICONS.code, run: () => insertInlineCode() },
-      { id: 'codeblock', group: 'code', label: '代码块', keywords: 'code block pre 代码', icon: ICONS.code, run: () => {
+      { id: 'h1', group: 'heading', abbr: 'h1', label: '一级标题', keywords: 'h1 title biaoti 标题', icon: ICONS.text('H1'), run: () => setHeading(1) },
+      { id: 'h2', group: 'heading', abbr: 'h2', label: '二级标题', keywords: 'h2 title biaoti 标题', icon: ICONS.text('H2'), run: () => setHeading(2) },
+      { id: 'h3', group: 'heading', abbr: 'h3', label: '三级标题', keywords: 'h3 title biaoti 标题', icon: ICONS.text('H3'), run: () => setHeading(3) },
+      { id: 'h4', group: 'heading', abbr: 'h4', label: '四级标题', keywords: 'h4 title biaoti 标题', icon: ICONS.text('H4'), run: () => setHeading(4) },
+      { id: 'ul', group: 'list', abbr: 'ul', label: '无序列表', keywords: 'ul bullet list 列表', icon: ICONS.ul, run: () => exec('insertUnorderedList') },
+      { id: 'ol', group: 'list', abbr: 'ol', label: '有序列表', keywords: 'ol number list 列表', icon: ICONS.ol, run: () => exec('insertOrderedList') },
+      { id: 'task', group: 'list', abbr: 'todo', label: '任务列表', keywords: 'task todo check 待办 任务', icon: ICONS.ul, run: () => insertTaskList() },
+      { id: 'quote', group: 'code', abbr: 'quote', label: '引用块', keywords: 'quote q yinyong 引用', icon: ICONS.quote, run: () => exec('formatBlock', 'blockquote') },
+      { id: 'inlinecode', group: 'code', abbr: 'code', label: '行内代码', keywords: 'code inline 代码', icon: ICONS.code, run: () => insertInlineCode() },
+      { id: 'codeblock', group: 'code', abbr: 'pre', label: '代码块', keywords: 'code block pre 代码', icon: ICONS.code, run: () => {
         insertHtml('<pre><code>' + escapeHtml(getSelectedText()) + '</code></pre><p><br></p>');
         richToSource();
       } },
-      { id: 'table', group: 'insert', label: '插入表格', keywords: 'table biaoge 表格', icon: ICONS.table, run: () => insertTable() },
-      { id: 'hr', group: 'insert', label: '分割线', keywords: 'hr line 分割线', icon: ICONS.hr, run: () => { insertHtml('<hr><p><br></p>'); richToSource(); } },
-      { id: 'mathinline', group: 'insert', label: '行内公式', keywords: 'math inline formula 公式', icon: ICONS.mathInline, run: () => insertInlineMath() },
-      { id: 'mathblock', group: 'insert', label: '块级公式', keywords: 'math block formula 公式', icon: ICONS.mathBlock, run: () => insertBlockMath() }
+      { id: 'table', group: 'insert', abbr: 'table', label: '插入表格', keywords: 'table biaoge 表格', icon: ICONS.table, run: () => insertTable() },
+      { id: 'hr', group: 'insert', abbr: 'hr', label: '分割线', keywords: 'hr line 分割线', icon: ICONS.hr, run: () => { insertHtml('<hr><p><br></p>'); richToSource(); } },
+      { id: 'mathinline', group: 'insert', abbr: 'math', label: '行内公式', keywords: 'math inline formula 公式', icon: ICONS.mathInline, run: () => insertInlineMath() },
+      { id: 'mathblock', group: 'insert', abbr: 'mathb', label: '块级公式', keywords: 'math block formula 公式', icon: ICONS.mathBlock, run: () => insertBlockMath() }
     ];
     // 模板组：最多直接列 8 条，超出时给一条「查看全部模板」的入口
     slashTemplates.slice(0, 8).forEach((tpl) => {
       list.push({
-        id: 'tpl:' + tpl.id, group: 'tpl', label: tpl.name || '未命名模板',
+        id: 'tpl:' + tpl.id, group: 'tpl', abbr: 'tpl', label: tpl.name || '未命名模板',
         keywords: 'template tpl muban 模板 ' + String(tpl.content || '').slice(0, 40),
         icon: ICONS.text('T'),
         run: () => {
@@ -2858,14 +2865,14 @@
     });
     if (slashTemplates.length > 8) {
       list.push({
-        id: 'tpl-more', group: 'tpl', label: '查看全部模板', keywords: 'template 模板 全部',
+        id: 'tpl-more', group: 'tpl', abbr: 'tpls', label: '查看全部模板', keywords: 'template 模板 全部',
         icon: ICONS.text('…'), run: () => openTemplateManager()
       });
     }
     list.push(
-      { id: 'ai-polish', group: 'ai', label: 'AI 润色', keywords: 'ai polish 润色', icon: aiIcon(), run: () => runAISlash('请润色下面的文字，保持原意与语气，只输出修改后的内容。') },
-      { id: 'ai-continue', group: 'ai', label: 'AI 续写', keywords: 'ai continue 续写', icon: aiIcon(), run: () => runAISlash('请顺着正文继续往下写一段，保持原有语气与节奏。') },
-      { id: 'ai-translate', group: 'ai', label: 'AI 翻译', keywords: 'ai translate 翻译', icon: aiIcon(), run: () => runAISlash('请把下面的文字翻译成英文，只输出译文。') }
+      { id: 'ai-polish', group: 'ai', abbr: 'aip', label: 'AI 润色', keywords: 'ai polish 润色', icon: aiIcon(), run: () => runAISlash('请润色下面的文字，保持原意与语气，只输出修改后的内容。') },
+      { id: 'ai-continue', group: 'ai', abbr: 'aic', label: 'AI 续写', keywords: 'ai continue 续写', icon: aiIcon(), run: () => runAISlash('请顺着正文继续往下写一段，保持原有语气与节奏。') },
+      { id: 'ai-translate', group: 'ai', abbr: 'ait', label: 'AI 翻译', keywords: 'ai translate 翻译', icon: aiIcon(), run: () => runAISlash('请把下面的文字翻译成英文，只输出译文。') }
     );
     return list;
   }
@@ -2881,12 +2888,26 @@
     }
   }
 
-  /** 按查询词过滤后的命令列表 */
+  /** 按查询词过滤后的命令列表：缩写精确命中优先，其次缩写前缀、名称前缀、关键词 */
   function slashFiltered() {
     const q = (slashState.query || '').toLowerCase();
     const all = slashCommands();
     if (!q) return all;
-    return all.filter((it) => (it.label + ' ' + (it.keywords || '')).toLowerCase().indexOf(q) !== -1);
+    const scored = [];
+    all.forEach((it) => {
+      const abbr = String(it.abbr || '').toLowerCase();
+      const label = String(it.label || '').toLowerCase();
+      const keywords = String(it.keywords || '').toLowerCase();
+      let score = -1;
+      if (abbr === q) score = 0;
+      else if (abbr.indexOf(q) === 0) score = 1;
+      else if (label.indexOf(q) === 0) score = 2;
+      else if ((label + ' ' + abbr + ' ' + keywords).indexOf(q) !== -1) score = 3;
+      if (score >= 0) scored.push({ it, score });
+    });
+    // 同分保持命令表原顺序（标题 → 列表 → 代码 → 插入 → 模板 → AI）
+    scored.sort((a, b) => a.score - b.score);
+    return scored.map((x) => x.it);
   }
 
   /** 创建并打开面板（模板异步加载后重绘一次） */
@@ -2954,6 +2975,7 @@
       b.setAttribute('aria-selected', i === slashState.index ? 'true' : 'false');
       b.innerHTML = '<span class="' + NS + '-slash-ico">' + (it.icon || '') + '</span>' +
         '<span class="' + NS + '-slash-label">' + escapeHtml(it.label) + '</span>' +
+        (it.abbr ? '<span class="' + NS + '-slash-abbr">/' + escapeHtml(it.abbr) + '</span>' : '') +
         '<span class="' + NS + '-slash-tag">' + (SLASH_GROUP_TAG[it.group] || '') + '</span>';
       b.addEventListener('mousedown', (e) => e.preventDefault());
       b.addEventListener('mouseenter', () => { slashState.index = i; paintSlashActive(); });
@@ -3048,27 +3070,49 @@
     return false;
   }
 
+  /** 光标紧邻的前一个字符；仅处理编辑区内的折叠选区 */
+  function charBeforeCaret() {
+    try {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !sel.isCollapsed) return null;
+      const range = sel.getRangeAt(0);
+      if (!editor.contains(range.startContainer)) return null;
+      if (range.startContainer.nodeType !== 3) return null;   // 只处理普通文本节点
+      const off = range.startOffset;
+      if (off <= 0) return null;
+      return { node: range.startContainer, offset: off, char: range.startContainer.data.charAt(off - 1) };
+    } catch (e) {
+      return null;
+    }
+  }
+
   /** 输入时维护面板：未打开则判定是否要打开，已打开则更新过滤词 */
   function onEditorInputForSlash() {
     if (slashState.open) { updateSlashQuery(); return; }
     if (!editor || mode === 'source') return;
-    const info = blockTextBeforeCaret();
-    // 只认「光标所在块里仅有触发字符」这一种输入：行首或空段落输入斜杠 / 顿号
-    if (!info) return;
-    const t = info.text.trim();
-    if (t.length !== 1 || SLASH_TRIGGERS.indexOf(t) === -1) return;
+    // 只看光标前刚输入的字符：行首、空段落、以及文案中间输入都照样唤起
+    const info = charBeforeCaret();
+    if (!info || SLASH_TRIGGERS.indexOf(info.char) === -1) return;
+    // 避让 URL（https://）与连续斜杠（//），这两类场景不唤起面板
+    const prev = info.offset >= 2 ? info.node.data.charAt(info.offset - 2) : '';
+    if (prev === ':' || SLASH_TRIGGERS.indexOf(prev) !== -1) return;
     openSlashPanel();
   }
 
-  /** 面板打开后继续输入：块内以 / 开头才保留，查询词过长或光标离开即关闭 */
+  /** 面板打开后继续输入：取光标前最近一个触发符之后的文字作为查询词
+   *  一旦查询词里出现空白（或过长），说明已离开命令输入，立即关闭 */
   function updateSlashQuery() {
     if (!slashState.open) return;
     const info = blockTextBeforeCaret();
     if (!info) { closeSlash(); return; }
-    const head = info.text.replace(/^\s+/, '');
-    if (SLASH_TRIGGERS.indexOf(head.charAt(0)) === -1) { closeSlash(); return; }
-    const query = head.slice(1).trim();
-    if (query.length > 20) { closeSlash(); return; }
+    const text = info.text;
+    let idx = -1;
+    for (let i = text.length - 1; i >= 0; i--) {
+      if (SLASH_TRIGGERS.indexOf(text.charAt(i)) !== -1) { idx = i; break; }
+    }
+    if (idx < 0) { closeSlash(); return; }
+    const query = text.slice(idx + 1);
+    if (/\s/.test(query) || query.length > 20) { closeSlash(); return; }
     if (query === slashState.query) return;
     slashState.query = query;
     slashState.index = 0;

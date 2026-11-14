@@ -9,7 +9,7 @@
 > 不改后台、不改提交逻辑，安心用。
 
 [![Chrome 扩展](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4.svg)](https://developer.chrome.com/docs/extensions)
-[![版本](https://img.shields.io/badge/version-4.2.0-2ea44f.svg)](https://github.com/GrantPome/PickScribe/releases/latest)
+[![版本](https://img.shields.io/badge/version-4.2.0.2-2ea44f.svg)](https://github.com/GrantPome/PickScribe/releases/latest)
 
 > PickScribe 是一个 **Chrome 扩展（Manifest V3）**，不再需要 Tampermonkey。
 > 仓库的 `legacy/` 目录仍保留早期油猴脚本 `pickcat-rich-editor.user.js`，但推荐使用扩展版。
@@ -58,7 +58,7 @@
 | 💬 浮层富文本评论 | 浮层回复框就是所见即所得编辑器，与编辑页共用同一套工具条；全屏评论支持 H1–H4、对齐、颜色、列表、代码块、表格、公式、视频，显示实时字数，图片可直接拖进回复框上传 |
 | ⌨️ 浮层左右键 | 浮层内按 `←` / `→` 直接切换上一个 / 下一个帖子；输入框、弹层与评论对话框内方向键照常编辑光标，不会误切帖 |
 | 🧾 AI 排版 | 编辑页一键把整篇正文整理成规范 Markdown：补齐标题层级、统一空行与列表，保留图片 / 链接 / 公式，预览确认后再整篇应用 |
-| ⚡ 斜杠命令 | 空行输入 `/`（中文输入法下 `、` 同样有效）唤起命令面板：标题、列表、引用、代码、表格、公式、AI 润色 / 续写 / 翻译，边打边筛、↑↓ 选择、回车执行 |
+| ⚡ 斜杠命令 | 任意位置输入 `/`（中文输入法下 `、` 同样有效）唤起命令面板；继续输入菜单里标注的缩写（如 `/h1`、`/todo`、`/pre`、`/aip`）即可直接定位，↑↓ 选择、回车执行 |
 | 📚 模板库 | 把常用结构存成模板（键 `pcr_templates`），斜杠面板直接检索插入；与草稿箱共用「资料库」弹窗，顶部页签切换，左侧列表、右侧预览 |
 | 🗃️ 草稿箱 | 工具栏「稿」按钮可把当前正文存成草稿（最多 50 条，键 `pcr_drafts`），卡片列表支持载入、覆盖、重命名与删除，点条目在右侧预览区查看；载入前若正文不同会二次确认 |
 | 🚫 信息流过滤 | 信息流工具栏新增过滤按钮，按标题关键词与作者屏蔽帖子（规则存 `pcf_filter`）；隐藏后顶部提示条可一键「显示全部」临时放行，不改动已保存规则 |
@@ -135,7 +135,7 @@
 
 **方式 A · 下载打包好的 `.zip`（推荐）**
 
-1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载最新的 `pickcat-rich-editor-extension-4.2.0.zip`（文件名带版本号）
+1. 到 [Releases](https://github.com/GrantPome/PickScribe/releases/latest) 下载最新的 `pickcat-rich-editor-extension-4.2.0-sp2.zip`（文件名带版本号）
 2. 解压到任意目录，得到一个包含 `manifest.json` 的文件夹
 3. 打开 `chrome://extensions/`（Edge 为 `edge://extensions/`），右上角开启「**开发者模式**」
 4. 点「**加载已解压的扩展程序**」，选择第 2 步解压出的文件夹
@@ -203,7 +203,7 @@
 ```
 pickscribe/
 ├── pickcat-rich-editor-extension/       # Chrome 扩展（安装这个）
-│   ├── manifest.json                    # Manifest V3 清单（当前 4.2.0）
+│   ├── manifest.json                    # Manifest V3 清单（当前 4.2.0.2）
 │   ├── content.js                       # 编辑器主体逻辑（命名空间 pcr）
 │   ├── api/                             # 开放接口、授权弹窗、头像菜单设置入口与 3D 账号工牌
 │   ├── guide/                           # 新手引导（一屏一个功能大类）
