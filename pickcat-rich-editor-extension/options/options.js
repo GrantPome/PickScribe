@@ -5,7 +5,7 @@
 import {
   PROVIDERS, getProvider, LENGTHS, LANGS, TRIGGERS,
   DEFAULT_CONFIG, DEFAULT_USER_PROMPT, DEFAULT_SYSTEM_PROMPT,
-  NOTIFY_CONFIG_KEY, NOTIFY_DEFAULTS, NOTIFY_INTERVALS,
+  NOTIFY_CONFIG_KEY, NOTIFY_DEFAULTS, NOTIFY_INTERVALS, NOTIFY_TYPE_GROUPS,
   GUIDE_VERSION, GUIDE_KEYS
 } from '../shared/constants.js';
 import { getConfig, setConfig, clearCache, exportAll, importAll, getUsageStats, clearUsageStats } from '../shared/storage.js';
@@ -841,11 +841,31 @@ try {
 /** 键 pco_notify：与 background/notifications.js 的读取保持同步 */
 let notifyCfg = null;
 
+/** 类型分组 id → 设置页复选框 id（reply → notifyTypeReply） */
+function notifyTypeFieldId(groupId) {
+  return 'notifyType' + groupId.charAt(0).toUpperCase() + groupId.slice(1);
+}
+
+/** 关键词输入框 → 数组：换行 / 逗号 / 顿号 / 分号分隔 */
+function parseKeywordList(text) {
+  return String(text || '')
+    .split(/[\n,，、;；]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, 50);
+}
+
 function paintNotify() {
   $('notifyEnabled').checked = notifyCfg.enabled;
   $('notifyInterval').value = String(notifyCfg.intervalMinutes);
   $('notifyPickcat').checked = notifyCfg.hosts.pickcat !== false;
   $('notifyCdsq').checked = notifyCfg.hosts.cdsq !== false;
+  NOTIFY_TYPE_GROUPS.forEach((g) => {
+    const el = $(notifyTypeFieldId(g.id));
+    if (el) el.checked = notifyCfg.types[g.id] !== false;
+  });
+  const kwEl = $('notifyKeywords');
+  if (kwEl) kwEl.value = (notifyCfg.keywords || []).join('\n');
 }
 
 async function saveNotify() {
@@ -873,6 +893,20 @@ $('notifyCdsq').addEventListener('change', (e) => {
   saveNotify();
 });
 
+NOTIFY_TYPE_GROUPS.forEach((g) => {
+  const el = $(notifyTypeFieldId(g.id));
+  if (!el) return;
+  el.addEventListener('change', (e) => {
+    notifyCfg.types = { ...notifyCfg.types, [g.id]: e.target.checked };
+    saveNotify();
+  });
+});
+
+$('notifyKeywords').addEventListener('change', (e) => {
+  notifyCfg.keywords = parseKeywordList(e.target.value);
+  saveNotify();
+});
+
 $('notifyTest').addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: 'notify-test' }, () => void chrome.runtime.lastError);
   setStatus('已请求发送测试通知，若没弹出请检查系统通知权限', 'ok');
@@ -885,7 +919,9 @@ async function loadNotify() {
   notifyCfg = {
     ...NOTIFY_DEFAULTS,
     ...saved,
-    hosts: { ...NOTIFY_DEFAULTS.hosts, ...(saved.hosts || {}) }
+    hosts: { ...NOTIFY_DEFAULTS.hosts, ...(saved.hosts || {}) },
+    types: { ...NOTIFY_DEFAULTS.types, ...(saved.types || {}) },
+    keywords: Array.isArray(saved.keywords) ? saved.keywords : []
   };
   paintNotify();
 }

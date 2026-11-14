@@ -5,7 +5,7 @@
  */
 import { streamChat, chat, LLMError, estimateMessagesTokens, estimateTokens } from './llm-client.js';
 import { getConfig, getCached, putCached, recordUsage } from '../shared/storage.js';
-import { sendTestNotification, showUpdateNotice } from './notifications.js';
+import { sendTestNotification, showUpdateNotice, listRecentNotifications } from './notifications.js';
 import { GUIDE_VERSION, GUIDE_KEYS, getProvider } from '../shared/constants.js';
 
 // 新手引导：首次安装写入初始状态；升级时只补未看过的步骤，不整段重播。
@@ -826,6 +826,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'notify-test') {
     sendTestNotification();
     sendResponse({ ok: true });
+    return true;
+  }
+  // Popup 通知中心：只读拉取最近通知
+  if (msg && msg.type === 'notify-list') {
+    listRecentNotifications(msg.limit)
+      .then((res) => sendResponse(res))
+      .catch((err) => sendResponse({ ok: false, message: String((err && err.message) || err) }));
     return true;
   }
   return false;

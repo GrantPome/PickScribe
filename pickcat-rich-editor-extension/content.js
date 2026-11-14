@@ -2582,6 +2582,8 @@
 
   const TPL_KEY = 'pcr_templates';        // 模板库存储键（chrome.storage.local，失效时降级 localStorage）
   const TPL_MAX = 30;                     // 模板数量上限，避免无限增长
+  const DRAFT_KEY = 'pcr_drafts';         // 草稿箱存储键（多条草稿，可与模板一样降级 localStorage）
+  const DRAFT_MAX = 50;                   // 草稿数量上限
   const SLASH_GROUP_TAG = { heading: '标题', list: '列表', code: '代码', insert: '插入', tpl: '模板', ai: 'AI' };
   // 触发字符：英文斜杠 + 中文输入法下同一按键打出的顿号 + 全角斜杠
   const SLASH_TRIGGERS = ['/', '、', '／'];
@@ -2997,16 +2999,18 @@
     }
   }
 
-  /** 轻量命名弹窗（不用 window.prompt，保证深色模式与视觉统一） */
-  function openTemplateNameDialog(defaultName, onConfirm) {
-    const shell = openTplShell({ title: '保存为模板', extraClass: NS + '-tpl-name-dialog' });
+  /** 轻量命名弹窗（不用 window.prompt，保证深色模式与视觉统一）；
+      opts 可复用给草稿箱：{ title, placeholder, emptyTip } */
+  function openTemplateNameDialog(defaultName, onConfirm, opts) {
+    const o = opts || {};
+    const shell = openTplShell({ title: o.title || '保存为模板', extraClass: NS + '-tpl-name-dialog' });
     const row = document.createElement('div');
     row.className = NS + '-tpl-name-row';
     const input = document.createElement('input');
     input.type = 'text';
     input.className = NS + '-tpl-name-input';
     input.value = defaultName || '';
-    input.placeholder = '模板名称';
+    input.placeholder = o.placeholder || '模板名称';
     input.maxLength = 40;
     row.appendChild(input);
     shell.modal.appendChild(row);
@@ -3024,7 +3028,7 @@
     ok.textContent = '保存';
     const submit = () => {
       const name = (input.value || '').trim();
-      if (!name) { toast('请填写模板名称'); input.focus(); return; }
+      if (!name) { toast(o.emptyTip || '请填写模板名称'); input.focus(); return; }
       closeTplShell();
       onConfirm(name);
     };
@@ -3146,6 +3150,223 @@
     add.addEventListener('click', () => {
       closeTplShell();
       saveCurrentAsTemplate();
+    });
+    const done = document.createElement('button');
+    done.type = 'button';
+    done.className = NS + '-tpl-btn is-primary';
+    done.textContent = '完成';
+    done.addEventListener('click', closeTplShell);
+    foot.appendChild(add);
+    foot.appendChild(done);
+    shell.modal.appendChild(foot);
+  }
+
+  // —— 草稿箱 ——
+
+  /** 读取草稿列表（与模板库同一套存储降级策略） */
+  function loadDrafts() {
+    return new Promise((resolve) => {
+      const fallback = () => {
+        try {
+          const raw = localStorage.getItem(DRAFT_KEY);
+          const list = raw ? JSON.parse(raw) : [];
+          resolve(Array.isArray(list) ? list : []);
+        } catch (e) { resolve([]); }
+      };
+      if (!tplStorageOk()) { fallback(); return; }
+      try {
+        chrome.storage.local.get({ [DRAFT_KEY]: [] }, (raw) => {
+          if (chrome.runtime.lastError) { fallback(); return; }
+          const list = raw && raw[DRAFT_KEY];
+          resolve(Array.isArray(list) ? list : []);
+        });
+      } catch (e) { fallback(); }
+    });
+  }
+
+  /** 写入草稿列表：按更新时间倒序，最近编辑的排在前面 */
+  function saveDrafts(list) {
+    const clean = (Array.isArray(list) ? list : [])
+      .slice()
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    return new Promise((resolve) => {
+      const fallback = () => {
+        try { localStorage.setItem(DRAFT_KEY, JSON.stringify(clean)); resolve(true); }
+        catch (e) { resolve(false); }
+      };
+      if (!tplStorageOk()) { fallback(); return; }
+      try {
+        chrome.storage.local.set({ [DRAFT_KEY]: clean }, () => resolve(!chrome.runtime.lastError));
+      } catch (e) { fallback(); }
+    });
+  }
+
+  /** 草稿时间戳 → MM-DD HH:mm */
+  function draftTime(ts) {
+    const d = new Date(Number(ts) || 0);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => (n < 10 ? '0' + n : String(n));
+    return (d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  /** 用草稿内容替换整篇正文（会同步回站点源码框） */
+  function replaceEditorContent(md) {
+    if (!editor) return;
+    editor.innerHTML = mdToHtml(md || '');
+    try { refreshToolbarState(); } catch (e) { /* noop */ }
+    richToSource();
+    try {
+      editor.focus();
+      placeCaretAtEnd(editor);
+    } catch (e) { /* noop */ }
+  }
+
+  /** 把当前编辑区内容存为新草稿 */
+  async function saveCurrentAsDraft() {
+    if (!editor) return;
+    const md = htmlToMd(editor);
+    if (!md || !md.trim()) { toast('当前内容为空，无法保存草稿'); return; }
+    const list = await loadDrafts();
+    if (list.length >= DRAFT_MAX) { toast('草稿过多，请先删除旧草稿'); return; }
+    openTemplateNameDialog('草稿 ' + (list.length + 1), async (name) => {
+      const now = Date.now();
+      const item = {
+        id: 'draft_' + now.toString(36) + Math.random().toString(36).slice(2, 6),
+        name,
+        content: md,
+        createdAt: now,
+        updatedAt: now
+      };
+      const ok = await saveDrafts([item].concat(list));
+      if (!ok) { toast('草稿保存失败'); return; }
+      toast('已保存草稿「' + name + '」');
+      renderDraftManager(await loadDrafts());
+    }, { title: '保存草稿', placeholder: '草稿名称', emptyTip: '请填写草稿名称' });
+  }
+
+  async function openDraftManager() {
+    renderDraftManager(await loadDrafts());
+  }
+
+  /** 草稿箱：载入 / 覆盖 / 重命名 / 删除 */
+  function renderDraftManager(list) {
+    const shell = openTplShell({ title: '草稿箱' });
+    const body = document.createElement('div');
+    body.className = NS + '-tpl-body';
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = NS + '-tpl-empty';
+      empty.textContent = '还没有草稿。写完内容后点下方「保存当前为新草稿」，之后可随时载入或重命名。';
+      body.appendChild(empty);
+    }
+
+    list.forEach((draft) => {
+      const row = document.createElement('div');
+      row.className = NS + '-tpl-row';
+
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.className = NS + '-tpl-name';
+      name.value = draft.name || '';
+      name.title = '点击可重命名';
+      name.maxLength = 40;
+      name.addEventListener('change', async () => {
+        const v = (name.value || '').trim();
+        if (!v) { name.value = draft.name || ''; toast('草稿名称不能为空'); return; }
+        if (v === draft.name) return;
+        draft.name = v;
+        draft.updatedAt = Date.now();
+        const ok = await saveDrafts(list);
+        meta.textContent = (draft.content || '').length + ' 字 · ' + draftTime(draft.updatedAt);
+        toast(ok ? '已重命名' : '重命名失败');
+      });
+
+      const meta = document.createElement('span');
+      meta.className = NS + '-tpl-meta';
+      meta.textContent = (draft.content || '').length + ' 字 · ' + draftTime(draft.updatedAt);
+
+      // 载入：当前正文非空且与草稿不同，先改文案二次确认，避免误覆盖
+      const load = document.createElement('button');
+      load.type = 'button';
+      load.className = NS + '-tpl-act';
+      load.textContent = '载入';
+      let loadArmed = 0;
+      load.addEventListener('click', () => {
+        const current = editor ? htmlToMd(editor) : '';
+        const same = current && current === (draft.content || '');
+        if (current && !same && !loadArmed) {
+          loadArmed = setTimeout(() => { loadArmed = 0; load.textContent = '载入'; }, 3000);
+          load.textContent = '确认替换';
+          return;
+        }
+        if (loadArmed) { clearTimeout(loadArmed); loadArmed = 0; }
+        closeTplShell();
+        replaceEditorContent(draft.content || '');
+        toast('已载入草稿「' + (draft.name || '未命名草稿') + '」');
+      });
+
+      // 覆盖：把当前正文写进这条草稿
+      const cover = document.createElement('button');
+      cover.type = 'button';
+      cover.className = NS + '-tpl-act';
+      cover.textContent = '覆盖';
+      let coverArmed = 0;
+      cover.addEventListener('click', async () => {
+        const current = editor ? htmlToMd(editor) : '';
+        if (!current || !current.trim()) { toast('当前内容为空，无法覆盖'); return; }
+        if (current !== (draft.content || '') && !coverArmed) {
+          coverArmed = setTimeout(() => { coverArmed = 0; cover.textContent = '覆盖'; }, 3000);
+          cover.textContent = '确认覆盖';
+          return;
+        }
+        if (coverArmed) { clearTimeout(coverArmed); coverArmed = 0; }
+        draft.content = current;
+        draft.updatedAt = Date.now();
+        const ok = await saveDrafts(list);
+        if (!ok) { toast('覆盖失败'); return; }
+        toast('已覆盖草稿「' + (draft.name || '未命名草稿') + '」');
+        renderDraftManager(await loadDrafts());
+      });
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = NS + '-tpl-act is-danger';
+      del.textContent = '删除';
+      let armed = 0;
+      del.addEventListener('click', async () => {
+        if (!armed) {
+          del.textContent = '确认删除';
+          armed = setTimeout(() => { armed = 0; del.textContent = '删除'; }, 3000);
+          return;
+        }
+        clearTimeout(armed);
+        armed = 0;
+        const next = list.filter((x) => x.id !== draft.id);
+        const ok = await saveDrafts(next);
+        if (!ok) { toast('删除失败'); return; }
+        toast('已删除草稿');
+        renderDraftManager(next);
+      });
+
+      row.appendChild(name);
+      row.appendChild(meta);
+      row.appendChild(load);
+      row.appendChild(cover);
+      row.appendChild(del);
+      body.appendChild(row);
+    });
+
+    shell.modal.appendChild(body);
+
+    const foot = document.createElement('div');
+    foot.className = NS + '-tpl-foot';
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = NS + '-tpl-btn';
+    add.textContent = '保存当前为新草稿';
+    add.addEventListener('click', () => {
+      closeTplShell();
+      saveCurrentAsDraft();
     });
     const done = document.createElement('button');
     done.type = 'button';
@@ -3584,6 +3805,8 @@
     add(makeBtn({ key: 'hr', html: I(SITE_LABELS.hr, ICONS.hr), tip: '分割线', onClick: () => { insertHtml('<hr><p><br></p>'); richToSource(); } }));
     // 模板库：与编辑区输入「/」或「、」唤起的斜杠面板共用同一份模板数据
     add(makeBtn({ key: 'tpl', html: ICONS.text('T'), tip: '模板库（保存并复用常用内容）', onClick: () => openTemplateManager() }));
+    // 草稿箱：可保存多条草稿，支持载入、覆盖与重命名
+    add(makeBtn({ key: 'draft', html: ICONS.text('稿'), tip: '草稿箱（保存多条草稿，支持重命名）', onClick: () => openDraftManager() }));
 
     // —— 视图 ——
     group('视图');

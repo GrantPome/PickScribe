@@ -50,8 +50,6 @@
 
   const ICONS = {
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/>',
-    bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
-    works: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L5 20"/>',
     gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="m4.9 4.9 2.1 2.1"/><path d="m17 17 2.1 2.1"/><path d="m19.1 4.9-2.1 2.1"/><path d="m7 17-2.1 2.1"/>',
     shield: '<path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6Z"/><path d="m9.5 12 1.8 1.8L15 10"/>',
@@ -76,6 +74,7 @@
     cardW: 320,
     cardH: 460,
     rest: { phi: 0, len: ROPE_GAP },
+    maxLen: 900,
     phi: 0,
     len: 0,
     phiVel: 0,
@@ -281,25 +280,36 @@
     ).join('');
 
     const meta = [];
-    if (level !== null) meta.push('Lv.' + level);
     if (topics !== null) meta.push(topics + ' 帖子');
     if (replies !== null) meta.push(replies + ' 回复');
     if (fish !== null) meta.push(fish + ' 小鱼干');
 
+    // 头部：左头像、右身份，下面是统计面板；信息按「谁 → 数据 → 等级」自上而下分层
     return '<div class="pcr-badge-holo" aria-hidden="true"></div>' +
       '<div class="pcr-badge-clip" aria-hidden="true"><span></span></div>' +
       '<div class="pcr-badge-front-body">' +
-        '<div class="pcr-badge-avatar">' +
-          (avatar
-            ? '<img src="' + escapeHtml(avatar) + '" alt="" loading="lazy" referrerpolicy="no-referrer" />'
-            : '<span>' + escapeHtml(initial) + '</span>') +
+        '<div class="pcr-badge-brand"><i aria-hidden="true"></i>PICKCAT</div>' +
+        '<div class="pcr-badge-head">' +
+          '<div class="pcr-badge-avatar">' +
+            (avatar
+              ? '<img src="' + escapeHtml(avatar) + '" alt="" loading="lazy" referrerpolicy="no-referrer" />'
+              : '<span>' + escapeHtml(initial) + '</span>') +
+          '</div>' +
+          '<div class="pcr-badge-id">' +
+            '<h2 class="pcr-badge-name">' + escapeHtml(name) + '</h2>' +
+            '<div class="pcr-badge-sub">' +
+              (displayName ? '<span class="pcr-badge-handle">@' + escapeHtml(displayName) + '</span>' : '') +
+              (level !== null ? '<span class="pcr-badge-chip">Lv.' + escapeHtml(String(level)) + '</span>' : '') +
+            '</div>' +
+          '</div>' +
         '</div>' +
-        '<h2 class="pcr-badge-name">' + escapeHtml(name) + '</h2>' +
-        (displayName ? '<p class="pcr-badge-handle">@' + escapeHtml(displayName) + '</p>' : '') +
-        '<span class="pcr-badge-site">PICKCAT</span>' +
         '<div class="pcr-badge-stats">' + cards + '</div>' +
-        (meta.length ? '<p class="pcr-badge-meta">' + escapeHtml(meta.join(' · ')) + '</p>' : '') +
-        '<p class="pcr-badge-hint">拖动摆动 · 点击翻转</p>' +
+        (meta.length
+          ? '<p class="pcr-badge-meta">' +
+              meta.map((text) => '<span>' + escapeHtml(text) + '</span>').join('<i aria-hidden="true"></i>') +
+            '</p>'
+          : '') +
+        '<p class="pcr-badge-hint">拖动摆动 · 点击翻面</p>' +
       '</div>';
   }
 
@@ -312,8 +322,6 @@
         icon: 'user'
       });
     }
-    items.push({ label: '消息中心', href: '/notifications', icon: 'bell' });
-    items.push({ label: '作品广场', href: '/works', icon: 'works' });
     items.push({ label: '个人图盘', href: '/personal-library', icon: 'image' });
     items.push({ label: '设置', href: '/settings', icon: 'gear' });
     if (isAdmin(user)) items.push({ label: '管理后台', href: '/manage', icon: 'shield' });
@@ -447,6 +455,8 @@
       phi: Math.atan2(dx, Math.max(1, dy)),
       len: Math.max(ROPE_GAP, Math.hypot(dx, dy))
     };
+    // 绳长上限取视口对角线：拖到屏幕任意角落都够长，不再额外限制拉远距离
+    state.maxLen = Math.max(state.rest.len + 240, Math.hypot(window.innerWidth, window.innerHeight));
   }
 
   /** 每帧更新工牌位置与绳子曲线 */
@@ -465,8 +475,8 @@
       const dy = by - ay;
       const dist = Math.hypot(dx, dy) || 1;
       // 绳子被拉长时向外鼓，摆动时顺着运动方向甩出一点弧度
-      const bulge = clamp((state.len - state.rest.len) * 0.32, -5, 16) +
-        clamp(-state.phiVel * 10, -14, 14);
+      const bulge = clamp((state.len - state.rest.len) * 0.2, -4, 44) +
+        clamp(-state.phiVel * 12, -18, 18);
       const cx = (ax + bx) / 2 + (-dy / dist) * bulge;
       const cy = (ay + by) / 2 + (dx / dist) * bulge;
       state.rope.setAttribute('d',
@@ -584,17 +594,18 @@
     const ay = state.anchor.y;
     const halfW = state.cardW / 2;
     const tx = clamp(e.clientX + state.drag.offsetX, halfW + 6, window.innerWidth - halfW - 6);
-    // 纵向至少留一半卡片在视口里，避免整个拖出屏幕
-    const maxY = Math.max(ay + 16, window.innerHeight - state.cardH * 0.5);
+    // 纵向允许拉到接近屏幕底部，只保证工牌还有一部分留在视口里
+    const maxY = Math.max(ay + 16, window.innerHeight - state.cardH * 0.34);
     const ty = clamp(e.clientY + state.drag.offsetY, ay + 16, maxY);
     const ox = tx - ax;
     const oy = ty - ay;
 
-    state.targetLen = clamp(Math.hypot(ox, oy), 16, state.rest.len + 180);
+    // 绳长上限由 measure() 按视口对角线给出，摆角放宽到 ±77°，能甩到屏幕另一侧
+    state.targetLen = clamp(Math.hypot(ox, oy), 16, state.maxLen);
     state.targetPhi = clamp(
       Math.atan2(ox, Math.max(1, oy)),
-      state.rest.phi - 0.95,
-      state.rest.phi + 0.95
+      state.rest.phi - 1.35,
+      state.rest.phi + 1.35
     );
     schedule();
   }

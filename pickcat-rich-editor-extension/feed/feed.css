@@ -83,6 +83,11 @@ section[aria-label$="帖子"].pcf-grid > :not(article[data-slot="root"]) {
     0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
+/* 过滤规则命中时高亮图标，表示过滤已启用 */
+#pcf-toggle .pcf-filter-btn.is-on {
+  color: var(--ui-primary, #fa322d);
+}
+
 /* 移动端收得再紧一点，保证和排序标签同一行放得下 */
 @media (max-width: 640px) {
   #pcf-toggle .pcf-btn {
@@ -96,8 +101,199 @@ section[aria-label$="帖子"].pcf-grid > :not(article[data-slot="root"]) {
   }
 }
 
+/* ---------- 3. 过滤：隐藏卡片与提示条 ---------- */
+
+/* 命中规则的卡片直接不占位；只加类名，不改站点节点 */
+article[data-slot="root"].pcf-filtered {
+  display: none !important;
+}
+
+.pcf-filter-note {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--ui-border, #e5e5e8);
+  border-radius: 8px;
+  background: var(--ui-bg-muted, #f2f2f4);
+  color: var(--ui-text-muted, #767676);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pcf-filter-note-btn {
+  flex: none;
+  padding: 4px 12px;
+  border: 1px solid var(--ui-border, #e5e5e8);
+  border-radius: 6px;
+  background: var(--ui-bg-elevated, #ffffff);
+  color: var(--ui-text-highlighted, #111111);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, background-color 0.18s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.pcf-filter-note-btn:hover {
+  border-color: var(--ui-primary, #fa322d);
+  color: var(--ui-primary, #fa322d);
+}
+
+.pcf-filter-note-btn:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+/* ---------- 4. 过滤设置浮层 ---------- */
+
+#pcf-filter-pop {
+  position: fixed;
+  z-index: 2147483000;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  padding: 12px;
+  border: 1px solid var(--ui-border, #e5e5e8);
+  border-radius: 12px;
+  background: var(--ui-bg-elevated, #ffffff);
+  color: var(--ui-text, #222222);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+}
+
+#pcf-filter-pop[hidden] {
+  display: none;
+}
+
+.pcf-fp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pcf-fp-head strong {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.pcf-fp-close {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--ui-border, #e5e5e8);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-muted, #767676);
+  font: inherit;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+
+.pcf-fp-close:hover {
+  border-color: var(--ui-primary, #fa322d);
+  color: var(--ui-primary, #fa322d);
+}
+
+.pcf-fp-close:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+.pcf-fp-field {
+  display: block;
+  margin-top: 10px;
+}
+
+.pcf-fp-field > span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: var(--ui-text-muted, #767676);
+  font-size: 12.5px;
+}
+
+.pcf-fp-field > span em {
+  font-style: normal;
+  color: var(--ui-text-dimmed, #999999);
+  font-size: 11.5px;
+}
+
+.pcf-fp-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 54px;
+  padding: 6px 10px;
+  border: 1px solid var(--ui-border, #e5e5e8);
+  border-radius: 8px;
+  background: var(--ui-bg-input, transparent);
+  color: var(--ui-text, #222222);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.pcf-fp-field textarea:focus {
+  outline: none;
+  border-color: var(--ui-primary, #fa322d);
+}
+
+.pcf-fp-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pcf-fp-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--ui-border, #e5e5e8);
+  border-radius: 7px;
+  background: var(--ui-bg-elevated, #ffffff);
+  color: var(--ui-text, #222222);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease, background-color 0.18s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.pcf-fp-btn:hover {
+  border-color: var(--ui-primary, #fa322d);
+  color: var(--ui-primary, #fa322d);
+}
+
+.pcf-fp-btn:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+.pcf-fp-btn--primary {
+  border-color: var(--ui-primary, #fa322d);
+  background: var(--ui-primary, #fa322d);
+  color: #ffffff;
+}
+
+.pcf-fp-btn--primary:hover {
+  background: var(--ui-primary, #fa322d);
+  color: #ffffff;
+  filter: brightness(0.94);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  #pcf-toggle .pcf-btn {
+  #pcf-toggle .pcf-btn,
+  .pcf-filter-note-btn,
+  .pcf-fp-close,
+  .pcf-fp-btn {
     transition: none;
   }
 }

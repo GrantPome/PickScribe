@@ -793,6 +793,8 @@
     const notifyHostsRaw = notifyRaw.hosts && typeof notifyRaw.hosts === 'object' ? notifyRaw.hosts : {};
     // 与 shared/constants.js 的 NOTIFY_DEFAULTS 保持一致：默认关闭、2 分钟、两个站点都开
     const notifyState = {
+      // 保留设置页维护的类型筛选与关注关键词，引导只改动下面的三个字段
+      ...notifyRaw,
       enabled: notifyRaw.enabled === true,
       intervalMinutes: Number(notifyRaw.intervalMinutes) || 2,
       hosts: {

@@ -367,6 +367,41 @@
           </label>
         </div>
 
+        <div class="divider"></div>
+
+        <h3 class="sub-head">通知类型</h3>
+        <p class="note">取消勾选的类型仍会计入站内未读，只是不再弹系统通知。</p>
+        <div class="checks">
+          <label class="field switch-row">
+            <span>回复与评论</span>
+            <input type="checkbox" id="notifyTypeReply" />
+          </label>
+          <label class="field switch-row">
+            <span>提及我（@）</span>
+            <input type="checkbox" id="notifyTypeMention" />
+          </label>
+          <label class="field switch-row">
+            <span>点赞</span>
+            <input type="checkbox" id="notifyTypeLike" />
+          </label>
+          <label class="field switch-row">
+            <span>新关注</span>
+            <input type="checkbox" id="notifyTypeFollow" />
+          </label>
+          <label class="field switch-row">
+            <span>系统与管理通知</span>
+            <input type="checkbox" id="notifyTypeSystem" />
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="sub-head">关注关键词</h3>
+        <label class="field block">
+          <span>标题或作者命中关键词时，无视上面的类型筛选，始终提醒 <em>每行一个</em></span>
+          <textarea id="notifyKeywords" rows="3" placeholder="每行一个关键词，例如：开源&#10;招聘"></textarea>
+        </label>
+
         <div class="row">
           <p class="note">首次开启只记录当前未读，之后仅提示新增；系统开启专注助手 / 勿扰时可能被拦截。</p>
           <button id="notifyTest" class="btn" type="button">发送测试通知</button>

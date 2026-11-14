@@ -4,14 +4,14 @@
  * /api/v1/notification-summary（Cookie 鉴权，host_permissions 已声明），
  * 未读数有变化时拉取 /api/v1/notifications 列表，
  * 把本轮没提醒过的未读条目弹出系统通知；点击通知直达对应帖子。
- * 工具栏图标显示红色未读角标。
  *
  * 去重策略：storage 里维护最近见过的通知 id（首启静默记账，只弹之后新增的），
  * 弹过的通知 id → 跳转链接映射一并持久化，供点击时跳转。
+ * 类型筛选：设置页关掉的类型只记账不弹窗；命中关注关键词的条目无视类型筛选。
  */
 import {
   NOTIFY_CONFIG_KEY, NOTIFY_STATE_KEY, NOTIFY_DEFAULTS,
-  NOTIFY_HOSTS, NOTIFY_TYPE_LABELS
+  NOTIFY_HOSTS, NOTIFY_TYPE_LABELS, NOTIFY_TYPE_GROUPS
 } from '../shared/constants.js';
 
 const ALARM_NAME = 'pco-notify-poll';
@@ -29,6 +29,8 @@ async function getCfg() {
   const c = raw[NOTIFY_CONFIG_KEY] || {};
   const cfg = { ...NOTIFY_DEFAULTS, ...c };
   cfg.hosts = { ...NOTIFY_DEFAULTS.hosts, ...(c.hosts || {}) };
+  cfg.types = { ...NOTIFY_DEFAULTS.types, ...(c.types || {}) };
+  cfg.keywords = Array.isArray(c.keywords) ? c.keywords.map(String).filter(Boolean) : [];
   return cfg;
 }
 
@@ -84,6 +86,29 @@ function describe(item) {
   }
 }
 
+/** 标题 / 作品标题 / 作者名里命中任一关注关键词即视为关键通知 */
+function matchWatchKeyword(item, keywords) {
+  if (!keywords || !keywords.length) return false;
+  const d = item.details || {};
+  const hay = [
+    (d.topic && d.topic.title) || '',
+    (d.work && d.work.title) || '',
+    (d.actor && d.actor.username) || ''
+  ].join(' ').toLowerCase();
+  for (let i = 0; i < keywords.length; i += 1) {
+    const kw = String(keywords[i] || '').trim().toLowerCase();
+    if (kw && hay.indexOf(kw) !== -1) return true;
+  }
+  return false;
+}
+
+/** 类型是否启用；未知类型默认放行，避免站点新增事件被静默吞掉 */
+function typeAllowed(type, types) {
+  const group = NOTIFY_TYPE_GROUPS.find((g) => g.types.indexOf(type) !== -1);
+  if (!group) return true;
+  return types[group.id] !== false;
+}
+
 function bufToB64(buf) {
   const bytes = new Uint8Array(buf);
   let bin = '';
@@ -124,7 +149,7 @@ async function notify(notifId, options) {
   try { await chrome.notifications.create(notifId, options); } catch (_) { /* 通知被系统禁用等 */ }
 }
 
-async function showItem(origin, item, pending) {
+async function showItem(origin, item, pending, watch) {
   const info = describe(item);
   const notifId = 'pco-' + item.id;
   const icon = (await avatarIcon(origin, item)) || chrome.runtime.getURL('icons/icon128.png');
@@ -132,7 +157,7 @@ async function showItem(origin, item, pending) {
   await notify(notifId, {
     type: 'basic',
     iconUrl: icon,
-    title: info.verb,
+    title: watch ? '关注提醒 · ' + info.verb : info.verb,
     message: info.body || '点击查看详情'
   });
 }
@@ -148,15 +173,9 @@ async function showSummary(count, origin, pending) {
   });
 }
 
-async function applyBadge(n) {
-  try {
-    if (n > 0) {
-      await chrome.action.setBadgeBackgroundColor({ color: '#e5484d' });
-      await chrome.action.setBadgeText({ text: n > 99 ? '99+' : String(n) });
-    } else {
-      await chrome.action.setBadgeText({ text: '' });
-    }
-  } catch (_) { /* 无 action 环境忽略 */ }
+/** 清空工具栏角标：通知只走系统通知，图标不再显示未读数 */
+async function clearBadge() {
+  try { await chrome.action.setBadgeText({ text: '' }); } catch (_) { /* 无 action 环境忽略 */ }
 }
 
 // ============================ 轮询 ============================
@@ -174,30 +193,28 @@ async function pollOnce() {
     const pending = state.pending;
     const firstRun = !state.seeded;
     const fresh = [];
-    let maxUnread = 0;
 
     for (const host of NOTIFY_HOSTS) {
       if (!cfg.hosts[host.id]) continue;
       try {
         const summary = await fetchJson(host.origin + '/api/v1/notification-summary');
-        const unread = Number(summary && summary.unreadCount) || 0;
-        if (unread > maxUnread) maxUnread = unread;
-        if (!unread) continue;
+        if (!(Number(summary && summary.unreadCount) || 0)) continue;
 
         const list = await fetchJson(host.origin + '/api/v1/notifications?limit=' + LIST_LIMIT);
         for (const item of (list && list.items) || []) {
           freshSeen.add(item.id);
           if (item.readAt) continue;              // 已读
           if (firstRun || seenSnap.has(item.id)) continue; // 首轮记账 / 本轮已提醒
-          fresh.push({ origin: host.origin, item });
+          // 关掉的类型只记账不弹窗；命中关注关键词则无视类型筛选
+          const watch = matchWatchKeyword(item, cfg.keywords);
+          if (!watch && !typeAllowed(item.type, cfg.types)) continue;
+          fresh.push({ origin: host.origin, item, watch });
         }
       } catch (_) { /* 未登录或网络失败：跳过该站点 */ }
     }
 
-    await applyBadge(maxUnread);
-
     const shown = fresh.slice(0, MAX_POP);
-    for (const { origin, item } of shown) await showItem(origin, item, pending);
+    for (const { origin, item, watch } of shown) await showItem(origin, item, pending, watch);
     if (fresh.length > shown.length) {
       await showSummary(fresh.length - shown.length, shown.length ? shown[0].origin : NOTIFY_HOSTS[0].origin, pending);
     }
@@ -212,15 +229,56 @@ async function pollOnce() {
   }
 }
 
+/**
+ * Popup 通知中心：读取最近通知。
+ * 只读接口，不写去重状态、不弹系统通知；按创建时间倒序合并两个站点。
+ */
+export async function listRecentNotifications(limit) {
+  const cfg = await getCfg();
+  const max = Math.max(1, Math.min(20, Number(limit) || 8));
+  let unreadCount = 0;
+  let reachable = false;
+  const all = [];
+
+  await Promise.all(NOTIFY_HOSTS.map(async (host) => {
+    if (!cfg.hosts[host.id]) return;
+    try {
+      const summary = await fetchJson(host.origin + '/api/v1/notification-summary');
+      reachable = true;
+      unreadCount += Number(summary && summary.unreadCount) || 0;
+
+      const list = await fetchJson(host.origin + '/api/v1/notifications?limit=' + max);
+      const hostName = String(host.label || '').split('（')[0];
+      for (const item of (list && list.items) || []) {
+        const info = describe(item);
+        const raw = item.createdAt || item.created_at || item.updatedAt || 0;
+        let time = typeof raw === 'number' ? raw : (Date.parse(raw) || 0);
+        if (time > 0 && time < 1e12) time *= 1000;   // 兼容秒级时间戳
+        all.push({
+          id: item.id,
+          host: hostName,
+          verb: info.verb,
+          body: info.body,
+          url: buildUrl(host.origin, item),
+          unread: !item.readAt,
+          watch: matchWatchKeyword(item, cfg.keywords),
+          time
+        });
+      }
+    } catch (_) { /* 未登录或网络失败：跳过该站点 */ }
+  }));
+
+  all.sort((a, b) => (b.time || 0) - (a.time || 0));
+  return { ok: true, enabled: cfg.enabled, reachable, unreadCount, items: all.slice(0, max) };
+}
+
 // ============================ 调度与监听 ============================
 
 async function schedule() {
   const cfg = await getCfg();
   await chrome.alarms.clear(ALARM_NAME);
-  if (!cfg.enabled) {
-    await applyBadge(0);
-    return;
-  }
+  await clearBadge();
+  if (!cfg.enabled) return;
   chrome.alarms.create(ALARM_NAME, {
     periodInMinutes: Math.max(1, Number(cfg.intervalMinutes) || 2),
     delayInMinutes: 0.2

@@ -175,8 +175,21 @@ export const NOTIFY_STATE_KEY = 'pco_notify_state';
 export const NOTIFY_DEFAULTS = {
   enabled: false,
   intervalMinutes: 2,
-  hosts: { pickcat: true, cdsq: true }
+  hosts: { pickcat: true, cdsq: true },
+  // 通知类型开关：关掉的类型只累计站内未读，不再弹系统通知
+  types: { reply: true, mention: true, like: true, follow: true, system: true },
+  // 关注关键词：标题或作者命中时无视类型筛选，始终提醒
+  keywords: []
 };
+
+/** 通知类型分组：把站点事件归到设置页的五个开关 */
+export const NOTIFY_TYPE_GROUPS = [
+  { id: 'reply', name: '回复与评论', types: ['REPLY_CREATED', 'WORK_COMMENT_CREATED', 'WORK_COMMENT_REPLY_CREATED'] },
+  { id: 'mention', name: '提及我', types: ['USER_MENTIONED', 'WORK_COMMENT_MENTIONED'] },
+  { id: 'like', name: '点赞', types: ['POST_LIKED', 'WORK_LIKED', 'WORK_COMMENT_LIKED'] },
+  { id: 'follow', name: '新关注', types: ['USER_FOLLOWED'] },
+  { id: 'system', name: '系统与管理', types: ['TOPIC_EVENT', 'LEVEL_CERTIFICATION', 'MANAGEMENT_ACTION'] }
+];
 
 /** 参与轮询的站点（与 manifest host_permissions 对应） */
 export const NOTIFY_HOSTS = [
