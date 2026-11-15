@@ -96,6 +96,111 @@ html.dark #pcr-badge-root {
   stroke-width: 1.4;
 }
 
+/* ============================ 甩脱手 ============================ */
+
+/* 绳子断开 / 重新系上都是渐隐，不闪断 */
+.pcr-badge-rope path,
+.pcr-badge-rope circle {
+  transition: opacity 0.18s ease;
+}
+
+#pcr-badge-root.is-detached .pcr-badge-rope path,
+#pcr-badge-root.is-detached .pcr-badge-rope circle {
+  opacity: 0;
+}
+
+/* 挂回提示圈：只在脱手后出现，套在原来的挂点上 */
+.pcr-badge-rehang {
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: end center;
+  padding-bottom: 6px;
+  border: 2px dashed color-mix(in srgb, var(--pcr-primary) 62%, transparent);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+  will-change: transform, opacity;
+}
+
+#pcr-badge-root.is-detached .pcr-badge-rehang {
+  opacity: 0.85;
+}
+
+.pcr-badge-rehang span {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--pcr-card);
+  border: 1px solid var(--pcr-line);
+  color: var(--pcr-primary);
+  font-size: 10.5px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* ============================ 小鱼干挂件 ============================ */
+
+/* 挂在绳子中段，跟着曲线一起滑动；未解锁时整组不可见 */
+.pcr-badge-fish {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.pcr-badge-fish.is-on {
+  opacity: 1;
+}
+
+/* 脱手时绳子消失，挂件一起收起来 */
+.pcr-badge-fish.is-hidden {
+  opacity: 0;
+}
+
+.pcr-badge-fish-body {
+  fill: #e9a63f;
+  stroke: #b57a22;
+  stroke-width: 1.1;
+  stroke-linejoin: round;
+}
+
+.pcr-badge-fish-tail {
+  fill: #e2903a;
+  stroke: #b57a22;
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.pcr-badge-fish-bone {
+  stroke: #a86c1c;
+  stroke-width: 0.7;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+.pcr-badge-fish-eye {
+  fill: #4a3110;
+}
+
+html.dark .pcr-badge-fish-body {
+  fill: #eeb45a;
+  stroke: #8a5b16;
+}
+
+html.dark .pcr-badge-fish-tail {
+  fill: #dfa04a;
+  stroke: #8a5b16;
+}
+
+html.dark .pcr-badge-fish-bone {
+  stroke: #6d4711;
+}
+
+html.dark .pcr-badge-fish-eye {
+  fill: #241505;
+}
+
 /* ============================ 浮动舞台 ============================ */
 
 /* 位置完全由 JS 的 translate3d 决定，这里只负责 3D 透视与淡入淡出 */
@@ -106,6 +211,8 @@ html.dark #pcr-badge-root {
   width: max-content;
   perspective: 1100px;
   perspective-origin: 50% 0;
+  /* 绕顶部挂孔转：倾斜时绳子端点始终贴着卡片挂孔，脱手后也绕挂孔转，手感一致 */
+  transform-origin: 50% 0;
   opacity: 0;
   pointer-events: auto;
   will-change: transform, opacity;

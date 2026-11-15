@@ -1,0 +1,1490 @@
+/* ============================================================
+ * 信息流右侧小组件 —— pcw
+ *
+ * 视觉：参考苹果小组件（大圆角、无边框、按类型着色的柔和渐变底、
+ *      少分隔线、大字号等宽数字、左对齐的安静层级），
+ *      主色沿用 Pickcat 的红（--ui-primary），仅用于重点数字与选中态。
+ *
+ * 布局约定（与站点一致的 24px 节奏）：
+ *   站点板块之间        24px
+ *   小组件之间          10px
+ *   小组件后接站点板块  24px（组件 10 + 站点补 14）
+ *   最后一个条目        0
+ *
+ * 行高与间距需和 widgets/content.js 的 ROW_H / ROW_GAP 保持一致
+ * ============================================================ */
+
+/* ---------- 1. 右栏堆叠容器 ---------- */
+
+.pcw-host {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: 10px;
+  row-gap: 0;
+  container-type: inline-size;
+}
+
+/* 基础字号只作用于我们自己的节点，站点板块保持原站字号 */
+.pcw-rail-head,
+.pcw-rail-empty,
+.pcw-card {
+  color: var(--ui-text, #222222);
+  font-size: 13px;
+}
+
+/* 站点 space-y-* 会给孩子加 margin，这里统一接管 */
+.pcw-host > .pcw-rail-item {
+  box-sizing: border-box;
+  margin: 0 !important;
+}
+
+.pcw-host > .pcw-rail-site {
+  flex: 0 0 100%;
+  max-width: 100%;
+  margin-bottom: 24px !important;
+}
+
+.pcw-host > .pcw-rail-widget {
+  flex: 0 0 calc(50% - 5px);
+  min-width: 0;
+  margin-bottom: 10px !important;
+}
+
+/* 2 列宽的组件独占一行 */
+.pcw-host > .pcw-rail-widget[data-w="2"] {
+  flex-basis: 100%;
+}
+
+/* 组件后面紧跟站点板块时补齐到 24px */
+.pcw-host > .pcw-rail-site.pcw-gap-before {
+  margin-top: 14px !important;
+}
+
+/* 视觉顺序上的最后一条不再留底距 */
+.pcw-host > .pcw-rail-item.pcw-last {
+  margin-bottom: 0 !important;
+}
+
+/* 用户移除的站点板块：保留 DOM，之后可从「添加」菜单恢复（含嵌套网格里的卡片） */
+.pcw-rail-site.pcw-site-hidden {
+  display: none !important;
+}
+
+/* 右栏太窄时退成单列，避免两列都挤成一条 */
+@container (max-width: 240px) {
+  .pcw-host > .pcw-rail-widget {
+    flex-basis: 100%;
+  }
+}
+
+/* ---------- 2. 标题区 ---------- */
+
+.pcw-rail-head,
+.pcw-rail-empty,
+.pcw-site-layer {
+  margin-top: 0 !important;
+}
+
+.pcw-rail-head {
+  position: relative;
+  z-index: 40;
+  display: flex;
+  flex: 0 0 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  order: -2;
+  min-height: 40px;
+  margin-bottom: 12px !important;
+}
+
+.pcw-board-title {
+  color: var(--ui-text-muted, #767676);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.pcw-board-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 图标按钮与信息流工具栏的筛选图标同尺寸、无底色 */
+.pcw-rail-head .pcw-btn {
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-muted, #767676);
+}
+
+.pcw-rail-head .pcw-btn:hover {
+  background: var(--ui-bg-elevated, #ffffff);
+  color: var(--ui-text-highlighted, #111111);
+}
+
+/* ---------- 3. 通用按钮 ---------- */
+
+.pcw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.12);
+  color: var(--ui-text-muted, #767676);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+
+.pcw-btn:hover {
+  background: rgba(120, 120, 128, 0.2);
+  color: var(--ui-text, #222222);
+}
+
+.pcw-btn:active {
+  transform: scale(0.96);
+}
+
+.pcw-btn:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+.pcw-btn-add {
+  display: none;
+  padding: 0;
+}
+
+.pcw-host.is-editing .pcw-btn-add {
+  display: inline-flex;
+}
+
+/* 图标按钮：编辑（笔）/ 完成（勾） */
+.pcw-btn-edit {
+  padding: 0;
+}
+
+/* 编辑态与信息流筛选按钮的选中态一致 */
+.pcw-btn-edit[aria-pressed="true"] {
+  background: var(--ui-bg-elevated, #ffffff);
+  color: var(--ui-primary, #fa322d);
+  box-shadow:
+    0 0 0 1px var(--ui-border, #e5e5e8),
+    0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* ---------- 3.1 添加组件菜单 ---------- */
+
+.pcw-add-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: 210px;
+  max-height: 62vh;
+  padding: 6px;
+  overflow: hidden auto;
+  border-radius: 8px;
+  background: var(--ui-bg-elevated, #ffffff);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.05),
+    0 12px 34px rgba(0, 0, 0, 0.16);
+  transform-origin: top right;
+  animation: pcw-menu-pop 170ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pcw-add-menu[hidden] {
+  display: none;
+}
+
+@keyframes pcw-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcw-add-menu {
+    animation: none;
+  }
+}
+
+.pcw-add-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.pcw-add-item:hover {
+  background: rgba(120, 120, 128, 0.1);
+}
+
+.pcw-add-item:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: -2px;
+}
+
+.pcw-add-name {
+  color: var(--ui-text-highlighted, #111111);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pcw-add-desc {
+  color: var(--ui-text-muted, #767676);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.pcw-add-sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: rgba(120, 120, 128, 0.16);
+}
+
+.pcw-add-group {
+  padding: 4px 10px 2px;
+  color: var(--ui-text-dimmed, #999999);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---------- 4. 组件卡片 ---------- */
+
+.pcw-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ui-bg-elevated, #ffffff);
+  overflow: hidden;
+  isolation: isolate;
+  container-type: inline-size;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.035),
+    0 2px 10px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.22s ease, padding-top 0.18s ease;
+}
+
+/* 按组件类型铺一层很淡的渐变底色，模拟苹果小组件的材质 */
+.pcw-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(130% 95% at 0% 0%, rgba(var(--pcw-tint, 250, 50, 45), var(--pcw-tint-a, 0.14)), transparent 64%),
+    linear-gradient(180deg, rgba(var(--pcw-tint, 250, 50, 45), var(--pcw-tint-b, 0.05)), transparent 48%);
+  pointer-events: none;
+}
+
+.pcw-card[data-type="weather"]   { --pcw-tint: 64, 156, 255; }
+.pcw-card[data-type="countdown"] { --pcw-tint: 250, 50, 45; }
+.pcw-card[data-type="note"]      { --pcw-tint: 255, 190, 60; }
+.pcw-card[data-type="todo"]      { --pcw-tint: 52, 199, 123; }
+.pcw-card[data-type="feed"]      { --pcw-tint: 255, 133, 66; }
+.pcw-card[data-type="mystats"]   { --pcw-tint: 140, 110, 255; }
+.pcw-card[data-type="notify"]    { --pcw-tint: 250, 50, 45; }
+
+.pcw-card:hover {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 8px 22px rgba(0, 0, 0, 0.08);
+}
+
+.pcw-host.is-editing .pcw-card {
+  padding-top: 34px;
+  box-shadow:
+    0 0 0 1.5px rgba(var(--pcw-tint, 250, 50, 45), 0.42),
+    0 8px 22px rgba(0, 0, 0, 0.06);
+}
+
+.pcw-card.is-dragging {
+  opacity: 0.5;
+}
+
+.pcw-host.is-busy {
+  user-select: none;
+}
+
+/* ---------- 5. 卡片工具条（仅编辑态出现） ---------- */
+
+.pcw-card-tools {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 3;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.pcw-host.is-editing .pcw-card-tools {
+  display: flex;
+}
+
+.pcw-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ui-bg-elevated, #ffffff);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
+  color: var(--ui-text-muted, #767676);
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: color 0.18s ease, transform 0.12s ease;
+}
+
+.pcw-card-btn:hover {
+  color: var(--ui-primary, #fa322d);
+}
+
+.pcw-card-btn:active {
+  transform: scale(0.94);
+}
+
+.pcw-card-btn:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+.pcw-drag {
+  cursor: grab;
+  touch-action: none;
+}
+
+.pcw-card.is-dragging .pcw-drag {
+  cursor: grabbing;
+}
+
+.pcw-del:hover {
+  color: #e5484d;
+}
+
+/* ---------- 6. 缩放手柄 ---------- */
+
+.pcw-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.pcw-host.is-editing .pcw-resize {
+  display: block;
+}
+
+.pcw-resize::before {
+  content: '';
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid rgba(var(--pcw-tint, 250, 50, 45), 0.55);
+  border-bottom: 2px solid rgba(var(--pcw-tint, 250, 50, 45), 0.55);
+  border-radius: 0 0 2px 0;
+}
+
+.pcw-resize:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: -2px;
+}
+
+/* ---------- 7. 组件内容骨架 ---------- */
+
+.pcw-card-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 120, 128, 0.28) transparent;
+}
+
+.pcw-card-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.pcw-card-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.28);
+}
+
+.pcw-card-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pcw-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 100%;
+}
+
+.pcw-widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 18px;
+}
+
+.pcw-caption {
+  color: var(--ui-text-muted, #767676);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.pcw-empty {
+  color: var(--ui-text-dimmed, #999999);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* 数字统一等宽，避免跳动 */
+.pcw-wx-temp,
+.pcw-cd-days,
+.pcw-stat b,
+.pcw-notify-count,
+.pcw-stats-foot b,
+.pcw-wx-foot b {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 7.1 通用小控件 ---------- */
+
+.pcw-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-dimmed, #999999);
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.pcw-icon-btn:hover {
+  background: rgba(120, 120, 128, 0.14);
+  color: var(--ui-text, #222222);
+}
+
+.pcw-icon-btn:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+.pcw-input {
+  box-sizing: border-box;
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(120, 120, 128, 0.13);
+  color: var(--ui-text, #222222);
+  font: inherit;
+  font-size: 12.5px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.pcw-input::placeholder {
+  color: var(--ui-text-dimmed, #999999);
+}
+
+.pcw-input:focus {
+  outline: 2px solid rgba(250, 50, 45, 0.45);
+  outline-offset: -1px;
+}
+
+.pcw-mini-btn {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(250, 50, 45, 0.12);
+  color: var(--ui-primary, #fa322d);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.pcw-mini-btn:hover {
+  background: rgba(250, 50, 45, 0.18);
+}
+
+.pcw-mini-btn:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+/* ---------- 7.2 天气 ---------- */
+
+.pcw-wx {
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.pcw-wx-city {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-highlighted, #111111);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pcw-wx-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.pcw-wx-temp {
+  color: var(--ui-text-highlighted, #111111);
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 0.94;
+  letter-spacing: -0.04em;
+}
+
+.pcw-wx-cond {
+  margin-top: 7px;
+  color: var(--ui-text-muted, #767676);
+  font-size: 13px;
+}
+
+.pcw-wx-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--ui-text-muted, #767676);
+  font-size: 12.5px;
+}
+
+.pcw-wx-foot b {
+  color: var(--ui-text-highlighted, #111111);
+  font-weight: 600;
+}
+
+.pcw-wx-foot.is-empty {
+  color: var(--ui-text-dimmed, #999999);
+}
+
+.pcw-wx-edit {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.pcw-host.is-editing .pcw-wx-edit {
+  display: flex;
+}
+
+.pcw-wx-edit .pcw-input {
+  flex: 1 1 auto;
+}
+
+/* 1 列宽的紧凑天气：温度与天气描述上下排，信息字号收一档 */
+@container (max-width: 170px) {
+  .pcw-wx-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    margin-top: 0;
+  }
+
+  .pcw-wx-temp {
+    font-size: 34px;
+  }
+
+  .pcw-wx-cond {
+    margin-top: 0;
+    font-size: 12.5px;
+  }
+
+  .pcw-wx-foot {
+    gap: 2px 8px;
+    font-size: 12px;
+  }
+
+  .pcw-wx-edit {
+    flex-wrap: wrap;
+  }
+
+  .pcw-wx-edit .pcw-input {
+    flex: 1 1 100%;
+  }
+}
+
+/* 天气类型 → 卡片底色（云雨天加深一点，让白色云朵和雪花有对比） */
+.pcw-card[data-type="weather"][data-wx="clear"]    { --pcw-tint: 255, 188, 64;  --pcw-tint-a: 0.18; --pcw-tint-b: 0.06; }
+.pcw-card[data-type="weather"][data-wx="cloud"]    { --pcw-tint: 120, 172, 240; --pcw-tint-a: 0.26; --pcw-tint-b: 0.08; }
+.pcw-card[data-type="weather"][data-wx="overcast"] { --pcw-tint: 118, 136, 162; --pcw-tint-a: 0.28; --pcw-tint-b: 0.09; }
+.pcw-card[data-type="weather"][data-wx="fog"]      { --pcw-tint: 138, 148, 164; --pcw-tint-a: 0.24; --pcw-tint-b: 0.08; }
+.pcw-card[data-type="weather"][data-wx="rain"]     { --pcw-tint: 78, 138, 220;  --pcw-tint-a: 0.24; --pcw-tint-b: 0.08; }
+.pcw-card[data-type="weather"][data-wx="snow"]     { --pcw-tint: 128, 178, 232; --pcw-tint-a: 0.24; --pcw-tint-b: 0.08; }
+.pcw-card[data-type="weather"][data-wx="storm"]    { --pcw-tint: 84, 100, 164;  --pcw-tint-a: 0.3;  --pcw-tint-b: 0.1; }
+
+/* 天空层：绝对定位铺满卡片，压在所有内容下方 */
+.pcw-wx-sky {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pcw-wx-sky > span {
+  display: none;
+  position: absolute;
+}
+
+/* 太阳：缓慢呼吸，外圈光芒极慢旋转 */
+.pcw-wx-sun {
+  top: -26px;
+  right: -20px;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 216, 110, 0.95),
+    rgba(255, 196, 64, 0.42) 44%,
+    rgba(255, 196, 64, 0) 72%);
+  animation: pcw-sun-breathe 6s ease-in-out infinite;
+}
+
+.pcw-wx-sun::after {
+  content: '';
+  position: absolute;
+  inset: -18px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 206, 84, 0.5) 0 5deg, transparent 5deg 26deg);
+  -webkit-mask: radial-gradient(circle, transparent 40%, #000 46% 62%, transparent 68%);
+  mask: radial-gradient(circle, transparent 40%, #000 46% 62%, transparent 68%);
+  animation: pcw-spin 30s linear infinite;
+}
+
+/* 云：三条不同速度、不同透明度的云带横向漂移 */
+.pcw-wx-cloud {
+  left: 0;
+  width: 52px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    10px -7px 0 -1px rgba(255, 255, 255, 0.92),
+    -12px -4px 0 -3px rgba(255, 255, 255, 0.78),
+    0 5px 10px rgba(80, 110, 155, 0.16);
+  filter: blur(0.6px);
+  animation: pcw-cloud-drift 32s linear infinite;
+}
+
+.pcw-wx-cloud--a { top: 12px; animation-duration: 70s; }
+.pcw-wx-cloud--b { top: 44px; opacity: 0.68; animation-duration: 105s; animation-delay: -38s; }
+.pcw-wx-cloud--c { top: 74px; opacity: 0.45; animation-duration: 145s; animation-delay: -86s; }
+
+/* 雨 / 雪：容器铺满卡片，里面是随机分布的单颗雨滴、雪花 */
+.pcw-wx-rain,
+.pcw-wx-snow {
+  inset: 0;
+}
+
+.pcw-wx-drop {
+  position: absolute;
+  top: -20px;
+  width: 1.5px;
+  height: var(--h, 10px);
+  border-radius: 999px;
+  background: linear-gradient(180deg,
+    rgba(110, 160, 230, 0),
+    rgba(96, 150, 226, 0.85));
+  opacity: var(--o, 0.45);
+  animation: pcw-rain-drop var(--d, 0.8s) linear infinite;
+  animation-delay: var(--dl, 0s);
+  will-change: transform;
+}
+
+.pcw-wx-flake {
+  position: absolute;
+  top: -12px;
+  width: var(--s, 3px);
+  height: var(--s, 3px);
+  border-radius: 50%;
+  background: rgba(128, 170, 228, 0.9);
+  opacity: var(--o, 0.8);
+  animation: pcw-snow-drop var(--d, 9s) linear infinite;
+  animation-delay: var(--dl, 0s);
+  will-change: transform;
+}
+
+/* 雾：一条模糊的横向雾带缓慢左右摆动 */
+.pcw-wx-fog {
+  left: -20%;
+  right: -20%;
+  top: 35%;
+  height: 55%;
+  background: linear-gradient(180deg,
+    transparent,
+    rgba(226, 234, 246, 0.62) 25%,
+    rgba(210, 220, 236, 0.38) 60%,
+    transparent);
+  filter: blur(6px);
+  animation: pcw-fog-drift 12s ease-in-out infinite alternate;
+}
+
+/* 雷雨：低频的闪电亮光 */
+.pcw-wx-flash {
+  inset: 0;
+  background: radial-gradient(circle at 68% 6%,
+    rgba(255, 255, 255, 0.95),
+    rgba(255, 255, 255, 0) 55%);
+  opacity: 0;
+  animation: pcw-flash 8s linear infinite;
+}
+
+/* 按天气类型启用对应的层 */
+.pcw-card[data-wx="clear"] .pcw-wx-sun,
+.pcw-card[data-wx="cloud"] .pcw-wx-sun { display: block; }
+
+.pcw-card[data-wx="cloud"] .pcw-wx-cloud--a,
+.pcw-card[data-wx="cloud"] .pcw-wx-cloud--b { display: block; }
+
+.pcw-card[data-wx="overcast"] .pcw-wx-cloud--a,
+.pcw-card[data-wx="overcast"] .pcw-wx-cloud--b,
+.pcw-card[data-wx="overcast"] .pcw-wx-cloud--c { display: block; }
+
+.pcw-card[data-wx="fog"] .pcw-wx-fog,
+.pcw-card[data-wx="fog"] .pcw-wx-cloud--b { display: block; }
+
+.pcw-card[data-wx="rain"] .pcw-wx-rain,
+.pcw-card[data-wx="rain"] .pcw-wx-cloud--a,
+.pcw-card[data-wx="rain"] .pcw-wx-cloud--b { display: block; }
+
+.pcw-card[data-wx="snow"] .pcw-wx-snow,
+.pcw-card[data-wx="snow"] .pcw-wx-cloud--b,
+.pcw-card[data-wx="snow"] .pcw-wx-cloud--c { display: block; }
+
+.pcw-card[data-wx="storm"] .pcw-wx-rain,
+.pcw-card[data-wx="storm"] .pcw-wx-flash,
+.pcw-card[data-wx="storm"] .pcw-wx-cloud--a,
+.pcw-card[data-wx="storm"] .pcw-wx-cloud--b,
+.pcw-card[data-wx="storm"] .pcw-wx-cloud--c { display: block; }
+
+@keyframes pcw-sun-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+@keyframes pcw-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pcw-cloud-drift {
+  from { transform: translateX(-70px); }
+  to { transform: translateX(320px); }
+}
+
+@keyframes pcw-rain-drop {
+  from { transform: translate3d(0, -30px, 0); }
+  to { transform: translate3d(var(--sx, -30px), 340px, 0); }
+}
+
+@keyframes pcw-snow-drop {
+  0% { transform: translate3d(0, -20px, 0); opacity: 0; }
+  10% { opacity: var(--o, 0.8); }
+  90% { opacity: var(--o, 0.8); }
+  100% { transform: translate3d(var(--dx, 12px), 340px, 0); opacity: 0; }
+}
+
+@keyframes pcw-fog-drift {
+  from { transform: translateX(-8%); }
+  to { transform: translateX(8%); }
+}
+
+@keyframes pcw-flash {
+  0%, 88%, 100% { opacity: 0; }
+  89% { opacity: 0.65; }
+  90% { opacity: 0.12; }
+  92% { opacity: 0.5; }
+  94% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcw-wx-sun,
+  .pcw-wx-sun::after,
+  .pcw-wx-cloud,
+  .pcw-wx-drop,
+  .pcw-wx-flake,
+  .pcw-wx-fog,
+  .pcw-wx-flash {
+    animation: none;
+  }
+}
+
+/* 单列窄卡片里把云和太阳收小，避免盖住文字 */
+@container (max-width: 170px) {
+  .pcw-wx-sun {
+    top: -20px;
+    right: -16px;
+    width: 64px;
+    height: 64px;
+  }
+
+  .pcw-wx-cloud {
+    width: 40px;
+    height: 14px;
+  }
+
+  .pcw-wx-cloud--a { top: 10px; }
+  .pcw-wx-cloud--b { top: 34px; }
+  .pcw-wx-cloud--c { top: 58px; }
+}
+
+/* ---------- 7.3 倒数日 ---------- */
+
+.pcw-cd {
+  gap: 10px;
+}
+
+.pcw-cd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.pcw-cd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pcw-cd-info {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pcw-cd-title {
+  overflow: hidden;
+  color: var(--ui-text-highlighted, #111111);
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pcw-cd-date {
+  color: var(--ui-text-dimmed, #999999);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pcw-cd-days {
+  flex: 0 0 auto;
+  color: var(--ui-primary, #fa322d);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pcw-cd-days b {
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.pcw-cd-days i {
+  margin-left: 2px;
+  font-size: 12.5px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.pcw-cd-text {
+  color: var(--ui-primary, #fa322d);
+  font-size: 13.5px;
+}
+
+.pcw-cd-del {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-dimmed, #999999);
+  cursor: pointer;
+}
+
+.pcw-cd-del:hover {
+  background: rgba(229, 72, 77, 0.12);
+  color: #e5484d;
+}
+
+.pcw-host.is-editing .pcw-cd-del {
+  display: inline-flex;
+}
+
+/* 只有一个倒数日时：数字放大并沉到右下角 */
+.pcw-cd.is-single .pcw-cd-list {
+  flex: 1;
+  min-height: 0;
+}
+
+.pcw-cd.is-single .pcw-cd-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr;
+  align-items: end;
+  gap: 4px 8px;
+  height: 100%;
+}
+
+.pcw-cd.is-single .pcw-cd-info {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+}
+
+.pcw-cd.is-single .pcw-cd-del {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  justify-self: end;
+}
+
+.pcw-cd.is-single .pcw-cd-days {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: end;
+  justify-self: end;
+  line-height: 1;
+}
+
+.pcw-cd.is-single .pcw-cd-days b {
+  font-size: 44px;
+  letter-spacing: -0.03em;
+}
+
+.pcw-cd.is-single .pcw-cd-days i {
+  font-size: 13px;
+}
+
+.pcw-cd.is-single .pcw-cd-text {
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.pcw-cd-edit {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.pcw-host.is-editing .pcw-cd-edit {
+  display: flex;
+}
+
+.pcw-cd-edit [data-cd-title] {
+  flex: 1 1 80px;
+}
+
+.pcw-cd-edit [data-cd-date] {
+  flex: 0 1 128px;
+}
+
+/* ---------- 7.4 便签 ---------- */
+
+.pcw-note {
+  height: 100%;
+}
+
+.pcw-note-input {
+  box-sizing: border-box;
+  flex: 1;
+  width: 100%;
+  min-height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text, #222222);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.62;
+  resize: none;
+  outline: none;
+}
+
+.pcw-note-input::placeholder {
+  color: var(--ui-text-dimmed, #999999);
+}
+
+/* ---------- 7.5 待办 ---------- */
+
+.pcw-todo {
+  gap: 8px;
+}
+
+.pcw-todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 0;
+}
+
+.pcw-todo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pcw-todo-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1.5px solid rgba(120, 120, 128, 0.45);
+  border-radius: 50%;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.pcw-todo-check:hover {
+  border-color: rgb(var(--pcw-tint, 52, 199, 123));
+}
+
+.pcw-todo-check:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 2px;
+}
+
+.pcw-todo-row.is-done .pcw-todo-check {
+  border-color: rgb(var(--pcw-tint, 52, 199, 123));
+  background: rgb(var(--pcw-tint, 52, 199, 123));
+}
+
+.pcw-todo-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text, #222222);
+  font-size: 13.5px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pcw-todo-row.is-done .pcw-todo-text {
+  color: var(--ui-text-dimmed, #999999);
+  text-decoration: line-through;
+}
+
+.pcw-todo-del {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ui-text-dimmed, #999999);
+  cursor: pointer;
+}
+
+.pcw-todo-del:hover {
+  background: rgba(229, 72, 77, 0.12);
+  color: #e5484d;
+}
+
+.pcw-host.is-editing .pcw-todo-del {
+  display: inline-flex;
+}
+
+.pcw-todo-add {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.pcw-host.is-editing .pcw-todo-add {
+  display: flex;
+}
+
+.pcw-todo-add .pcw-input {
+  flex: 1 1 auto;
+}
+
+/* ---------- 7.6 信息流速览 ---------- */
+
+.pcw-feed {
+  gap: 8px;
+}
+
+.pcw-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-height: 0;
+}
+
+.pcw-feed-row {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ui-text, #222222);
+  font-size: 13.5px;
+  line-height: 1.45;
+  text-decoration: none;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pcw-feed-row:hover {
+  color: var(--ui-primary, #fa322d);
+}
+
+/* ---------- 7.7 我的数据 ---------- */
+
+.pcw-stats {
+  gap: 10px;
+}
+
+.pcw-stats-user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pcw-stats-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-text-highlighted, #111111);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pcw-chip {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(250, 50, 45, 0.12);
+  color: var(--ui-primary, #fa322d);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pcw-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 6px;
+}
+
+.pcw-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pcw-stat b {
+  overflow: hidden;
+  color: var(--ui-text-highlighted, #111111);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pcw-stat span {
+  color: var(--ui-text-muted, #767676);
+  font-size: 12px;
+}
+
+.pcw-stats-foot {
+  margin-top: auto;
+  color: var(--ui-text-muted, #767676);
+  font-size: 12.5px;
+}
+
+.pcw-stats-foot b {
+  color: var(--ui-text-highlighted, #111111);
+  font-weight: 600;
+}
+
+/* ---------- 7.8 未读通知 ---------- */
+
+.pcw-notify {
+  gap: 8px;
+}
+
+.pcw-notify-main {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.pcw-notify-count {
+  color: var(--ui-primary, #fa322d);
+  font-size: 38px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.pcw-notify-count.is-zero {
+  color: var(--ui-text-dimmed, #999999);
+}
+
+.pcw-notify-link {
+  margin-top: auto;
+  color: var(--ui-text-muted, #767676);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.pcw-notify-link:hover {
+  color: var(--ui-primary, #fa322d);
+}
+
+/* ---------- 8. 空状态 ---------- */
+
+.pcw-rail-empty {
+  display: flex;
+  flex: 0 0 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  order: -1;
+  padding: 18px 12px;
+  border: 1px dashed rgba(120, 120, 128, 0.28);
+  border-radius: 8px;
+  color: var(--ui-text-muted, #767676);
+  font-size: 12.5px;
+  margin-bottom: 10px !important;
+}
+
+/* ---------- 9. 站点板块拖拽手柄层 ---------- */
+
+.pcw-site-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  margin: 0 !important;
+}
+
+.pcw-site-handle {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ui-bg-elevated, #ffffff);
+  color: var(--ui-text-muted, #767676);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: color 0.18s ease, transform 0.12s ease;
+}
+
+.pcw-site-handle:hover {
+  color: var(--ui-primary, #fa322d);
+}
+
+.pcw-site-handle:active {
+  cursor: grabbing;
+  transform: scale(0.94);
+}
+
+.pcw-site-handle:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+/* 编辑态右上角的「移除」按钮 */
+.pcw-site-remove {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ui-bg-elevated, #ffffff);
+  color: var(--ui-text-muted, #767676);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: color 0.18s ease, transform 0.12s ease;
+}
+
+.pcw-site-remove:hover {
+  color: #e5484d;
+}
+
+.pcw-site-remove:active {
+  transform: scale(0.94);
+}
+
+.pcw-site-remove:focus-visible {
+  outline: 2px solid var(--ui-primary, #fa322d);
+  outline-offset: 1px;
+}
+
+/* 编辑态给站点板块一个虚线轮廓，表明可拖拽（含嵌套网格里的卡片） */
+.pcw-host.is-editing .pcw-rail-site {
+  outline: 1px dashed rgba(250, 50, 45, 0.5);
+  outline-offset: 4px;
+  border-radius: 4px;
+  cursor: grab;
+}
+
+.pcw-host.is-editing .pcw-rail-site.is-dragging {
+  opacity: 0.5;
+}
+
+/* ---------- 10. 减少动效 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .pcw-btn,
+  .pcw-card,
+  .pcw-card-btn,
+  .pcw-icon-btn,
+  .pcw-todo-check,
+  .pcw-site-handle,
+  .pcw-site-remove {
+    transition: none;
+  }
+}
+
+/* ---------- 11. 发帖热力图 ---------- */
+
+.pcw-heat-grid {
+  display: grid;
+  flex: 1;
+  grid-template-rows: repeat(7, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 3px;
+  min-height: 42px;
+}
+
+.pcw-heat-cell {
+  border-radius: 3px;
+  background: rgba(120, 120, 128, 0.12);
+}
+
+.pcw-heat-cell[data-lv="1"] { background: rgba(250, 50, 45, 0.22); }
+.pcw-heat-cell[data-lv="2"] { background: rgba(250, 50, 45, 0.42); }
+.pcw-heat-cell[data-lv="3"] { background: rgba(250, 50, 45, 0.68); }
+.pcw-heat-cell[data-lv="4"] { background: var(--ui-primary, #fa322d); }
+
+.pcw-heat-foot {
+  color: var(--ui-text-muted, #767676);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pcw-heat-foot b {
+  color: var(--ui-text-highlighted, #111111);
+  font-weight: 600;
+}

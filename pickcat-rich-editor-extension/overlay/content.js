@@ -6764,6 +6764,8 @@
   const TILT_CARD_SEL = 'article[data-slot="root"]';
   const TILT_MAX_X = 12;            // 俯仰最大角（度）
   const TILT_MAX_Y = 16;            // 偏航最大角（度）
+  /** 窄屏（单列）不做倾斜 */
+  const TILT_MIN_VW = 900;
 
   let tiltCard = null;              // 当前正在倾斜的卡片
   let tiltRect = null;              // 进入时量下的未变形矩形
@@ -6786,22 +6788,14 @@
     tiltAt.y += (tiltTo.y - tiltAt.y) * ease;
     if (!tiltInside && Math.abs(tiltAt.x) < 0.03 && Math.abs(tiltAt.y) < 0.03) {
       tiltCard.style.transform = '';
-      tiltCard.style.boxShadow = '';
       tiltCard.style.willChange = '';
       tiltCard = null;
       tiltRect = null;
       return;
     }
-    // 透视拉近到 700px + 随倾角偏移的阴影，让 3D 体感一眼可辨；
-    // 阴影跟随倾斜方向轻微位移，淡且小，不抢画面
-    const shadowDx = (tiltAt.y / TILT_MAX_Y) * 3;
-    const shadowDy = (tiltAt.x / TILT_MAX_X) * 3 + 2;
-    const shadowBlur = 6 + (Math.abs(tiltAt.x) + Math.abs(tiltAt.y)) * 0.4;
+    // 只做透视 + 旋转，不额外叠阴影：卡片自己的阴影由站点 CSS 负责，倾斜时保持原样
     tiltCard.style.transform =
       'perspective(700px) rotateX(' + tiltAt.x.toFixed(2) + 'deg) rotateY(' + tiltAt.y.toFixed(2) + 'deg)';
-    tiltCard.style.boxShadow =
-      shadowDx.toFixed(1) + 'px ' + shadowDy.toFixed(1) + 'px ' + shadowBlur.toFixed(1) +
-      'px rgba(0,0,0,0.10)';
     tiltRaf = requestAnimationFrame(tiltTick);
   }
 
@@ -6831,14 +6825,14 @@
     // originCard 的内联样式归浮层开合动画管，这里不碰
     if (card !== originCard) {
       card.style.transform = '';
-      card.style.boxShadow = '';
       card.style.willChange = '';
     }
   }
 
   function onTiltMove(e) {
     const off = !cardTiltOn || !overlayEnabled || !!root || closing ||
-      reducedMotion() || e.pointerType === 'touch';
+      reducedMotion() || e.pointerType === 'touch' || window.innerWidth < TILT_MIN_VW ||
+      document.documentElement.hasAttribute('data-pcw-editing');
     if (off) { tiltRelease(); return; }
     const t = e.target instanceof Element ? e.target : null;
     const card = t && t.closest ? t.closest(TILT_CARD_SEL) : null;
@@ -6846,7 +6840,6 @@
     if (card !== tiltCard) {
       if (tiltCard) {   // 换卡：旧卡直接复位，不等缓动
         tiltCard.style.transform = '';
-        tiltCard.style.boxShadow = '';
         tiltCard.style.willChange = '';
         if (tiltRaf) { cancelAnimationFrame(tiltRaf); tiltRaf = 0; }
       }

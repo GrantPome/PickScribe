@@ -836,6 +836,87 @@ try {
   });
 } catch (e) { /* 非扩展环境忽略 */ }
 
+// ============================ 右侧小组件设置（布局在站点内编辑） ============================
+
+/** 键 pcw_board：与 widgets/content.js 的定义保持同步 */
+const WIDGETS_BOARD_KEY = 'pcw_board';
+
+let widgetsBoard = widgetsDefault();
+
+function widgetsDefault() {
+  return {
+    v: 1,
+    enabled: true,
+    items: [{
+      id: 'countdown-default',
+      type: 'countdown',
+      span: { w: 2, h: 2 },
+      settings: { items: [] }
+    }]
+  };
+}
+
+/** 保留内容脚本写入的组件字段，只补齐设置页需要的顶层字段 */
+function normalizeWidgets(raw) {
+  const src = raw && typeof raw === 'object' ? raw : null;
+  if (!src) return widgetsDefault();
+  return {
+    ...src,
+    v: 1,
+    enabled: src.enabled !== false,
+    items: Array.isArray(src.items) ? src.items : widgetsDefault().items
+  };
+}
+
+function paintWidgets() {
+  if (!widgetsBoard) return;
+  $('widgetsEnabled').checked = widgetsBoard.enabled;
+  const n = widgetsBoard.items.length;
+  $('widgetsNote').textContent = n
+    ? '当前 ' + n + ' 个小组件。尺寸、顺序与增删请在信息流页右栏点「自定义」调整。'
+    : '右栏当前没有小组件，可在信息流页右栏点「自定义」添加。';
+}
+
+async function saveWidgets() {
+  await chrome.storage.local.set({ [WIDGETS_BOARD_KEY]: widgetsBoard });
+}
+
+$('widgetsEnabled').addEventListener('change', async (e) => {
+  widgetsBoard.enabled = e.target.checked;
+  paintWidgets();
+  await saveWidgets();
+  setStatus(e.target.checked ? '已显示右侧小组件' : '已隐藏右侧小组件', 'ok');
+});
+
+$('widgetsReset').addEventListener('click', async () => {
+  widgetsBoard = widgetsDefault();
+  paintWidgets();
+  await saveWidgets();
+  setStatus('已恢复默认小组件布局', 'ok');
+});
+
+(async () => {
+  try {
+    const raw = await chrome.storage.local.get(WIDGETS_BOARD_KEY);
+    widgetsBoard = normalizeWidgets(raw[WIDGETS_BOARD_KEY]);
+    paintWidgets();
+  } catch (e) {
+    widgetsBoard = widgetsDefault();
+    paintWidgets();
+    setStatus('读取小组件布局失败：' + e.message, 'err');
+  }
+})();
+
+// 站点里调整布局后，设置页的组件数量同步刷新
+try {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes[WIDGETS_BOARD_KEY]) {
+      widgetsBoard = normalizeWidgets(changes[WIDGETS_BOARD_KEY].newValue);
+      paintWidgets();
+    }
+  });
+} catch (e) { /* 非扩展环境忽略 */ }
+
 // ============================ 站内通知设置（改动即时生效） ============================
 
 /** 键 pco_notify：与 background/notifications.js 的读取保持同步 */
@@ -944,6 +1025,8 @@ const G2_RADIUS_KEY = 'pcr_g2_radius';
 const PLUS_LINK_KEY = 'pcr_plus_link';
 /** 键 pcr_badge_menu：与 api/badge.js 的 ENABLED_KEY 保持一致，控制头像菜单是否使用 3D 工牌（默认关闭） */
 const BADGE_MENU_KEY = 'pcr_badge_menu';
+/** 键 pcr_badge_swing_sound：与 shared/swing-sound.js 保持一致，控制工牌甩动音效（默认关闭） */
+const BADGE_SOUND_KEY = 'pcr_badge_swing_sound';
 
 /** 与 content.js / shared/font-host.js 保持一致的字体库位置 */
 const FONT_DB = 'pcr_fonts';
@@ -1109,12 +1192,14 @@ async function removeFontFace(id, pending) {
 
 async function loadAppearance() {
   const raw = await chrome.storage.local.get([
-    HARMONY_FONT_KEY, IMAGE_ZOOM_KEY, FONT_MODE_KEY, FONT_CUSTOM_KEY, G2_RADIUS_KEY, BADGE_MENU_KEY
+    HARMONY_FONT_KEY, IMAGE_ZOOM_KEY, FONT_MODE_KEY, FONT_CUSTOM_KEY, G2_RADIUS_KEY, BADGE_MENU_KEY,
+    BADGE_SOUND_KEY
   ]);
   $('appearanceHarmonyFont').checked = raw[HARMONY_FONT_KEY] !== false && raw[HARMONY_FONT_KEY] !== '0';
   $('appearanceImageZoom').checked = raw[IMAGE_ZOOM_KEY] !== false && raw[IMAGE_ZOOM_KEY] !== '0';
   $('appearanceG2Radius').checked = raw[G2_RADIUS_KEY] !== false && raw[G2_RADIUS_KEY] !== '0';
   $('appearanceBadgeMenu').checked = raw[BADGE_MENU_KEY] === true;
+  $('appearanceBadgeSound').checked = raw[BADGE_SOUND_KEY] === true;
 
   const spec = raw[FONT_CUSTOM_KEY];
   savedFaces = (spec && Array.isArray(spec.faces) ? spec.faces : []).map((f) => ({
@@ -1213,6 +1298,11 @@ $('appearanceImageZoom').addEventListener('change', async (e) => {
 $('appearanceBadgeMenu').addEventListener('change', async (e) => {
   await chrome.storage.local.set({ [BADGE_MENU_KEY]: e.target.checked });
   setStatus(e.target.checked ? '头像菜单已切换为 3D 工牌' : '已恢复站点原生头像菜单', 'ok');
+});
+
+$('appearanceBadgeSound').addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ [BADGE_SOUND_KEY]: e.target.checked });
+  setStatus(e.target.checked ? '已开启工牌甩动音效' : '已关闭工牌甩动音效', 'ok');
 });
 
 loadAppearance().catch((e) => setStatus('读取站点外观设置失败：' + e.message, 'err'));

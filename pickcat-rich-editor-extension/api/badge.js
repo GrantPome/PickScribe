@@ -10,6 +10,14 @@
  *   GET /api/v1/users/{id}       等级与 粉丝 / 关注 / 帖子 / 回复
  *   GET /api/v1/users/{id}/works 作品列表（取前 50 条计数）
  *
+ * 细节：
+ *   1. 甩脱手：拖拽松手速度过快时工牌脱离绳子自己飞（重力 + 视口反弹），
+ *      停住后需要再拖回挂点附近松手才重新系上，不会自动弹回；
+ *   2. 小鱼干挂件：连续 7 天发帖后由 api/badge-streak.js 挂到绳子中段；
+ *   3. 甩动音效：shared/swing-sound.js 合成，默认关闭，设置页 pcr_badge_swing_sound 控制；
+ *   4. 倾斜：自由状态（拖着 / 甩出 / 落地）保留当时角度，最大 ±90°（能横放，不会倒立）；
+ *      挂回绳子后角度平滑归正，挂在绳上始终竖直。
+ *
  * 约定：
  *   1. 只在 pickcat.dao3.fun 生效，CDSQ 继续使用站点原生下拉；
  *   2. 拦截头像 click 并 preventDefault，站点下拉的 onClick 会检查 defaultPrevented；
@@ -30,6 +38,17 @@
   const WORKS_SAMPLE = 50;
   const THEME_KEY = 'pickcat-theme';
   const ROPE_GAP = 38;
+  /** 松手瞬间指针速度超过这个值（px/s）就算甩脱手 */
+  const THROW_SPEED = 1500;
+  /** 脱手后的自由飞行参数 */
+  const FREE_GRAVITY = 2600;
+  const FREE_BOUNCE = 0.52;
+  /** 把工牌拖回静止挂点这个半径内松手，重新系回绳子 */
+  const REHANG_RADIUS = 112;
+  /** 卡片倾斜角上限：允许横放，但不允许转成倒立 */
+  const TILT_LIMIT = 90;
+  /** 拖拽转角的水平位移尺度：tanh 映射，50px≈9°、150px≈25°、300px≈48° */
+  const TILT_DRAG_SCALE = 520;
   const THEMES = [
     ['system', '跟随系统'],
     ['light', '亮色'],
@@ -86,6 +105,14 @@
     drag: null,
     moved: false,
     suppressClick: false,
+    /* ---- 甩脱手：脱离绳子后的自由飞行状态 ---- */
+    detached: false,
+    free: { x: 0, y: 0, vx: 0, vy: 0, rot: 0, vrot: 0 },
+    grab: null,           // 脱手状态下重新抓住工牌时的指针信息
+    rehangEl: null,       // 脱手后显示的挂回目标提示
+    soundArmed: false,    // 速度回落后重新允许发声，一次甩动只响一声
+    soundReady: false,    // 用户真正碰过工牌之后才发声，打开动画本身不响
+    soundAt: 0,
     user: null,
     profile: null,
     works: null,
@@ -477,32 +504,50 @@
   /** 每帧更新工牌位置与绳子曲线 */
   function render() {
     if (!state.stage || !state.card) return;
-    const bx = state.anchor.x + Math.sin(state.phi) * state.len;
-    const by = state.anchor.y + Math.cos(state.phi) * state.len;
+    // 脱手后位置归自由飞行管，任何迟到的 render（比如连续天数同步回来）
+    // 都不能把卡片拽回绳子位置
+    if (state.detached) return;
+    const ax = state.anchor.x;
+    const ay = state.anchor.y;
+    const bx = ax + Math.sin(state.phi) * state.len;
+    const by = ay + Math.cos(state.phi) * state.len;
 
+    // 系着绳子时也跟着当前角度：挂回来不强行摆正
     state.stage.style.transform =
-      'translate3d(' + (bx - state.cardW / 2).toFixed(2) + 'px,' + by.toFixed(2) + 'px,0)';
+      'translate3d(' + (bx - state.cardW / 2).toFixed(2) + 'px,' + by.toFixed(2) + 'px,0)' +
+      ' rotate(' + ((state.free && state.free.rot) || 0).toFixed(2) + 'deg)';
+
+    const dx = bx - ax;
+    const dy = by - ay;
+    const dist = Math.hypot(dx, dy) || 1;
+    // 绳子被拉长时向外鼓，摆动时顺着运动方向甩出一点弧度
+    const bulge = clamp((state.len - state.rest.len) * 0.2, -4, 44) +
+      clamp(-state.phiVel * 12, -18, 18);
+    const cx = (ax + bx) / 2 + (-dy / dist) * bulge;
+    const cy = (ay + by) / 2 + (dx / dist) * bulge;
 
     if (state.rope) {
-      const ax = state.anchor.x;
-      const ay = state.anchor.y;
-      const dx = bx - ax;
-      const dy = by - ay;
-      const dist = Math.hypot(dx, dy) || 1;
-      // 绳子被拉长时向外鼓，摆动时顺着运动方向甩出一点弧度
-      const bulge = clamp((state.len - state.rest.len) * 0.2, -4, 44) +
-        clamp(-state.phiVel * 12, -18, 18);
-      const cx = (ax + bx) / 2 + (-dy / dist) * bulge;
-      const cy = (ay + by) / 2 + (dx / dist) * bulge;
       state.rope.setAttribute('d',
         'M ' + ax.toFixed(2) + ' ' + ay.toFixed(2) +
         ' Q ' + cx.toFixed(2) + ' ' + cy.toFixed(2) +
         ' ' + bx.toFixed(2) + ' ' + by.toFixed(2));
     }
     if (state.ropeKnot) {
-      state.ropeKnot.setAttribute('cx', state.anchor.x.toFixed(2));
-      state.ropeKnot.setAttribute('cy', state.anchor.y.toFixed(2));
+      state.ropeKnot.setAttribute('cx', ax.toFixed(2));
+      state.ropeKnot.setAttribute('cy', ay.toFixed(2));
     }
+    // 小鱼干挂件跟着同一条曲线滑动（未解锁时内部直接返回）
+    if (window.PCRBadgeStreak) {
+      window.PCRBadgeStreak.position({ x: ax, y: ay }, { x: cx, y: cy }, { x: bx, y: by });
+    }
+  }
+
+  /** 静止时工牌顶部中心的位置，脱手后既是回挂判定点也是提示圈的位置 */
+  function restTip() {
+    return {
+      x: state.anchor.x + Math.sin(state.rest.phi) * state.rest.len,
+      y: state.anchor.y + Math.cos(state.rest.phi) * state.rest.len
+    };
   }
 
   /**
@@ -514,6 +559,12 @@
     if (!state.open) return;
     const dt = Math.min(0.032, Math.max(0.001, (now - (state.lastT || now)) / 1000));
     state.lastT = now;
+
+    // 脱手后走另一套自由飞行积分
+    if (state.detached) {
+      stepFree(dt);
+      return;
+    }
 
     const dragging = !!(state.drag && state.moved);
     const kPhi = dragging ? 520 : 118;
@@ -527,13 +578,30 @@
     state.lenVel += ((state.targetLen - state.len) * kLen - state.lenVel * cLen) * dt;
     state.len += state.lenVel * dt;
 
-    const done =
+    // 摆动音效：速度刚冲过阈值时响一声，回落到 160 以下再重新武装。
+    // 这样一次甩动只伴随一声风声，来回嗡嗡响反而打扰。
+    const speed = Math.abs(state.phiVel) * state.len + Math.abs(state.lenVel) * 0.5;
+    if (speed < 160) {
+      state.soundArmed = true;
+    } else if (state.soundReady && state.soundArmed && speed > 300) {
+      state.soundArmed = false;
+      playSwing(clamp(speed / 1400, 0, 1));
+    }
+
+    // 挂在绳子上就必须竖直：自由状态带回来的角度在这里平滑衰减到 0，
+    // 不能瞬间跳正，也不能一直歪着
+    if (state.free.rot !== 0) {
+      const next = state.free.rot * Math.pow(0.00005, dt);
+      state.free.rot = Math.abs(next) < 0.2 ? 0 : next;
+    }
+
+    const springDone =
       Math.abs(state.targetPhi - state.phi) < 0.002 &&
       Math.abs(state.phiVel) < 0.006 &&
       Math.abs(state.targetLen - state.len) < 0.4 &&
       Math.abs(state.lenVel) < 1;
 
-    if (done) {
+    if (springDone) {
       state.phi = state.targetPhi;
       state.len = state.targetLen;
       state.phiVel = 0;
@@ -541,7 +609,8 @@
     }
 
     render();
-    if (!done && !state.closing) schedule();
+    // 弹簧停了但角度还没归零时也要继续跑，别把没转完的动画丢在那
+    if (!(springDone && state.free.rot === 0) && !state.closing) schedule();
   }
 
   function schedule() {
@@ -553,6 +622,173 @@
   function stopLoop() {
     if (state.raf) cancelAnimationFrame(state.raf);
     state.raf = 0;
+  }
+
+  // ============================ 6.1 甩脱手与挂回 ============================
+
+  /** 甩动音效：开关与声音都在 shared/swing-sound.js 里，这里只做节流调用 */
+  function playSwing(strength) {
+    const api = window.PCRSwingSound;
+    if (!api || typeof api.play !== 'function') return;
+    const now = performance.now();
+    if (now - state.soundAt < 220) return;
+    state.soundAt = now;
+    api.play(strength);
+  }
+
+  /**
+   * 脱手：工牌离开绳子，用松手瞬间的速度自己飞出去。
+   * 位置以「工牌顶部中心」为锚，和绳子系着时的坐标口径保持一致。
+   */
+  function detach(vx, vy) {
+    const f = state.free;
+    f.x = state.anchor.x + Math.sin(state.phi) * state.len;
+    f.y = state.anchor.y + Math.cos(state.phi) * state.len;
+    f.vx = vx;
+    f.vy = vy;
+    // 保留当前角度，甩出去只在原有角度上继续转
+    f.vrot = clamp(vx * 0.06, -260, 260);
+
+    state.detached = true;
+    state.phiVel = 0;
+    state.lenVel = 0;
+    state.soundArmed = true;
+    if (state.root) state.root.classList.add('is-detached');
+    if (window.PCRBadgeStreak) window.PCRBadgeStreak.hide();
+    playSwing(1);
+
+    updateRehangHint();
+    renderFree();
+    schedule();
+  }
+
+  /**
+   * 脱手后工牌能待的范围：卡片放得下就整张留在视口里，
+   * 放不下（很窄的窗口）才只保证上面一小截可见，保证永远找得到。
+   * 尺寸每次现取：卡片内容（昵称 / 统计）是异步填进来的，缓存的 cardH 会偏大，
+   * 一旦偏大就会把可拖动的上边界压低，工牌就再也挂不回绳子。
+   */
+  function freeBounds() {
+    const w = (state.card && state.card.offsetWidth) || state.cardW;
+    const h = (state.card && state.card.offsetHeight) || state.cardH;
+    const halfW = w / 2;
+    // 卡片绕顶部挂孔旋转：倾斜后往下占的高度会变，落地位置按真实投影算，
+    // 否则横放时会悬在半空、或者陷进底部
+    const rad = Math.abs((state.free && state.free.rot) || 0) * Math.PI / 180;
+    const below = h * Math.cos(rad) + halfW * Math.sin(rad);
+    const fits = below + 24 <= window.innerHeight;
+    return {
+      minX: halfW + 8,
+      maxX: Math.max(halfW + 8, window.innerWidth - halfW - 8),
+      minY: 8,
+      maxY: Math.max(8, window.innerHeight - (fits ? below : Math.min(below, 160)) - 8)
+    };
+  }
+
+  /**
+   * 脱手后的自由飞行：重力 + 空气阻力 + 视口反弹。
+   * 四个边都做反弹而不是越界即停，保证工牌永远留在屏幕里，不会丢。
+   */
+  function stepFree(dt) {
+    const f = state.free;
+    const bounds = freeBounds();
+    const minX = bounds.minX;
+    const maxX = bounds.maxX;
+    const minY = bounds.minY;
+    const maxY = bounds.maxY;
+
+    if (state.grab) {
+      // 正在被拖回去：位置由指针直接给，速度沿用指针速度。
+      // 这里不能再按自由飞行边界纠正位置，否则会和拖拽的边界互相拉扯，
+      // 拖到屏幕边缘时卡片会一帧一帧地在两个位置之间来回跳。
+      f.vx = state.grab.vx;
+      f.vy = state.grab.vy;
+      renderFree();
+      return;
+    }
+
+    f.vy += FREE_GRAVITY * dt;
+    const air = Math.pow(0.16, dt);
+    f.vx *= air;
+    f.vy *= air;
+    f.x += f.vx * dt;
+    f.y += f.vy * dt;
+    f.rot += f.vrot * dt;
+    f.vrot *= air;
+
+    // 只限制范围，不往 0° 收：横放可以，倒立不行
+    const tilt = clamp(f.rot, -TILT_LIMIT, TILT_LIMIT);
+    if (tilt !== f.rot) {
+      f.rot = tilt;
+      f.vrot = 0;
+    }
+
+    if (f.x < minX) { f.x = minX; f.vx = Math.abs(f.vx) * FREE_BOUNCE; f.vrot *= -0.5; }
+    if (f.x > maxX) { f.x = maxX; f.vx = -Math.abs(f.vx) * FREE_BOUNCE; f.vrot *= -0.5; }
+    if (f.y < minY) { f.y = minY; f.vy = Math.abs(f.vy) * FREE_BOUNCE; }
+    if (f.y > maxY) {
+      f.y = maxY;
+      if (f.vy > 0) f.vy = -f.vy * FREE_BOUNCE;
+      f.vx *= 0.82;   // 落地摩擦
+      f.vrot *= 0.7;
+    }
+
+    // 角度只受上限约束，不会被慢慢摆回 0°：松手、落地都保留当时的角度
+    const slow = Math.abs(f.vx) < 14 && Math.abs(f.vy) < 20;
+    const atFloor = f.y >= maxY - 1 || maxY <= minY;
+    const still = slow && Math.abs(f.vrot) < 12 && atFloor;
+    if (still) {
+      f.vx = 0;
+      f.vy = 0;
+      f.vrot = 0;
+    }
+
+    renderFree();
+    // 停稳就收工。角度保留着，不能因为 rot !== 0 就继续空转 rAF
+    if (!still) schedule();
+  }
+
+  function renderFree() {
+    if (!state.stage) return;
+    const f = state.free;
+    state.stage.style.transform =
+      'translate3d(' + (f.x - state.cardW / 2).toFixed(2) + 'px,' + f.y.toFixed(2) + 'px,0)' +
+      ' rotate(' + f.rot.toFixed(2) + 'deg)';
+  }
+
+  /** 挂回提示圈：脱手后出现在原来的挂点，告诉用户把工牌拖回哪里 */
+  function updateRehangHint() {
+    if (!state.rehangEl) return;
+    const tip = restTip();
+    const size = REHANG_RADIUS * 2;
+    state.rehangEl.style.width = size + 'px';
+    state.rehangEl.style.height = size + 'px';
+    state.rehangEl.style.transform =
+      'translate3d(' + (tip.x - REHANG_RADIUS).toFixed(1) + 'px,' +
+      (tip.y - REHANG_RADIUS).toFixed(1) + 'px,0)';
+  }
+
+  /** 拖回挂点附近松手：换算回极坐标，交给原来的弹簧弹回静止位 */
+  function rehang() {
+    const f = state.free;
+    const dx = f.x - state.anchor.x;
+    const dy = Math.max(8, f.y - state.anchor.y);
+
+    state.detached = false;
+    state.grab = null;
+    if (state.root) state.root.classList.remove('is-detached');
+    if (state.card) state.card.classList.remove('is-dragging');
+
+    state.phi = clamp(Math.atan2(dx, dy), state.rest.phi - 1.35, state.rest.phi + 1.35);
+    state.len = clamp(Math.hypot(dx, dy), 16, state.maxLen);
+    state.phiVel = 0;
+    state.lenVel = 0;
+    state.soundArmed = true;
+    state.targetPhi = state.rest.phi;
+    state.targetLen = state.rest.len;
+
+    render();
+    schedule();
   }
 
   function setFlip(next) {
@@ -573,6 +809,41 @@
 
   function onPointerDown(e) {
     if (!state.card || e.button !== 0 || e.isPrimary === false) return;
+    // 用户已经上手，之后的摆动才需要声音（打开时的下落动画保持安静）
+    state.soundReady = true;
+
+    // 脱手状态：直接抓住自由飞行的工牌，准备拖回挂点
+    if (state.detached) {
+      const f = state.free;
+      // 记下按住的那一点在卡片本地坐标（相对挂孔、未旋转）：
+      // 拖动时让它一直待在指针下，卡片才会绕着手指转，而不是越拖越偏
+      const rad = (f.rot * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const dxp = e.clientX - f.x;
+      const dyp = e.clientY - f.y;
+      state.grab = {
+        lx: dxp * cos + dyp * sin,
+        ly: -dxp * sin + dyp * cos,
+        rot0: f.rot,
+        rx: 0,
+        px: e.clientX,
+        py: e.clientY,
+        t: performance.now(),
+        vx: 0,
+        vy: 0,
+        pointerId: e.pointerId
+      };
+      f.vx = 0;
+      f.vy = 0;
+      f.vrot = 0;
+      state.moved = false;
+      state.suppressClick = false;
+      state.card.classList.add('is-dragging');
+      try { state.card.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+      return;
+    }
+
     // 记住指针与卡片顶部中心之间的偏移，拖动时让顶部中心跟着指针走；
     // 不打断当前摆动，按下但没拖动时卡片会继续自然回位。
     const topX = state.anchor.x + Math.sin(state.phi) * state.len;
@@ -580,6 +851,11 @@
     state.drag = {
       x: e.clientX,
       y: e.clientY,
+      px: e.clientX,
+      py: e.clientY,
+      t: performance.now(),
+      vx: 0,
+      vy: 0,
       offsetX: topX - e.clientX,
       offsetY: topY - e.clientY,
       pointerId: e.pointerId,
@@ -591,7 +867,55 @@
   }
 
   function onPointerMove(e) {
-    if (!state.drag || !state.card) return;
+    if (!state.card) return;
+
+    // ---------- 脱手状态：把工牌拖回挂点 ----------
+    if (state.grab) {
+      const dx = e.clientX - state.grab.px;
+      const dy = e.clientY - state.grab.py;
+      if (!state.moved && Math.hypot(dx, dy) > 4) state.moved = true;
+      if (!state.moved) return;
+      if (e.cancelable) e.preventDefault();
+
+      const now = performance.now();
+      const span = Math.max(8, now - state.grab.t) / 1000;
+      // 指针速度做一次平滑，松手时用它决定是否继续甩出去
+      state.grab.vx = state.grab.vx * 0.55 + (dx / span) * 0.45;
+      state.grab.vy = state.grab.vy * 0.55 + (dy / span) * 0.45;
+      state.grab.px = e.clientX;
+      state.grab.py = e.clientY;
+      state.grab.t = now;
+
+      // 边界和松手后的自由飞行用同一套范围（卡片尽量整张留在视口里），
+      // 只在窗口太窄时放宽到挂点，保证任何尺寸下都能把工牌拖回去。
+      // 两边范围不一致的话，拖到边缘会被两套边界来回夹、松手还会瞬间弹回来。
+      const bounds = freeBounds();
+      const tip = restTip();
+      const dragMinX = Math.min(bounds.minX, tip.x);
+      const dragMaxX = Math.max(bounds.maxX, tip.x);
+      const dragMinY = Math.min(bounds.minY, tip.y);
+      const dragMaxY = Math.max(bounds.maxY, tip.y);
+      const f = state.free;
+      const g = state.grab;
+      // 转角只由累计水平位移决定，且小位移几乎不转：tanh 曲线，越拖越接近横放
+      g.rx += dx;
+      const tilt = clamp(g.rot0 + TILT_LIMIT * Math.tanh(g.rx / TILT_DRAG_SCALE), -TILT_LIMIT, TILT_LIMIT);
+      f.rot = tilt;
+      const rad = (tilt * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      // 反解挂孔位置：绕按住的那一点转，按住点始终贴着指针
+      f.x = clamp(e.clientX - (g.lx * cos - g.ly * sin), dragMinX, dragMaxX);
+      f.y = clamp(e.clientY - (g.lx * sin + g.ly * cos), dragMinY, dragMaxY);
+      f.vx = state.grab.vx;
+      f.vy = state.grab.vy;
+      f.vrot = 0;
+      renderFree();
+      schedule();
+      return;
+    }
+
+    if (!state.drag) return;
     const dx = e.clientX - state.drag.x;
     const dy = e.clientY - state.drag.y;
 
@@ -602,6 +926,14 @@
     }
     if (!state.moved) return;
     if (e.cancelable) e.preventDefault();
+
+    // 记录指针速度：松手时超过阈值就判定「甩脱手」
+    const span = Math.max(8, performance.now() - state.drag.t) / 1000;
+    state.drag.vx = state.drag.vx * 0.55 + ((e.clientX - state.drag.px) / span) * 0.45;
+    state.drag.vy = state.drag.vy * 0.55 + ((e.clientY - state.drag.py) / span) * 0.45;
+    state.drag.px = e.clientX;
+    state.drag.py = e.clientY;
+    state.drag.t = performance.now();
 
     // 拖动只负责甩动卡片本身，不做任何 3D 倾斜；翻转是点击后的独立动作。
     // 这里只更新「卡片顶部中心想去哪」，真正的位移交给 tick 的弹簧追过去，才有重量感。
@@ -626,7 +958,47 @@
   }
 
   function onPointerUp(e) {
-    if (!state.drag || !state.card) return;
+    if (!state.card) return;
+
+    // ---------- 脱手状态松手 ----------
+    if (state.grab) {
+      const grab = state.grab;
+      const moved = state.moved;
+      state.grab = null;
+      state.moved = false;
+      try { state.card.releasePointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
+      state.card.classList.remove('is-dragging');
+
+      // 脱手状态下只点一下：和挂着时一样翻转，点链接则照常跳转
+      if (!moved) {
+        if (!isInteractive(e.target)) {
+          if (document.activeElement !== state.card) state.card.focus({ preventScroll: true });
+          toggleFlip();
+        }
+        return;
+      }
+
+      state.suppressClick = true;
+      setTimeout(() => { state.suppressClick = false; }, 350);
+
+      const tip = restTip();
+      const f = state.free;
+      if (Math.hypot(f.x - tip.x, f.y - tip.y) <= REHANG_RADIUS) {
+        // 拖回挂点附近：重新系回绳子
+        rehang();
+        return;
+      }
+
+      // 没挂回就按松手速度继续飞（可以再甩一次）
+      const idle = performance.now() - grab.t > 90;
+      f.vx = idle ? 0 : grab.vx;
+      f.vy = idle ? 0 : grab.vy;
+      f.vrot = clamp(f.vx * 0.05, -240, 240);
+      schedule();
+      return;
+    }
+
+    if (!state.drag) return;
     const drag = state.drag;
     const moved = state.moved;
     state.drag = null;
@@ -642,15 +1014,33 @@
       return;
     }
 
-    // 松手后弹回静止位置
     setTimeout(() => { state.suppressClick = false; }, 350);
+    state.card.classList.remove('is-dragging');
+
+    // 甩得够猛就脱手飞出去；否则照旧弹回静止位置
+    const idle = performance.now() - drag.t > 90;
+    const speed = idle ? 0 : Math.hypot(drag.vx, drag.vy);
+    if (speed >= THROW_SPEED) {
+      detach(drag.vx, drag.vy);
+      return;
+    }
+
     state.targetPhi = state.rest.phi;
     state.targetLen = state.rest.len;
-    state.card.classList.remove('is-dragging');
     schedule();
   }
 
   function onPointerCancel() {
+    if (state.grab) {
+      const grab = state.grab;
+      state.grab = null;
+      state.moved = false;
+      if (state.card) state.card.classList.remove('is-dragging');
+      state.free.vx = grab.vx;
+      state.free.vy = grab.vy;
+      schedule();
+      return;
+    }
     if (!state.drag) return;
     state.drag = null;
     state.moved = false;
@@ -673,6 +1063,8 @@
         '<path data-pcr-rope d=""/>' +
         '<circle data-pcr-rope-knot r="3" cx="0" cy="0"/>' +
       '</svg>' +
+      // 脱手后才出现的挂回提示圈
+      '<div class="pcr-badge-rehang" data-pcr-rehang aria-hidden="true"><span>挂回这里</span></div>' +
       '<div class="pcr-badge-stage">' +
         '<div class="pcr-badge-card" tabindex="0" role="dialog" aria-label="账号工牌">' +
           '<div class="pcr-badge-face pcr-badge-front" data-pcr-front></div>' +
@@ -693,6 +1085,12 @@
     state.back = root.querySelector('[data-pcr-back]');
     state.rope = root.querySelector('[data-pcr-rope]');
     state.ropeKnot = root.querySelector('[data-pcr-rope-knot]');
+    state.rehangEl = root.querySelector('[data-pcr-rehang]');
+
+    // 小鱼干挂件挂在绳子 SVG 里，由独立文件负责解不解锁、摆在哪
+    if (window.PCRBadgeStreak) {
+      window.PCRBadgeStreak.attach(root.querySelector('.pcr-badge-rope'));
+    }
 
     wireRoot();
     return root;
@@ -735,6 +1133,13 @@
 
     state.flip = 0;
     state.closing = false;
+    // 每次打开都从「系着绳子」的状态开始，不残留上次脱手的位置；
+    // 角度保留上次的，且第一帧 render() 就带上它，不会出现打开瞬间跳角度
+    state.detached = false;
+    state.grab = null;
+    state.free = { x: 0, y: 0, vx: 0, vy: 0, rot: state.free.rot, vrot: 0 };
+    state.soundArmed = false;
+    state.soundReady = false;
     if (state.card) {
       state.card.style.setProperty('--pcr-flip', '0deg');
       state.card.classList.remove('is-dragging');
@@ -742,6 +1147,7 @@
 
     root.hidden = false;
     root.classList.remove('is-closing');
+    root.classList.remove('is-detached');
     measure();
     renderFaces(fallbackAvatar);
 
@@ -779,7 +1185,16 @@
         return loadProfile(user.id);
       })
       .then(() => {
-        if (state.open) renderFaces(fallbackAvatar);
+        if (!state.open) return;
+        renderFaces(fallbackAvatar);
+        // 连续发帖天数：达到 7 天后把小鱼干挂到绳子上（结果会缓存，失败则保持无挂件）
+        if (window.PCRBadgeStreak && state.user) {
+          window.PCRBadgeStreak.sync(state.user.id)
+            .then((on) => {
+              if (on && state.open) render();
+            })
+            .catch(() => { /* 数据拿不到就不挂 */ });
+        }
       })
       .catch(() => { /* 读取失败保留兜底 */ });
   }
@@ -799,21 +1214,27 @@
     root.classList.remove('is-open');
     root.classList.add('is-closing');
 
-    // 顺着绳子缩回头像
-    state.targetPhi = state.rest.phi;
-    state.targetLen = Math.max(8, state.rest.len * 0.18);
-    state.phiVel = 0;
-    state.lenVel = 0;
-    state.lastT = performance.now();
-    state.raf = requestAnimationFrame(function retract(now) {
-      state.raf = 0;
-      const dt = Math.min(0.032, Math.max(0.001, (now - state.lastT) / 1000));
-      state.lastT = now;
-      state.len += (state.targetLen - state.len) * Math.min(1, dt * 14);
-      state.phi += (state.targetPhi - state.phi) * Math.min(1, dt * 14);
-      render();
-      if (state.closing) state.raf = requestAnimationFrame(retract);
-    });
+    // 顺着绳子缩回头像；脱手飞出去的工牌则原地淡出，不再拉绳子
+    if (state.detached) {
+      state.detached = false;
+      state.grab = null;
+      root.classList.remove('is-detached');
+    } else {
+      state.targetPhi = state.rest.phi;
+      state.targetLen = Math.max(8, state.rest.len * 0.18);
+      state.phiVel = 0;
+      state.lenVel = 0;
+      state.lastT = performance.now();
+      state.raf = requestAnimationFrame(function retract(now) {
+        state.raf = 0;
+        const dt = Math.min(0.032, Math.max(0.001, (now - state.lastT) / 1000));
+        state.lastT = now;
+        state.len += (state.targetLen - state.len) * Math.min(1, dt * 14);
+        state.phi += (state.targetPhi - state.phi) * Math.min(1, dt * 14);
+        render();
+        if (state.closing) state.raf = requestAnimationFrame(retract);
+      });
+    }
 
     setTimeout(() => {
       // 关闭动画途中又被重新打开：交给新一轮的动画，这里不能停掉 rAF
@@ -866,6 +1287,8 @@
 
   function onOutsidePointerDown(e) {
     if (!state.open) return;
+    // 脱手后卡片已经离开绳子，点空白不该把它关掉：它就停在原地等用户拖回挂点
+    if (state.detached) return;
     const target = e.target;
     if (!target || !target.closest) return;
     if (state.root.contains(target)) return;
@@ -876,6 +1299,19 @@
 
   function onViewportChange(e) {
     if (!state.open) return;
+    // 脱手状态下滚动 / 缩放都不关闭，也不拉回绳子；只保证卡片还在视口里
+    if (state.detached) {
+      if (e.type === 'resize') {
+        measure();
+        const f = state.free;
+        const bounds = freeBounds();
+        f.x = clamp(f.x, bounds.minX, bounds.maxX);
+        f.y = clamp(f.y, bounds.minY, bounds.maxY);
+        updateRehangHint();
+        renderFree();
+      }
+      return;
+    }
     if (e.type === 'scroll' && e.target && e.target.nodeType === 1 && state.root.contains(e.target)) return;
     close();
   }

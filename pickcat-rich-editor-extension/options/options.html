@@ -66,6 +66,10 @@
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M2 20h20"/></svg>
             刷帖体验优化
           </a>
+          <a class="nav-item" href="#sec-widgets">
+            <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><path d="M17 13v8"/><path d="M13 17h8"/></svg>
+            右侧小组件
+          </a>
           <a class="nav-item" href="#sec-home">
             <svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6"/></svg>
             起始页浮层
@@ -164,6 +168,10 @@
             <span>用可翻转的 3D 工牌替代右上角头像下拉</span>
             <input type="checkbox" id="appearanceBadgeMenu" />
           </label>
+          <label class="field switch-row">
+            <span>甩动工牌时播放轻微的风声</span>
+            <input type="checkbox" id="appearanceBadgeSound" />
+          </label>
         </div>
         <p class="note">默认关闭，仅 Pickcat 生效。打开后点头像不再弹原生下拉，而是吊在头像下方一张工牌，可拖动摆动、点击翻面查看账号菜单与显示模式；正面显示作品 / 粉丝 / 关注统计。关闭后恢复站点原生下拉。</p>
       </section>
@@ -232,6 +240,28 @@
         <div class="row">
           <p class="note">会清空全部引导记录，等同于首次安装状态；已打开的站点标签页会自动重新弹卡。</p>
           <button id="replayGuide" class="btn danger" type="button">重新开始新手引导</button>
+        </div>
+      </section>
+
+      <!-- 右侧小组件 -->
+      <section class="card" id="sec-widgets">
+        <div class="card-head">
+          <h2>右侧小组件</h2>
+          <p>在信息流页右侧栏显示可自定义的小组件，和站点原有板块同级排布，可一起拖拽排序；站点板块本身不会被改动。</p>
+        </div>
+
+        <div class="checks">
+          <label class="field switch-row">
+            <span>在信息流页显示小组件</span>
+            <input type="checkbox" id="widgetsEnabled" />
+          </label>
+        </div>
+
+        <p class="note">尺寸、顺序与增删都在站点右栏的「自定义」里完成，原有板块也会一起参与排序；布局只保存在本机。</p>
+
+        <div class="row">
+          <p class="note" id="widgetsNote"></p>
+          <button id="widgetsReset" class="btn danger" type="button">恢复默认布局</button>
         </div>
       </section>
 
