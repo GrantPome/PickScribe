@@ -1580,6 +1580,55 @@
     card.style.height = widgetHeight(item.span.h) + 'px';
   }
 
+  /** 尺寸动画：旧尺寸先糊开，平滑拉伸到新尺寸后再对焦清晰 */
+  let sizeMorphCard = null;
+  let sizeMorphTimer = 0;
+
+  function morphWidgetSize(card, opts) {
+    if (!card) return;
+    const dragging = !!(opts && opts.dragging);
+    if (sizeMorphCard && sizeMorphCard !== card) resetWidgetMorph(sizeMorphCard);
+    if (reducedMotion()) return;
+    sizeMorphCard = card;
+
+    // 只补间高度：宽度参与 flex 换行，补间会让整排反复重排、看起来抽搐，
+    // 宽度的切换由虚化遮住，高度照常拉伸
+    const sizeMs = dragging ? 160 : 360;
+    const delayMs = dragging ? 0 : 110;
+    card.style.transition =
+      'height ' + sizeMs + 'ms cubic-bezier(0.22, 0.75, 0.24, 1) ' + delayMs + 'ms, ' +
+      'filter ' + (dragging ? 140 : 180) + 'ms ease-out, ' +
+      'box-shadow 0.22s ease';
+    card.style.filter = 'blur(' + (dragging ? 3.6 : 6) + 'px)';
+
+    clearTimeout(sizeMorphTimer);
+    sizeMorphTimer = setTimeout(() => settleWidgetMorph(card), sizeMs + delayMs);
+  }
+
+  /** 尺寸落定：撤掉模糊，让卡片从虚到实 */
+  function settleWidgetMorph(card) {
+    if (!card) return;
+    clearTimeout(sizeMorphTimer);
+    if (reducedMotion()) {
+      resetWidgetMorph(card);
+      return;
+    }
+    // 保留还在进行的高度过渡，只把滤镜单独拉长，做出「对焦」的清晰过程
+    card.style.transition =
+      'height 160ms cubic-bezier(0.22, 0.75, 0.24, 1), ' +
+      'filter 240ms ease-out, box-shadow 0.22s ease';
+    card.style.filter = '';
+    sizeMorphTimer = setTimeout(() => resetWidgetMorph(card), 300);
+  }
+
+  function resetWidgetMorph(card) {
+    clearTimeout(sizeMorphTimer);
+    sizeMorphTimer = 0;
+    card.style.filter = '';
+    card.style.transition = '';
+    if (sizeMorphCard === card) sizeMorphCard = null;
+  }
+
   // ============================ 9. 站点板块拖拽手柄 ============================
 
   function layoutSiteHandles() {
@@ -1778,9 +1827,10 @@
   }
 
   /** 先按旧位置反向位移，再过渡回新位置；不改 DOM 顺序 */
-  function playReorderFlip(before) {
+  function playReorderFlip(before, skipKey) {
     if (!before || !before.size || reducedMotion()) return;
     visualItems().forEach(({ key, el }) => {
+      if (skipKey && key === skipKey) return;
       const prev = before.get(key);
       if (!prev) return;
       const next = el.getBoundingClientRect();
@@ -1936,7 +1986,12 @@
     if (next.w === item.span.w && next.h === item.span.h) return;
     item.span = next;
     const card = widgetCards.get(id);
-    if (card) paintWidgetSize(card, item);
+    if (card) {
+      const before = rectMap();
+      paintWidgetSize(card, item);
+      playReorderFlip(before, widgetKey(item.id));
+      morphWidgetSize(card);
+    }
     layoutSiteHandles();
     saveBoard();
   }
@@ -2197,6 +2252,17 @@
     addGestureListeners();
   }
 
+  /**
+   * 步进带死区：指针停在格线附近时（±0.1 格，约 15px）不换步，
+   * 否则宽度会在 1 列 / 2 列之间来回跳，看起来像抽搐。
+   */
+  function hysteresisStep(raw, committed) {
+    const target = Math.round(raw);
+    if (target === committed) return committed;
+    if (target > committed) return raw >= committed + 0.6 ? target : committed;
+    return raw <= committed - 0.6 ? target : committed;
+  }
+
   function onGestureMove(e) {
     if (!gesture) return;
     e.preventDefault();
@@ -2219,12 +2285,13 @@
     const item = findItem(g.id);
     if (!item) return;
     const def = WIDGETS[item.type];
-    const dw = Math.round((e.clientX - g.startX) / g.unitX);
-    const dh = Math.round((e.clientY - g.startY) / g.unitY);
+    const dw = hysteresisStep((e.clientX - g.startX) / g.unitX, item.span.w - g.startSpan.w);
+    const dh = hysteresisStep((e.clientY - g.startY) / g.unitY, item.span.h - g.startSpan.h);
     const next = normalizeSpan({ w: g.startSpan.w + dw, h: g.startSpan.h + dh }, def);
     if (next.w === item.span.w && next.h === item.span.h) return;
     item.span = next;
     paintWidgetSize(g.card, item);
+    morphWidgetSize(g.card, { dragging: true });
     layoutSiteHandles();
     g.moved = true;
   }
@@ -2327,6 +2394,7 @@
       saveBoard();
       applyRail();
     } else if (g.kind === 'resize' && g.moved) {
+      settleWidgetMorph(g.card);
       saveBoard();
       layoutSiteHandles();
     }
@@ -2342,7 +2410,12 @@
       const item = findItem(g.id);
       if (item) item.span = g.startSpan;
       const card = widgetCards.get(g.id);
-      if (card && item) paintWidgetSize(card, item);
+      if (card && item) {
+        const before = rectMap();
+        paintWidgetSize(card, item);
+        playReorderFlip(before, widgetKey(item.id));
+        morphWidgetSize(card);
+      }
     } else if (g.kind === 'drag') {
       const before = rectMap();
       board.order = g.startOrder;
