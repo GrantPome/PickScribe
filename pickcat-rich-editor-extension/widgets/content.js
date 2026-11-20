@@ -1826,39 +1826,46 @@
     return map;
   }
 
-  /** 先按旧位置反向位移，再过渡回新位置；不改 DOM 顺序 */
+  /**
+   * FLIP 位移动画。
+   * 关键是先把上一轮没结束的内联 transform 清掉再量新位置：
+   * 否则拖动时连续换位会把旧位移当成终点，卡片在半列 / 整列之间来回叠位移，看起来像抽搐。
+   */
+  const flipBase = new WeakMap();
+  const flipTimers = new WeakMap();
+
   function playReorderFlip(before, skipKey) {
     if (!before || !before.size || reducedMotion()) return;
+
+    const plans = [];
     visualItems().forEach(({ key, el }) => {
       if (skipKey && key === skipKey) return;
       const prev = before.get(key);
       if (!prev) return;
+      if (!flipBase.has(el)) flipBase.set(el, el.style.transform || '');
+      clearTimeout(flipTimers.get(el));
+      // 撤掉残留位移，下面量到的才是本次布局的真实位置
+      el.style.transition = 'none';
+      el.style.transform = flipBase.get(el);
+      plans.push({ el, prev, base: flipBase.get(el) });
+    });
+
+    plans.forEach(({ el, prev, base }) => {
       const next = el.getBoundingClientRect();
       const dx = prev.left - next.left;
       const dy = prev.top - next.top;
       if (!dx && !dy) return;
 
-      const prevTransform = el.style.transform;
-      const prevTransition = el.style.transition;
       el.style.transition = 'none';
-      el.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+      el.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)' + (base ? ' ' + base : '');
       void el.offsetWidth;   // 强制回流，让反向位移先生效
       el.style.transition = 'transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1)';
-      el.style.transform = prevTransform;
+      el.style.transform = base;
 
-      let done = false;
-      const finish = (ev) => {
-        // 忽略子元素冒泡上来的 transitionend
-        if (ev && ev.target !== el) return;
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        el.removeEventListener('transitionend', finish);
-        el.style.transition = prevTransition;
-        el.style.transform = prevTransform;
-      };
-      const timer = setTimeout(finish, 240);
-      el.addEventListener('transitionend', finish);
+      flipTimers.set(el, setTimeout(() => {
+        el.style.transition = '';
+        el.style.transform = base;
+      }, 240));
     });
   }
 
@@ -2356,11 +2363,21 @@
     }
     if (target.key === key) return;
 
+    // 换位动画进行中，指针下的卡片位置还在动，容易来回换位；
+    // 指针离开上次换位点一小段距离才允许下一次换位
+    if (gesture.lastSwapAt &&
+        Math.abs(x - gesture.lastSwapX) < 12 &&
+        Math.abs(y - gesture.lastSwapY) < 12 &&
+        performance.now() - gesture.lastSwapAt < 260) return;
+
     const before = rectMap();
     const prevOrder = board.order.join('|');
     moveKeyTo(key, target.key, after);
     if (board.order.join('|') === prevOrder) return;
     gesture.moved = true;
+    gesture.lastSwapX = x;
+    gesture.lastSwapY = y;
+    gesture.lastSwapAt = performance.now();
     paintOrder();
     playReorderFlip(before);
     layoutSiteHandles();
