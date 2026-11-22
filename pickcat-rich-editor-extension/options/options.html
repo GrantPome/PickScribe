@@ -48,13 +48,11 @@
     <aside class="side">
       <h1 class="side-title">PickScribe 设置</h1>
 
-      <div class="side-profile">
-        <div class="side-avatar" id="sideAvatarWrap">
-          <img id="sideAvatar" src="https://avatars.githubusercontent.com/u/125468685?v=4" alt="Grant 的 GitHub 头像" width="48" height="48" loading="lazy" decoding="async" />
-          <span class="side-avatar-fallback" aria-hidden="true">G</span>
-        </div>
-        <p class="side-name">Grant</p>
-        <a class="side-mail" href="mailto:3803746525@qq.com">3803746525@qq.com</a>
+      <div class="side-search">
+        <svg class="side-search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        <input id="settingsSearch" class="side-search-input" type="search" placeholder="搜索设置" autocomplete="off" spellcheck="false" aria-label="搜索设置" aria-controls="settingsSearchResults" />
+        <button id="settingsSearchClear" class="side-search-clear" type="button" aria-label="清空搜索" hidden>&times;</button>
+        <div class="side-search-results" id="settingsSearchResults" role="listbox" aria-label="设置搜索结果" hidden></div>
       </div>
       <div class="side-card">
         <nav class="nav" aria-label="设置分区">
@@ -100,7 +98,7 @@
           </a>
         </nav>
       </div>
-      <p class="side-foot">配置与密钥只保存在本机浏览器，不会上传到任何服务器。</p>
+      <p class="side-foot">配置与密钥只保存在本机，不会上传。</p>
     </aside>
 
     <main class="main">
@@ -134,10 +132,8 @@
             <button id="clearCustomFont" class="btn danger" type="button" hidden>移除自定义字体</button>
           </div>
           <div class="font-faces" id="fontFaceList"></div>
-          <p class="note" id="customFontNote">woff2 / woff / ttf / otf，单文件不超过 20 MB；可一次上传多个字重文件。</p>
+          <p class="note" id="customFontNote">woff2 / woff / ttf / otf，单文件 ≤ 20 MB，可多选。</p>
         </div>
-
-        <p class="note">字体文件只在本地分发，不联网。</p>
 
         <div class="divider"></div>
 
@@ -148,7 +144,7 @@
             <input type="checkbox" id="appearanceG2Radius" />
           </label>
         </div>
-        <p class="note">转角到直边的过渡更饱满。头像、圆形图标与胶囊按钮保持原形；仅在支持 corner-shape 的浏览器生效，其它浏览器自动保持站点原样。</p>
+        <p class="note">仅在支持 corner-shape 的浏览器生效；头像与胶囊按钮保持原形。</p>
 
         <div class="divider"></div>
 
@@ -167,7 +163,7 @@
             <input type="checkbox" id="appearanceLumaCursorFollow" />
           </label>
         </div>
-        <p class="note">云母玻璃材质、极淡辉光与非线性动效；关闭后立即恢复站点与插件界面的原始外观，无需刷新。鼠标球默认是完整球体，此时隐藏系统指针，吸附控件时放大成形；打开“隐藏鼠标球”后普通态只剩一个小点并显示系统指针。关闭跟随则控件与选中框静止在控件原位。</p>
+        <p class="note">关闭后立即恢复原样；鼠标球默认隐藏系统指针，开启「隐藏鼠标球」后仅保留中心小点。</p>
 
         <div class="divider"></div>
 
@@ -192,7 +188,7 @@
             <input type="checkbox" id="appearanceBadgeSound" />
           </label>
         </div>
-        <p class="note">默认关闭，仅 Pickcat 生效。打开后点头像不再弹原生下拉，而是吊在头像下方一张工牌，可拖动摆动、点击翻面查看账号菜单与显示模式；正面显示作品 / 粉丝 / 关注统计。关闭后恢复站点原生下拉。</p>
+        <p class="note">仅 Pickcat 生效；关闭后恢复原生下拉。</p>
       </section>
 
       <!-- 刷帖体验优化 -->
@@ -257,7 +253,7 @@
 
         <h3 class="sub-head">新手引导</h3>
         <div class="row">
-          <p class="note">会清空全部引导记录，等同于首次安装状态；已打开的站点标签页会自动重新弹卡。</p>
+          <p class="note">会清空全部引导记录，已打开的标签页会重新弹卡。</p>
           <button id="replayGuide" class="btn danger" type="button">重新开始新手引导</button>
         </div>
       </section>
@@ -266,7 +262,7 @@
       <section class="card" id="sec-widgets">
         <div class="card-head">
           <h2>右侧小组件</h2>
-          <p>在信息流页右侧栏显示可自定义的小组件，和站点原有板块同级排布，可一起拖拽排序；站点板块本身不会被改动。</p>
+          <p>在信息流页右侧栏显示可自定义的小组件，可与站点原有板块一起排序。</p>
         </div>
 
         <div class="checks">
@@ -276,7 +272,7 @@
           </label>
         </div>
 
-        <p class="note">尺寸、顺序与增删都在站点右栏的「自定义」里完成，原有板块也会一起参与排序；布局只保存在本机。</p>
+        <p class="note">尺寸、顺序与增删在站点右栏「自定义」里完成；布局只保存在本机。</p>
 
         <div class="row">
           <p class="note" id="widgetsNote"></p>
@@ -348,11 +344,11 @@
 
         <div class="checks">
           <label class="field switch-row">
-            <span>启用搜索页美化（居中搜索 / 搜索引擎式结果排版）</span>
+            <span>启用搜索页美化（居中搜索 / 结果排版）</span>
             <input type="checkbox" id="searchEnabled" />
           </label>
           <label class="field switch-row">
-            <span>搜索框与筛选栏滚动到顶部时吸顶</span>
+            <span>搜索框与筛选栏吸顶</span>
             <input type="checkbox" id="searchSticky" />
           </label>
         </div>
@@ -390,7 +386,7 @@
 
         <div class="checks">
           <label class="field switch-row">
-            <span>开启系统通知推送（浏览器运行期间后台轮询）</span>
+            <span>开启系统通知推送（后台轮询）</span>
             <input type="checkbox" id="notifyEnabled" />
           </label>
         </div>
@@ -447,12 +443,12 @@
 
         <h3 class="sub-head">关注关键词</h3>
         <label class="field block">
-          <span>标题或作者命中关键词时，无视上面的类型筛选，始终提醒 <em>每行一个</em></span>
+          <span>标题或作者命中关键词时始终提醒，不受类型筛选影响</span>
           <textarea id="notifyKeywords" rows="3" placeholder="每行一个关键词，例如：开源&#10;招聘"></textarea>
         </label>
 
         <div class="row">
-          <p class="note">首次开启只记录当前未读，之后仅提示新增；系统开启专注助手 / 勿扰时可能被拦截。</p>
+          <p class="note">首次开启只记录当前未读，之后仅提示新增；系统勿扰时可能被拦截。</p>
           <button id="notifyTest" class="btn" type="button">发送测试通知</button>
         </div>
       </section>
@@ -464,7 +460,6 @@
         </div>
 
         <h3 class="sub-head">功能开关</h3>
-        <p class="note">关闭后各分项置灰，所有 AI 入口隐藏，也不会再向模型发请求。</p>
 
         <div class="checks">
           <label class="field switch-row">
@@ -479,7 +474,7 @@
             <input type="checkbox" id="enabled" />
           </label>
           <label class="field switch-row">
-            <span>自动总结（打开帖子后按下方触发方式自动生成）</span>
+            <span>自动总结（按下方触发方式生成）</span>
             <input type="checkbox" id="aiAuto" />
           </label>
           <label class="field switch-row">
@@ -605,7 +600,7 @@
         <div class="divider"></div>
 
         <h3 class="sub-head">AI 数据</h3>
-        <p class="note">缓存按「帖子 + 模型 + 提示词」区分，清空后下次会重新调用模型。</p>
+        <p class="note">缓存按「帖子 + 模型 + 提示词」区分。</p>
 
         <div class="usage" id="usageBox">
           <div class="usage-item"><span>输入</span><strong id="usagePrompt">0</strong></div>
@@ -697,19 +692,19 @@
 
         <div class="callout">
           <p class="callout-title">已实现的动作</p>
-          <p class="note"><code>ai.open</code> / <code>post.open</code> 无需授权；<code>post.context</code> / <code>editor.read</code> 会检查开关并首次确认。写编辑器与 AI 总结尚未实现。</p>
+          <p class="note"><code>ai.open</code> / <code>post.open</code> 无需授权；<code>post.context</code> / <code>editor.read</code> 需开关允许并首次确认。写入与额度消耗暂未实现。</p>
         </div>
 
         <div class="divider"></div>
 
         <h3 class="sub-head">已授权扩展</h3>
-        <p class="note">撤销后该扩展下次请求会重新弹窗；删除整条记录会清空它的全部授权。</p>
+        <p class="note">撤销后下次请求会重新弹窗；删除记录会清空全部授权。</p>
         <div class="api-grants" id="apiGrants" aria-live="polite"></div>
 
         <div class="divider"></div>
 
         <h3 class="sub-head">联动状态</h3>
-        <p class="note">在 Pickcat 站点页面打开时刷新才能检测；扩展 ID 可提供给第三方扩展。</p>
+        <p class="note">需在 Pickcat 站点页面刷新后检测；扩展 ID 可提供给第三方扩展。</p>
 
         <div class="api-status">
           <div class="api-status-item"><span>内容脚本</span><strong id="apiStatusScript">未检测</strong></div>
@@ -767,7 +762,7 @@
           </a>
         </div>
 
-        <p class="note">扩展不收集使用数据，配置与密钥只保存在本机。</p>
+        <p class="note">不收集使用数据，配置与密钥仅保存在本机。</p>
       </section>
     </main>
   </div>

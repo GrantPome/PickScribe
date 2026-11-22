@@ -33,17 +33,27 @@
 
   // ============================ 1. 顶部栏 ============================
 
+  /** 站点新版布局把滚动放在内部容器 [data-page-scroll] 里，window.scrollY 常为 0 */
+  function pageScrolled() {
+    if (window.scrollY > 8) return true;
+    const box = document.querySelector('[data-page-scroll]');
+    return !!box && box.scrollTop > 8;
+  }
+
   function onScroll() {
-    html.classList.toggle('pcl-scrolled', window.scrollY > 8);
+    html.classList.toggle('pcl-scrolled', pageScrolled());
   }
 
   function bindScroll(on) {
     if (on && !scrollBound) {
-      window.addEventListener('scroll', onScroll, { passive: true });
+      // 捕获阶段监听：内部滚动容器的 scroll 事件不会冒泡到 window
+      document.addEventListener('scroll', onScroll, { passive: true, capture: true });
+      window.addEventListener('resize', onScroll);
       scrollBound = true;
       onScroll();
     } else if (!on && scrollBound) {
-      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('resize', onScroll);
       scrollBound = false;
       html.classList.remove('pcl-scrolled');
     }

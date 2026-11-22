@@ -398,51 +398,20 @@ html.pco-lock body {
 }
 
 /* -------------------------- 帖子封面 -------------------------- */
-/* 与原站点一致：封面图模糊放大后铺在标题区做背景，向下渐隐进正文 */
-
-#pco-root .pco-content.has-cover {
-  position: relative;
-}
+/* 封面作为标题下方的清晰大图展示，不再模糊铺在标题区背景 */
 
 #pco-root .pco-cover {
-  position: absolute;
-  top: -22px;
-  right: 0;
-  left: 0;
-  z-index: 0;
-  height: 560px;
+  margin: 2px 0 16px;
+  border-radius: 10px;
   overflow: hidden;
-  pointer-events: none;
-  -webkit-mask-image: linear-gradient(to bottom, #000 15%, rgb(0 0 0 / 0.92) 35%,
-    rgb(0 0 0 / 0.72) 50%, rgb(0 0 0 / 0.44) 65%, rgb(0 0 0 / 0.17) 80%,
-    rgb(0 0 0 / 0.05) 90%, transparent);
-  mask-image: linear-gradient(to bottom, #000 15%, rgb(0 0 0 / 0.92) 35%,
-    rgb(0 0 0 / 0.72) 50%, rgb(0 0 0 / 0.44) 65%, rgb(0 0 0 / 0.17) 80%,
-    rgb(0 0 0 / 0.05) 90%, transparent);
+  background: var(--pco-soft);
 }
 
 #pco-root .pco-cover img {
-  position: absolute;
-  inset: 0;
+  display: block;
   width: 100%;
-  height: 100%;
-  max-width: none;
+  max-height: 520px;
   object-fit: cover;
-  transform: scale(1.1);
-  filter: blur(24px);
-}
-
-/* 压一层面板底色，保证标题与作者信息在亮色封面上依然可读 */
-#pco-root .pco-cover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--pco-bg) 62%, transparent);
-}
-
-#pco-root .pco-content.has-cover > :not(.pco-cover) {
-  position: relative;
-  z-index: 1;
 }
 
 /* 标题行：标题在左，按钮贴到行尾，与标题首行基线对齐；
@@ -3941,10 +3910,9 @@ html.pco-lock body {
     padding: 18px 20px 22px;
   }
 
-  /* 窄屏标题区更矮，封面背景同步收短并对齐新的滚动内边距 */
-  #pco-root .pco-cover {
-    top: -18px;
-    height: 320px;
+  /* 窄屏封面图限制高度，避免占满整屏 */
+  #pco-root .pco-cover img {
+    max-height: 320px;
   }
 
   #pco-root .pco-title-row {

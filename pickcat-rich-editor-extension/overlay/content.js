@@ -1769,11 +1769,11 @@
         esc(tag.name) + '</a>'
     ).join('');
 
-    // 帖子封面：与原站点一致，取 headerFileId 做标题区的模糊背景（无封面时保持原样）
+    // 帖子封面：不再做标题区的模糊背景，改为标题下方的清晰大图（无封面时不渲染）
     const coverId = topic.headerFileId ? String(topic.headerFileId) : '';
     const coverHtml = coverId
-      ? '<div class="pco-cover" aria-hidden="true">' +
-          '<img src="/api/v1/files/' + encodeURIComponent(coverId) + '" alt="" ' +
+      ? '<div class="pco-cover">' +
+          '<img src="/api/v1/files/' + encodeURIComponent(coverId) + '" alt="帖子封面" ' +
             'loading="eager" decoding="async" />' +
         '</div>'
       : '';
@@ -1782,7 +1782,6 @@
     // 保证真实媒体地址不会在用户点击前发起任何请求
     const holder = document.createElement('div');
     holder.innerHTML = stripMediaSources(
-      coverHtml +
       // 标题行：标题文字与「总结本帖」排在同一行，按钮紧跟标题文字之后
       '<div class="pco-title-row">' +
         '<h1 class="pco-title">' + esc(topic.title || '无标题帖子') + '</h1>' +
@@ -1791,6 +1790,7 @@
           icon('sparkles', 13) + '<span>总结本帖</span>' +
         '</button>' +
       '</div>' +
+      coverHtml +
       '<div class="pco-author">' +
         (authorHref
           ? '<a class="pco-author-avatar" href="' + esc(authorHref) + '"' +
@@ -1872,8 +1872,6 @@
 
     // 新内容挂上后重新按 AI 开关隐藏入口（标题「总结本帖」、面板等）
     applyAiAvailability();
-    // 有封面时标题区需要预留出模糊背景的层叠上下文
-    contentEl.classList.toggle('has-cover', !!coverId);
     // 该帖已经生成过总结：按同一缓存键直接恢复展示，不重新请求
     restoreAiSummary(topic);
 

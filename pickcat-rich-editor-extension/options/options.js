@@ -782,8 +782,8 @@ function paintSearch() {
   $('searchHistoryLimit').value = searchCfg.historyLimit;
   $('searchHistoryLimit').disabled = !searchCfg.history;
   $('searchHistoryNote').textContent = searchHistory.length
-    ? '当前已记录 ' + searchHistory.length + ' 条搜索词，最近一条在搜索首屏可直接点击。'
-    : '还没有搜索记录。关闭记录后已有记录不会自动删除，可用上方按钮清除。';
+    ? '已记录 ' + searchHistory.length + ' 条搜索词。'
+    : '还没有搜索记录。';
 }
 
 async function saveSearch() {
@@ -879,8 +879,8 @@ function paintWidgets() {
   $('widgetsEnabled').checked = widgetsBoard.enabled;
   const n = widgetsBoard.items.length;
   $('widgetsNote').textContent = n
-    ? '当前 ' + n + ' 个小组件。尺寸、顺序与增删请在信息流页右栏点「自定义」调整。'
-    : '右栏当前没有小组件，可在信息流页右栏点「自定义」添加。';
+    ? '当前 ' + n + ' 个小组件，可在信息流页右栏「自定义」调整。'
+    : '暂无小组件，可在信息流页右栏「自定义」添加。';
 }
 
 async function saveWidgets() {
@@ -1376,19 +1376,6 @@ loadAppearance().catch((e) => setStatus('读取站点外观设置失败：' + e.
 
 $('aboutVersion').textContent = 'v' + chrome.runtime.getManifest().version;
 
-// 侧栏头像：网络不可用时退回首字母，容器尺寸保持不变
-(() => {
-  const img = $('sideAvatar');
-  const wrap = $('sideAvatarWrap');
-  if (!img || !wrap) return;
-  const fallback = () => {
-    img.hidden = true;
-    wrap.classList.add('is-fallback');
-  };
-  if (img.complete && img.naturalWidth === 0) fallback();
-  else img.addEventListener('error', fallback, { once: true });
-})();
-
 // ============================ PICKCAT Plus 联动 ============================
 
 /** 默认开启：读不到设置时按允许处理，与 content.js 的判定保持一致 */
@@ -1805,6 +1792,130 @@ refreshApiStatus();
   window.addEventListener('scroll', update, { passive: true });
   window.addEventListener('resize', update);
   update();
+})();
+
+// ============================ 侧栏设置搜索 ============================
+
+(function settingsSearch() {
+  const input = $('settingsSearch');
+  const clearBtn = $('settingsSearchClear');
+  const panel = $('settingsSearchResults');
+  if (!input || !panel) return;
+
+  // 索引正文中的设置项，附带所属分区与分组，便于结果定位
+  const entries = [];
+  document.querySelectorAll('.main .card').forEach((sec) => {
+    const h2 = sec.querySelector('.card-head h2');
+    const secTitle = h2 ? h2.textContent.trim() : '';
+    let sub = '';
+
+    sec.querySelectorAll('h3.sub-head, label.field, .row').forEach((el) => {
+      if (el.matches('h3.sub-head')) { sub = el.textContent.trim(); return; }
+
+      let title = '';
+      if (el.matches('label.field')) {
+        const span = el.querySelector(':scope > span');
+        title = (span ? span.textContent : el.textContent).trim();
+      } else {
+        const rowLabel = el.querySelector('.row-label');
+        if (!rowLabel) return;
+        title = rowLabel.textContent.trim();
+      }
+      if (!title) return;
+
+      entries.push({
+        el,
+        label: title,
+        meta: [secTitle, sub].filter(Boolean).join(' · '),
+        text: (title + ' ' + secTitle + ' ' + sub).toLowerCase()
+      });
+    });
+  });
+
+  let results = [];
+
+  function closePanel() {
+    panel.hidden = true;
+    panel.innerHTML = '';
+  }
+
+  function jump(entry) {
+    closePanel();
+    entry.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    entry.el.classList.remove('search-hit');
+    void entry.el.offsetWidth;  // 强制重排，重复定位时也能重放高亮
+    entry.el.classList.add('search-hit');
+    setTimeout(() => entry.el.classList.remove('search-hit'), 1900);
+  }
+
+  function clear() {
+    input.value = '';
+    render('');
+    input.focus();
+  }
+
+  function render(raw) {
+    const q = raw.trim().toLowerCase();
+    results = [];
+    panel.innerHTML = '';
+    clearBtn.hidden = !q;
+    if (!q) { panel.hidden = true; return; }
+
+    const words = q.split(/\s+/).filter(Boolean);
+    results = entries.filter((e) => words.every((w) => e.text.includes(w))).slice(0, 20);
+
+    if (!results.length) {
+      const empty = document.createElement('p');
+      empty.className = 'side-search-empty';
+      empty.textContent = '没有找到相关设置';
+      panel.appendChild(empty);
+    } else {
+      results.forEach((entry) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'side-search-result';
+        btn.setAttribute('role', 'option');
+
+        const title = document.createElement('span');
+        title.className = 'side-search-result-title';
+        title.textContent = entry.label;
+        btn.appendChild(title);
+
+        if (entry.meta) {
+          const meta = document.createElement('span');
+          meta.className = 'side-search-result-meta';
+          meta.textContent = entry.meta;
+          btn.appendChild(meta);
+        }
+
+        btn.addEventListener('click', () => jump(entry));
+        panel.appendChild(btn);
+      });
+    }
+    panel.hidden = false;
+  }
+
+  input.addEventListener('input', () => render(input.value));
+  input.addEventListener('focus', () => { if (input.value.trim()) render(input.value); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); clear(); }
+    else if (e.key === 'Enter' && results.length) { e.preventDefault(); jump(results[0]); }
+    else if (e.key === 'ArrowDown' && results.length) {
+      const first = panel.querySelector('.side-search-result');
+      if (first) { e.preventDefault(); first.focus(); }
+    }
+  });
+
+  panel.addEventListener('keydown', (e) => {
+    const items = Array.from(panel.querySelectorAll('.side-search-result'));
+    const i = items.indexOf(document.activeElement);
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); (items[i + 1] || items[0]).focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); (items[i - 1] || items[items.length - 1]).focus(); }
+    else if (e.key === 'Escape') { e.preventDefault(); clear(); }
+  });
+
+  clearBtn.addEventListener('click', clear);
 })();
 
 // ============================ 主题切换（跟随系统 / 亮色 / 暗色） ============================

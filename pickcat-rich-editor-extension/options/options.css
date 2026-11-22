@@ -251,64 +251,88 @@ body {
   color: var(--ui-text-highlighted);
 }
 
-/* —— 作者信息：头像 / 名字 / 联系方式，整体居中 —— */
-.side-profile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* —— 设置搜索 —— */
+.side-search {
+  position: relative;
   margin-bottom: var(--sp-4);
-  padding: var(--sp-4) var(--sp-3);
-  border-radius: var(--ui-radius);
-  background: var(--ui-bg);
-  text-align: center;
 }
 
-/* 圆形裁切；底色跟随主题，深色下不会露出白底 */
-.side-avatar {
+/* 输入框外观沿用全局样式，这里只加高并给左侧放大镜留出内边距 */
+.side-search input.side-search-input[type="search"] {
+  height: 40px;
+  padding: 0 34px 0 36px;
+}
+.side-search-input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+.side-search-ico {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--ui-text-dimmed);
+  pointer-events: none;
+}
+
+.side-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  margin-bottom: var(--sp-2);
+  width: 24px;
+  height: 24px;
+  border: 0;
   border-radius: 50%;
-  overflow: hidden;
   background: var(--ui-bg-accented);
   color: var(--ui-text-muted);
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
-  font-weight: 700;
+  cursor: pointer;
+}
+.side-search-clear:hover { color: var(--ui-text); }
+.side-search-clear[hidden],
+.side-search-results[hidden] { display: none; }
+
+.side-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 300px;
+  margin-top: 8px;
+  padding: 6px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
-.side-avatar img {
-  display: block;
+.side-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
+.side-search-result:hover,
+.side-search-result:focus-visible { background: var(--ui-bg-accented); outline: none; }
+.side-search-result-title { font-size: 13.5px; font-weight: 600; line-height: 1.45; }
+.side-search-result-meta { font-size: 11.5px; line-height: 1.4; color: var(--ui-text-dimmed); }
+.side-search-empty { padding: 10px; color: var(--ui-text-dimmed); font-size: 12px; text-align: center; }
 
-.side-avatar-fallback { display: none; }
-.side-avatar.is-fallback img { display: none; }
-.side-avatar.is-fallback .side-avatar-fallback { display: block; }
-
-.side-name {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.4;
-  font-weight: 700;
-  color: var(--ui-text-highlighted);
+.search-hit { animation: search-hit 1.8s ease; }
+@keyframes search-hit {
+  0%, 30% { box-shadow: 0 0 0 2px var(--ui-primary); }
+  100% { box-shadow: 0 0 0 2px transparent; }
 }
-
-.side-mail {
-  margin-top: var(--sp-1);
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--ui-text-dimmed);
-  text-decoration: none;
-  word-break: break-all;
-}
-
-.side-mail:hover { color: var(--ui-primary); }
 
 .side-card {
   padding: 8px;
@@ -1050,23 +1074,8 @@ a.btn svg { width: 15px; height: 15px; flex: none; }
     padding: 0 4px;
     font-size: 22px;
   }
-  /* 折叠态：头像与名字、邮箱改成一行，仍然整体居中 */
-  .side-profile {
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: var(--sp-2);
-    margin-bottom: var(--sp-3);
-    padding: var(--sp-3) var(--sp-4);
-  }
-  .side-avatar {
-    width: 32px;
-    height: 32px;
-    margin: 0;
-    font-size: 14px;
-  }
-  .side-name { font-size: 14px; }
-  .side-mail { margin: 0; }
+  /* 窄屏时搜索框与导航并排收纳在顶部 */
+  .side-search { margin-bottom: var(--sp-3); }
   .side-card { overflow-x: auto; }
   .nav { flex-direction: row; gap: 2px; }
   .nav-item {
