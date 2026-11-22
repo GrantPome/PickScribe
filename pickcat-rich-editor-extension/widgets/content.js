@@ -1767,16 +1767,254 @@
     if (handle) handle.focus();
   }
 
+  /** 正在播吹散动画的组件：这期间先不改数据，避免触发重排把动画打断 */
+  const deletingIds = new Set();
+
   function deleteWidget(id) {
+    if (deletingIds.has(id)) return;
     const index = board.items.findIndex((it) => it.id === id);
     if (index < 0) return;
+    const card = widgetCards.get(id);
+
+    if (!card || !card.isConnected || reducedMotion()) {
+      removeWidgetItem(id);
+      return;
+    }
+
+    deletingIds.add(id);
+    blowAwayCard(card, () => {
+      deletingIds.delete(id);
+      removeWidgetItem(id);
+    });
+  }
+
+  /** 真正从数据与布局里移除一个组件（动画结束后才调用） */
+  function removeWidgetItem(id) {
+    const index = board.items.findIndex((it) => it.id === id);
+    if (index < 0) return;
+    const before = rectMap();
+
     board.items.splice(index, 1);
     board.order = board.order.filter((key) => key !== widgetKey(id));
     saveBoard();
+
     const card = widgetCards.get(id);
     if (card) card.remove();
     widgetCards.delete(id);
     applyRail();
+    playReorderFlip(before);
+  }
+
+  /** 风感缓动 cubic-bezier(0.32, 0.06, 0.22, 1)：提前算好 x→y，供 canvas 每帧使用 */
+  const windEase = (() => {
+    const x1 = 0.32, y1 = 0.06, x2 = 0.22, y2 = 1;
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+    const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const sampleX = (t) => ((ax * t + bx) * t + cx) * t;
+    const sampleY = (t) => ((ay * t + by) * t + cy) * t;
+    const slopeX = (t) => (3 * ax * t + 2 * bx) * t + cx;
+    return (x) => {
+      let t = x;
+      for (let i = 0; i < 4; i++) {
+        const d = slopeX(t);
+        if (Math.abs(d) < 1e-6) break;
+        t -= (sampleX(t) - x) / d;
+      }
+      return sampleY(Math.min(1, Math.max(0, t)));
+    };
+  })();
+
+  /** 与旧关键帧一致的线性插值：offset 0 / 0.2 / 0.62 / 1 */
+  function keyLerp(p, v0, v1, v2, v3) {
+    if (p <= 0.2) return v0 + (v1 - v0) * (p / 0.2);
+    if (p <= 0.62) return v1 + (v2 - v1) * ((p - 0.2) / 0.42);
+    return v2 + (v3 - v2) * ((p - 0.62) / 0.38);
+  }
+
+  /**
+   * 吹散动画：卡片自身淡出，同时从卡片范围内扬起一层细碎粒子，向右上方被风吹走。
+   * 粒子统一画在一块 canvas 上：大卡片也能给足数量，不会像上千个 DOM 节点那样掉帧。
+   */
+  function blowAwayCard(card, done) {
+    const rect = card.getBoundingClientRect();
+    if (rect.width < 4 || rect.height < 4) { done(); return; }
+
+    // 采样卡片自己的颜色分布：先铺一层卡片底色，再补上子元素的色块与文字色，
+    // 粒子因此带着卡片原本的样子，而不是一堆随机颜色
+    const samples = [];
+    const isOpaque = (c) => c && c !== 'transparent' && !/rgba\([^)]*,\s*0\)\s*$/.test(c);
+    const addPoints = (r, color, count) => {
+      const x0 = Math.max(r.left, rect.left);
+      const x1 = Math.min(r.right, rect.left + rect.width);
+      const y0 = Math.max(r.top, rect.top);
+      const y1 = Math.min(r.bottom, rect.top + rect.height);
+      if (x1 - x0 < 2 || y1 - y0 < 2) return;
+      for (let i = 0; i < count; i++) {
+        samples.push({
+          x: x0 + Math.random() * (x1 - x0),
+          y: y0 + Math.random() * (y1 - y0),
+          color: color
+        });
+      }
+    };
+
+    const cardStyle = getComputedStyle(card);
+    // canvas 不认 CSS 变量，底色要换成具体颜色：优先卡片自身，其次站点 --ui-bg
+    const baseColor = isOpaque(cardStyle.backgroundColor)
+      ? cardStyle.backgroundColor
+      : (cardStyle.getPropertyValue('--ui-bg').trim() || 'rgba(255, 255, 255, 0.9)');
+
+    // 先抽卡片里的结构色（色块与文字）：每个元素都要读一次计算样式，限制次数避免删除瞬间卡顿
+    const els = card.querySelectorAll('*');
+    const elStep = Math.max(1, Math.ceil(els.length / 140));
+    for (let i = 0; i < els.length; i += elStep) {
+      const el = els[i];
+      const r = el.getBoundingClientRect();
+      if (r.width < 4 || r.height < 4) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      const elArea = r.width * r.height;
+      if (isOpaque(cs.backgroundColor)) {
+        addPoints(r, cs.backgroundColor, Math.min(26, Math.max(3, Math.round(elArea / 1200))));
+      }
+      // 文字色只取叶子节点，避免祖先容器重复撒色
+      const text = el.children.length === 0 ? (el.textContent || '').trim() : '';
+      if (text && isOpaque(cs.color)) {
+        addPoints(r, cs.color, Math.min(12, Math.max(2, Math.round(elArea / 2600))));
+      }
+    }
+
+    // 粒子总量按卡片面积给：大卡片不再被旧版 2400 的硬上限削成稀疏一层
+    const area = rect.width * rect.height;
+    const target = Math.min(6000, Math.max(1200, Math.round(area / 32)));
+    const gridTarget = Math.max(0, target - samples.length);
+    if (gridTarget > 0) {
+      const step = Math.max(3, Math.sqrt(area / gridTarget));
+      const cols = Math.max(4, Math.round(rect.width / step));
+      const rows = Math.max(4, Math.round(rect.height / step));
+      const cellW = rect.width / cols;
+      const cellH = rect.height / rows;
+      for (let i = 0; i < cols; i++) {
+        for (let j = 0; j < rows; j++) {
+          samples.push({
+            x: rect.left + (i + 0.5) * cellW + (Math.random() - 0.5) * 4,
+            y: rect.top + (j + 0.5) * cellH + (Math.random() - 0.5) * 4,
+            color: baseColor
+          });
+        }
+      }
+    }
+    // 结构色可能超出预算：一次洗牌后截断（旧实现逐条 splice 是 O(n²)，大卡片会卡一下）
+    if (samples.length > target) {
+      for (let i = samples.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = samples[i];
+        samples[i] = samples[j];
+        samples[j] = tmp;
+      }
+      samples.length = target;
+    }
+
+    // 粒子层只覆盖卡片加漂移余量，比整屏 canvas 更省显存
+    const padL = 40, padT = 140, padR = 220, padB = 80;
+    const cw = Math.ceil(rect.width + padL + padR);
+    const ch = Math.ceil(rect.height + padT + padB);
+    const ox = rect.left - padL;
+    const oy = rect.top - padT;
+    const layer = document.createElement('canvas');
+    layer.className = 'pcw-dust';
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    layer.width = Math.round(cw * dpr);
+    layer.height = Math.round(ch * dpr);
+    layer.style.width = cw + 'px';
+    layer.style.height = ch + 'px';
+    layer.style.left = Math.round(ox) + 'px';
+    layer.style.top = Math.round(oy) + 'px';
+    document.body.appendChild(layer);
+    const ctx = layer.getContext('2d');
+    if (!ctx) { layer.remove(); done(); return; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // 按颜色分组，绘制时同色只切一次 fillStyle
+    const groups = new Map();
+    let last = 0;
+    samples.forEach((s) => {
+      const bit = {
+        x: s.x - ox,
+        y: s.y - oy,
+        size: 1.1 + Math.random() * 1.9,
+        dx: 60 + Math.random() * 110,
+        dy: -70 + Math.random() * 110,
+        sway: -10 + Math.random() * 20,
+        // 从左往右逐层化成粒子，像被风一点点剥离
+        delay: Math.min(1, Math.max(0, (s.x - rect.left) / rect.width)) * 260 + Math.random() * 160,
+        duration: 900 + Math.random() * 500
+      };
+      last = Math.max(last, bit.delay + bit.duration);
+      let list = groups.get(s.color);
+      if (!list) { list = []; groups.set(s.color, list); }
+      list.push(bit);
+    });
+
+    // 卡片一边失焦，一边就有粒子开始飞散；大卡片少给点模糊，避免大面积滤镜掉帧
+    const BLUR_MS = 460;
+    const FADE_DELAY = 300;
+    const blurPx = area > 240000 ? 6 : 10;
+    card.style.pointerEvents = 'none';
+    card.style.willChange = 'opacity, filter';
+    card.style.transition = 'filter ' + BLUR_MS + 'ms cubic-bezier(0.4, 0, 0.2, 1),' +
+      ' opacity ' + BLUR_MS + 'ms linear';
+    card.style.filter = 'blur(' + blurPx + 'px)';
+    card.style.opacity = '0.9';
+
+    // 一帧画完所有粒子：不再为每颗粒子建 DOM 节点，也就没有上千个合成层
+    const startedAt = performance.now();
+    const stopAt = last + 60;
+    let raf = 0;
+    const render = (now) => {
+      const t = now - startedAt;
+      ctx.clearRect(0, 0, cw, ch);
+      groups.forEach((list, color) => {
+        ctx.fillStyle = color;
+        for (let i = 0; i < list.length; i++) {
+          const b = list[i];
+          const lt = t - b.delay;
+          if (lt <= 0) continue;              // 还没轮到它被吹起
+          const p = windEase(lt >= b.duration ? 1 : lt / b.duration);
+          const alpha = keyLerp(p, 0, 0.95, 0.55, 0);
+          if (alpha <= 0.01) continue;
+          const tx = keyLerp(p, 0, b.dx * 0.12, b.dx * 0.55, b.dx);
+          const ty = keyLerp(p, 0, b.dy * 0.06, b.dy * 0.55 + b.sway, b.dy);
+          const size = Math.max(1, Math.round(b.size * keyLerp(p, 1, 1.02, 0.74, 0.18)));
+          ctx.globalAlpha = alpha;
+          ctx.fillRect(Math.round(b.x + tx - size / 2), Math.round(b.y + ty - size / 2), size, size);
+        }
+      });
+      ctx.globalAlpha = 1;
+      if (t < stopAt) {
+        raf = requestAnimationFrame(render);
+      } else {
+        cancelAnimationFrame(raf);
+        layer.remove();
+      }
+    };
+    raf = requestAnimationFrame(render);
+
+    // 模糊进行中就淡出，与粒子同时进行
+    setTimeout(() => {
+      card.style.transition = 'opacity 640ms cubic-bezier(0.4, 0, 0.6, 1)';
+      card.style.opacity = '0';
+    }, FADE_DELAY);
+
+    // 等整场粒子都飘完，再让周围卡片位移，避免抢戏
+    setTimeout(() => {
+      done();
+    }, last + 40);
+    // 页面切到后台时 rAF 会暂停，这里兜底回收粒子层
+    setTimeout(() => {
+      cancelAnimationFrame(raf);
+      layer.remove();
+    }, last + 400);
   }
 
   /** 把某个条目插到 target 之前/之后（保留其他页面留下的站点 key） */

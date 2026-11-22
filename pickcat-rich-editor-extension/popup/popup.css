@@ -1,4 +1,6 @@
 @import url("../shared/fonts.css");
+/* Luma·Gran 流光：开关打开时覆写弹窗令牌与材质 */
+@import url("../shared/luma-ui.css");
 
 :root {
   --bg: #ffffff;

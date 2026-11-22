@@ -1488,3 +1488,15 @@
   color: var(--ui-text-highlighted, #111111);
   font-weight: 600;
 }
+
+/* —— 删除组件：被风吹散的粒子层（单块 canvas，避免上千 DOM 节点掉帧） —— */
+.pcw-dust {
+  position: fixed;
+  display: block;
+  z-index: 2147483000;
+  pointer-events: none;
+  border: 0;
+  background: none;
+  max-width: none;
+  max-height: none;
+}

@@ -92,6 +92,9 @@
     }
   };
 
+  /** 跨页「镜头推进」接力：起始页写入颜色，发帖页 document_start 阶段铺幕布淡出 */
+  const ZOOM_KEY = 'pcs_zoom_transition';
+
   /** 内容标签页定义 */
   const TABS = {
     feed: { label: '社区精选' },
@@ -668,13 +671,247 @@
     location.assign(url);
   }
 
-  function handleAction(act) {
+  /** 写入跨页幕布颜色：发帖页 document_start 阶段据此先铺一帧同色底，再由 page-transition.js 淡出 */
+  function saveZoomHandoff(color) {
+    try {
+      sessionStorage.setItem(ZOOM_KEY, JSON.stringify({ color: color, at: Date.now() }));
+    } catch (e) { /* 隐私模式等写入失败时只少一层跨页衔接，不影响跳转 */ }
+  }
+
+  /** 编辑器页面骨架：镜头推进后半段用它预告下一页的大致排版，避免直接闪出纯色 */
+  /** 真实页面加载期间的站点底色衬底：避免长时间停留在幕布色上 */
+  function buildZoomBackdrop() {
+    const backdrop = document.createElement('div');
+    backdrop.className = 'pch-zoom-backdrop';
+    backdrop.setAttribute('aria-hidden', 'true');
+    return backdrop;
+  }
+
+  /**
+   * 镜头推进的统一收尾（起始页磁贴、站点发帖按钮共用）：
+   *   幕布后半段渐显盖住放大的内容 → 站点底色铺满 → 同源 iframe 载入真实发帖编辑页并淡入 → 整页跳转。
+   * 预览直接加载站点页面本身，看到的就是真实样式；颜色写进 sessionStorage，
+   * 由 document_start 的 page-transition.js 在下一页接力淡出。
+   */
+  function finishComposeZoom(container, color, url) {
+    const target = url || '/forum/editor?type=create';
+    const t0 = performance.now();
+
+    const veil = document.createElement('div');
+    veil.className = 'pch-zoom-veil';
+    veil.setAttribute('aria-hidden', 'true');
+    veil.style.background = color;
+    container.appendChild(veil);
+
+    const backdrop = buildZoomBackdrop();
+    container.appendChild(backdrop);
+
+    // 跨页幕布用站点页面底色，与真实页面同色，抵达后淡出时看不出接缝
+    const pageBg = getComputedStyle(backdrop).backgroundColor || '#ffffff';
+    saveZoomHandoff(pageBg);
+
+    // 幕布在后半段渐显，先盖住被放大的图标和文字
+    veil.animate([
+      { opacity: 0 },
+      { opacity: 0, offset: 0.42 },
+      { opacity: 1, offset: 0.8 },
+      { opacity: 1 }
+    ], { duration: 1000, easing: 'ease-in', fill: 'forwards' });
+
+    // 先把站点底色铺上来，真实页面加载完之前不会一直停在幕布色上
+    backdrop.animate([
+      { opacity: 0 },
+      { opacity: 1 }
+    ], { duration: 620, delay: 300, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+
+    // 同源 iframe 直接加载发帖编辑页：预览即站点真实样式，不用灰条模拟
+    const preview = document.createElement('iframe');
+    preview.className = 'pch-zoom-preview';
+    preview.setAttribute('aria-hidden', 'true');
+    preview.setAttribute('tabindex', '-1');
+    preview.setAttribute('inert', '');
+    container.appendChild(preview);
+
+    // 不移除浮层再跳转，避免中途闪出站点页面；整页导航会带着幕布一起卸载
+    let jumped = false;
+    const jump = () => {
+      if (jumped) return;
+      jumped = true;
+      location.assign(target);
+    };
+
+    let revealed = false;
+    const revealPreview = () => {
+      if (revealed) return;
+      revealed = true;
+      const fade = preview.animate([
+        { opacity: 0 },
+        { opacity: 1 }
+      ], { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+
+      // 预览淡入后再稳一下；整体不短于 950ms，保留镜头的推进感
+      const finish = () => {
+        const wait = Math.max(140, 950 - (performance.now() - t0));
+        setTimeout(jump, wait);
+      };
+      if (fade.finished) fade.finished.then(finish).catch(finish);
+      else setTimeout(finish, 560);
+    };
+
+    preview.addEventListener('load', revealPreview, { once: true });
+    setTimeout(revealPreview, 1100);   // 真实页面迟迟没加载完时也按时切页
+    setTimeout(jump, 2000);           // 硬兜底
+    preview.src = target;
+  }
+
+  /**
+   * 起始页发帖磁贴的「镜头推进」过渡：
+   *   1. 量出磁贴在视口中的位置，把整块起始页平移到磁贴正中，再围绕磁贴中心持续放大；
+   *   2. 镜头推进时同源载入真实发帖编辑页，过半后淡入预览；
+   *   3. 整页跳转发帖页，由 document_start 的过渡脚本接力淡出。
+   * 系统开启「减少动态效果」时直接跳转。
+   */
+  function zoomToCompose(tile) {
+    const url = '/forum/editor?type=create';
+    const reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (!tile || !shell || !root || reduced) { go(url); return; }
+
+    const tileRect = tile.getBoundingClientRect();
+    const shellRect = shell.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (!tileRect.width || !tileRect.height) { go(url); return; }
+
+    // 放大倍数取「宽高都盖过视口」的最大值，再留一点余量，收尾时四边都不露缝
+    const scale = Math.max(vw / tileRect.width, vh / tileRect.height) * 1.08;
+    // 平移量：把磁贴中心推到视口正中（缩放锚点在磁贴中心，平移后中心仍留在正中）
+    const dx = Math.round(vw / 2 - (tileRect.left + tileRect.width / 2));
+    const dy = Math.round(vh / 2 - (tileRect.top + tileRect.height / 2));
+    // 缩放锚点：磁贴中心在 shell 内的坐标；此时 shell 入场位移已结束，可直接取静态布局
+    const ox = Math.round(tileRect.left + tileRect.width / 2 - shellRect.left);
+    const oy = Math.round(tileRect.top + tileRect.height / 2 - shellRect.top);
+
+    // 与磁贴同色：幕布先把放大的图标文字盖住
+    const color = getComputedStyle(tile).backgroundColor || '#e0603a';
+
+    root.classList.add('pch-zooming');
+    shell.style.transformOrigin = ox + 'px ' + oy + 'px';
+
+    // 镜头：放慢到 900ms，加速推向磁贴后收住
+    shell.animate([
+      { transform: 'translate(0px, 0px) scale(1)' },
+      { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ')' }
+    ], { duration: 900, easing: 'cubic-bezier(0.5, 0, 0.15, 1)', fill: 'forwards' });
+
+    finishComposeZoom(root, color);
+  }
+
+  /** 找出站点自带的发帖入口：指向「新建」编辑器的链接，或文案为「发帖」的按钮 */
+  function findComposeTrigger(target) {
+    const link = target.closest('a[href]');
+    if (link) {
+      const href = link.getAttribute('href') || '';
+      // 只认新建入口，编辑 / 草稿等 type 参数不拦截，避免把「编辑帖子」带错页面
+      if (/\/forum\/editor(\/|\?|$)/.test(href) && !/[?&]type=(edit|draft|reply)/.test(href)) {
+        return { el: link, url: link.href };
+      }
+    }
+
+    const btn = target.closest('button, [role="button"]');
+    // 表单提交按钮不拦截，避免把「发布」这类提交动作换成跳转
+    if (!btn || btn.disabled || btn.closest('form')) return null;
+    const text = (btn.textContent || '').replace(/\s+/g, '');
+    // 只认「发帖」这类短文案入口，避免误伤含「发帖热力图」等说明文字的组件
+    return text && text.length <= 8 && text.indexOf('发帖') !== -1
+      ? { el: btn, url: '/forum/editor?type=create' }
+      : null;
+  }
+
+  /** 站点发帖按钮：克隆一个代理从原位平移到视口中心并放大，随后同起始页一样过渡到编辑器 */
+  function zoomFromTrigger(el, url) {
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) { location.assign(url); return; }
+
+    const cs = getComputedStyle(el);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const scale = Math.max(vw / rect.width, vh / rect.height) * 1.06;
+    const dx = Math.round(vw / 2 - (rect.left + rect.width / 2));
+    const dy = Math.round(vh / 2 - (rect.top + rect.height / 2));
+
+    // 描边按钮的背景是透明的，这时退回站点主色，避免幕布看不见
+    let color = cs.backgroundColor;
+    if (!color || color === 'rgba(0, 0, 0, 0)' || color === 'transparent') {
+      color = getComputedStyle(document.documentElement).getPropertyValue('--ui-primary').trim() || '#fa322d';
+    }
+
+    const layer = document.createElement('div');
+    layer.className = 'pch-zoom-layer';
+    layer.setAttribute('aria-hidden', 'true');
+
+    // 克隆到固定层上再动，不改动站点原按钮；克隆体随后平移、放大到铺满视口
+    const proxy = el.cloneNode(true);
+    proxy.removeAttribute('id');
+    Array.prototype.forEach.call(proxy.querySelectorAll('[id]'), (n) => n.removeAttribute('id'));
+    proxy.classList.add('pch-zoom-proxy');
+    proxy.style.cssText += ';position:fixed;left:' + rect.left + 'px;top:' + rect.top + 'px;' +
+      'width:' + rect.width + 'px;height:' + rect.height + 'px;margin:0;' +
+      'transform-origin:50% 50%;pointer-events:none;box-sizing:border-box;' +
+      'border-radius:' + cs.borderRadius + ';background:' + color + ';' +
+      'color:' + cs.color + ';font-size:' + cs.fontSize + ';overflow:hidden;';
+    layer.appendChild(proxy);
+
+    (document.body || document.documentElement).appendChild(layer);
+
+    proxy.animate([
+      { transform: 'translate(0px, 0px) scale(1)' },
+      { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(' + scale + ')' }
+    ], { duration: 900, easing: 'cubic-bezier(0.5, 0, 0.15, 1)', fill: 'forwards' });
+
+    finishComposeZoom(layer, color, url);
+  }
+
+  /** 只在信息流类页面拦截站点发帖入口，编辑器页里的「发帖 / 发布」提交按钮不能动 */
+  function isComposeEntryPage() {
+    const path = (location.pathname || '/').replace(/\/+$/, '') || '/';
+    return path === '/' || path === '/forum' || /^\/forum\/category\/[^/]+$/.test(path);
+  }
+
+  /** 首页 / 论坛上的站点发帖按钮也走同一套镜头推进 */
+  function onComposeClick(e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (!isComposeEntryPage()) return;
+    const target = e.target;
+    if (!target || !target.closest) return;
+    // 扩展自己的浮层与小组件不参与拦截，避免抢掉各自的点击语义
+    if (target.closest('#pch-root, #pcg-root, #pco-root, #pcr-badge-root, #pcf-toggle, ' +
+      '.pcw-rail-head, .pcw-rail-widget, [data-pcw-act]')) return;
+
+    const trigger = findComposeTrigger(target);
+    if (!trigger) return;
+
+    // 系统开启「减少动态效果」时不拦截，交给站点原生跳转
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    // 拦下站点自己的跳转，等镜头推进结束再由整页导航去编辑器
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    zoomFromTrigger(trigger.el, trigger.url);
+  }
+
+  function installComposeZoom() {
+    if (window.__pchComposeZoomBound) return;
+    window.__pchComposeZoomBound = true;
+    document.addEventListener('click', onComposeClick, true);
+  }
+
+  function handleAction(act, actEl) {
     switch (act) {
       case 'close':
         closeOverlay();
         break;
       case 'compose':
-        go('/forum/editor?type=create');
+        zoomToCompose(actEl);
         break;
       case 'search':
         openSearch();
@@ -776,7 +1013,7 @@
       // 刚拖动过就不要再触发动作
       if (Date.now() - dragAt < 240) return;
       e.preventDefault();
-      handleAction(actEl.getAttribute('data-act'));
+      handleAction(actEl.getAttribute('data-act'), actEl);
       return;
     }
 
@@ -925,6 +1162,10 @@
   }
 
   async function boot() {
+    // 站点自带的发帖按钮同样走镜头推进；监听常驻，路径由点击时再判断，
+    // 这样从帖子页 SPA 回到首页后也能生效，又不会误伤编辑器里的提交按钮
+    installComposeZoom();
+
     if (!isHomePage()) return;
 
     const conf = normalizeHome(await readHomeConfig());

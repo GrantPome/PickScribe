@@ -1503,6 +1503,15 @@
   outline:none;transition:border-color .22s,background .22s;}
 .${NS}-tpl-name-input:focus{border-color:var(--pcr-accent);background:var(--pcr-surface);}
 
+/* —— 发布前查重（问答帖） —— */
+.${NS}-dup-modal{width:min(440px,100%);}
+.${NS}-dup-body{padding:2px 18px 6px;font-size:13.5px;line-height:1.7;color:var(--pcr-subtle);}
+.${NS}-dup-tags{display:flex;flex-wrap:wrap;gap:6px;padding:10px 18px 2px;}
+.${NS}-dup-tag{height:24px;padding:0 9px;border-radius:999px;display:inline-flex;align-items:center;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  background:color-mix(in oklab,var(--pcr-accent) 12%,transparent);color:var(--pcr-accent);
+  font-size:12.5px;font-weight:600;}
+
 @media (prefers-reduced-motion: reduce){
   .${NS}-tpl-modal,.${NS}-slash{animation:none;}
 }
@@ -4935,6 +4944,208 @@
     setMode('rich');
   }
 
+  // ============================ 发布前查重 ============================
+  // 问答帖发布前先问一句「要不要先搜一搜」，避免社区里已经有很多重复提问。
+  // 做法：捕获阶段拦下发布按钮的点击；选「先搜索社区」就带关键词去搜索页（新标签，草稿不丢），
+  // 选「仍然发布」就放行并补发一次点击，走站点原本的提交逻辑。
+
+  let dupMask = null;
+  let dupEsc = null;
+  let publishingBypass = false;
+
+  const PUBLISH_LABEL = /^(发布|发表|立即发布|发布帖子|确认发布)$/;
+  const QUESTION_WORDS = ['问答', '提问', '问题'];
+  /** 提取关键词时要丢掉的空词 */
+  const DUP_STOP = new Set([
+    '请问', '求助', '问一下', '大家', '有人', '有没有', '怎么', '如何', '什么', '为什么',
+    '可以', '我们', '你们', '他们', '这个', '那个', '一下', '一个', '现在', '然后',
+    '发帖', '帖子', '问题', '问答', '提问'
+  ]);
+
+  /** 只在「新建帖子」页提示；编辑已有帖子不打扰 */
+  function isCreatePage() {
+    if (!isEditorPage()) return false;
+    const type = new URLSearchParams(location.search).get('type');
+    return !type || type === 'create';
+  }
+
+  /** 当前帖子类型是否为问答（站点把类型写在 kind 字段里，值可能是 QUESTION） */
+  function isQuestionPost() {
+    const params = new URLSearchParams(location.search);
+    const fromUrl = (params.get('kind') || '').toUpperCase();
+    if (fromUrl === 'QUESTION') return true;
+    if (fromUrl === 'DISCUSSION') return false;
+
+    const fields = Array.from(document.querySelectorAll('input[name="kind"],select[name="kind"],input[name="topicKind"]'));
+    for (const f of fields) {
+      if ((f.type === 'radio' || f.type === 'checkbox') && !f.checked) continue;
+      if (/question|问答/i.test(String(f.value || ''))) return true;
+    }
+
+    const activeSel = '[aria-selected="true"],[aria-pressed="true"],[aria-checked="true"],' +
+      '[data-state="active"],[data-active="true"],[data-selected="true"],' +
+      '.is-active,.active,.selected';
+    const nodes = Array.from(document.querySelectorAll(activeSel));
+    for (const node of nodes) {
+      if (isOwnNode(node)) continue;
+      const word = (node.textContent || '').replace(/\s+/g, '');
+      if (!word || word.length > 8) continue;
+      if (QUESTION_WORDS.some((w) => word.indexOf(w) !== -1)) return true;
+    }
+    return false;
+  }
+
+  /** 去掉 Markdown 结构，只留可读文字 */
+  function mdPlain(md) {
+    return String(md || '')
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/[#>*_`~]+/g, ' ');
+  }
+
+  /** 从标题与正文里挑最多 4 个搜索关键词：标题优先，再补英文专有词与短片段 */
+  function extractKeywords(title, body) {
+    const out = [];
+    const push = (word) => {
+      const s = String(word || '').trim();
+      if (s.length < 2 || s.length > 16) return;
+      if (DUP_STOP.has(s)) return;
+      if (out.some((x) => x === s || x.indexOf(s) !== -1 || s.indexOf(x) !== -1)) return;
+      out.push(s);
+    };
+    const splitter = /[\s,，。.;；:：!！?？、/\\()（）\[\]【】"'“”‘’]+/;
+
+    mdPlain(title).split(splitter).filter(Boolean).forEach(push);
+
+    const text = mdPlain(body);
+    (text.match(/[A-Za-z][A-Za-z0-9+#._-]{1,}/g) || []).forEach(push);
+    text.split(splitter)
+      .filter((s) => s.length >= 2 && s.length <= 10)
+      .slice(0, 40)
+      .forEach(push);
+
+    return out.slice(0, 4);
+  }
+
+  function closeDupDialog() {
+    if (dupMask && dupMask.parentElement) dupMask.parentElement.removeChild(dupMask);
+    dupMask = null;
+    if (dupEsc) {
+      document.removeEventListener('keydown', dupEsc, true);
+      dupEsc = null;
+    }
+  }
+
+  function openDupDialog(btn, keywords) {
+    closeDupDialog();
+    const mask = document.createElement('div');
+    mask.className = NS + '-tpl-mask';
+    const modal = document.createElement('div');
+    modal.className = NS + '-tpl-modal ' + NS + '-dup-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+
+    const head = document.createElement('div');
+    head.className = NS + '-tpl-head';
+    const title = document.createElement('div');
+    title.className = NS + '-tpl-title';
+    title.textContent = '发布前，先搜一下？';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = NS + '-tpl-close';
+    close.innerHTML = '&times;';
+    close.title = '关闭';
+    close.addEventListener('click', closeDupDialog);
+    head.appendChild(title);
+    head.appendChild(close);
+
+    const body = document.createElement('div');
+    body.className = NS + '-dup-body';
+    body.textContent = '社区里可能已经有类似的问题。先用关键词搜一搜，避免重复提问。';
+
+    modal.appendChild(head);
+    modal.appendChild(body);
+
+    if (keywords.length) {
+      const tags = document.createElement('div');
+      tags.className = NS + '-dup-tags';
+      keywords.forEach((word) => {
+        const chip = document.createElement('span');
+        chip.className = NS + '-dup-tag';
+        chip.textContent = word;
+        chip.title = word;
+        tags.appendChild(chip);
+      });
+      modal.appendChild(tags);
+    }
+
+    const foot = document.createElement('div');
+    foot.className = NS + '-tpl-foot';
+    const keep = document.createElement('button');
+    keep.type = 'button';
+    keep.className = NS + '-tpl-btn';
+    keep.textContent = '仍然发布';
+    const search = document.createElement('button');
+    search.type = 'button';
+    search.className = NS + '-tpl-btn is-primary';
+    search.textContent = '先搜索社区';
+    foot.appendChild(keep);
+    foot.appendChild(search);
+    modal.appendChild(foot);
+
+    mask.appendChild(modal);
+    mask.addEventListener('mousedown', (e) => { if (e.target === mask) closeDupDialog(); });
+    document.body.appendChild(mask);
+    dupMask = mask;
+
+    dupEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeDupDialog();
+    };
+    document.addEventListener('keydown', dupEsc, true);
+
+    const query = keywords.join(' ').slice(0, 60);
+    search.addEventListener('click', () => {
+      closeDupDialog();
+      if (!query) { toast('没能提取到关键词，请手动搜索'); return; }
+      window.open('/search?q=' + encodeURIComponent(query), '_blank', 'noopener');
+    });
+    keep.addEventListener('click', () => {
+      closeDupDialog();
+      publishingBypass = true;
+      try { btn.click(); } catch (e) { /* noop */ }
+      setTimeout(() => { publishingBypass = false; }, 0);
+    });
+
+    setTimeout(() => { try { search.focus(); } catch (e) { /* noop */ } }, 30);
+  }
+
+  /** 捕获阶段拦发布按钮：问答帖先弹窗，其余情况完全放行 */
+  function onPublishClickCapture(e) {
+    if (publishingBypass || dupMask) return;
+    if (!isCreatePage()) return;
+    const target = e.target instanceof Element ? e.target : null;
+    const btn = target && target.closest ? target.closest('button,[role="button"]') : null;
+    if (!btn || isOwnNode(btn)) return;
+    const label = (btn.textContent || '').replace(/\s+/g, '');
+    if (!PUBLISH_LABEL.test(label)) return;
+    if (!isQuestionPost()) return;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+
+    const ta = findTextarea();
+    const titleEl = document.querySelector('input[name="title"],input[placeholder*="标题"]');
+    const title = titleEl ? titleEl.value : '';
+    openDupDialog(btn, extractKeywords(title, ta ? ta.value : ''));
+  }
+
+  document.addEventListener('click', onPublishClickCapture, true);
+
   // 页面可能异步渲染，用轮询 + MutationObserver 双保险
   let tries = 0;
   const timer = setInterval(() => {
@@ -4968,7 +5179,7 @@
     }
     const routeChanged = location.href !== lastHref;
     lastHref = location.href;
-    if (routeChanged) closeAIWriter();   // 编辑页内切换路由（如 新建 / 编辑）时，同样收起
+    if (routeChanged) { closeAIWriter(); closeDupDialog(); }   // 编辑页内切换路由（如 新建 / 编辑）时，同样收起
     if (routeChanged || !root || !document.body.contains(root)) mount();
     // 站点会重渲染原生工具栏（尤其是选中 / 失焦时），这里持续把可视化模式下的原生工具栏藏好
     else if (mode === 'rich') keepNativeHidden();

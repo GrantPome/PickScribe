@@ -17,6 +17,8 @@
 
 /* 鸿蒙字体：与站点及其它扩展界面统一，字体文件随扩展分发（见 shared/fonts.css） */
 @import url("../shared/fonts.css");
+/* Luma·Gran 流光：开关打开时覆写 --ui-* 与材质，关闭后无任何影响 */
+@import url("../shared/luma-ui.css");
  
 
 :root {

@@ -397,6 +397,54 @@ html.pco-lock body {
   transform: none;
 }
 
+/* -------------------------- 帖子封面 -------------------------- */
+/* 与原站点一致：封面图模糊放大后铺在标题区做背景，向下渐隐进正文 */
+
+#pco-root .pco-content.has-cover {
+  position: relative;
+}
+
+#pco-root .pco-cover {
+  position: absolute;
+  top: -22px;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  height: 560px;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, #000 15%, rgb(0 0 0 / 0.92) 35%,
+    rgb(0 0 0 / 0.72) 50%, rgb(0 0 0 / 0.44) 65%, rgb(0 0 0 / 0.17) 80%,
+    rgb(0 0 0 / 0.05) 90%, transparent);
+  mask-image: linear-gradient(to bottom, #000 15%, rgb(0 0 0 / 0.92) 35%,
+    rgb(0 0 0 / 0.72) 50%, rgb(0 0 0 / 0.44) 65%, rgb(0 0 0 / 0.17) 80%,
+    rgb(0 0 0 / 0.05) 90%, transparent);
+}
+
+#pco-root .pco-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  transform: scale(1.1);
+  filter: blur(24px);
+}
+
+/* 压一层面板底色，保证标题与作者信息在亮色封面上依然可读 */
+#pco-root .pco-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--pco-bg) 62%, transparent);
+}
+
+#pco-root .pco-content.has-cover > :not(.pco-cover) {
+  position: relative;
+  z-index: 1;
+}
+
 /* 标题行：标题在左，按钮贴到行尾，与标题首行基线对齐；
    宽屏时右上角浮动按钮压在右侧回复栏上，标题行不需要让位 */
 #pco-root .pco-title-row {
@@ -939,7 +987,6 @@ html.pco-lock body {
   align-items: baseline;
   gap: 8px;
   padding: 19px 216px 12px 20px;
-  border-bottom: 1px solid var(--pco-border);
 }
 
 #pco-root .pco-side-title {
@@ -1237,7 +1284,6 @@ html.pco-lock body {
   align-items: center;
   gap: 8px;
   padding: 9px 20px;
-  border-bottom: 1px solid var(--pco-border);
 }
 
 #pco-root .pco-sorts {
@@ -3133,7 +3179,7 @@ html.pco-lock body {
   width: 34px;
   height: 34px;
   padding: 0;
-  border: 1px solid var(--pco-border);
+  border: 0;
   border-radius: 10px;
   background: color-mix(in oklab, var(--pco-bg) 86%, transparent);
   color: var(--pco-muted);
@@ -3219,8 +3265,13 @@ html.pco-lock body {
      标题换行 / 折线 SVG 在亚像素下哪怕多出不到 1px，也会冒出横向滚动条 */
   overflow-x: hidden;
   overflow-y: auto;
+  /* 目录通常一屏就能放下；隐藏滚动条，避免内容刚好够高时也常驻一条细条（滚轮仍可滚动） */
+  scrollbar-width: none;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
+}
+
+#pco-root .pco-toc-list::-webkit-scrollbar {
+  display: none;
 }
 
 /* 与站点一致：无圆角无底色，只靠缩进与颜色区分层级；
@@ -3888,6 +3939,12 @@ html.pco-lock body {
 
   #pco-root .pco-scroll {
     padding: 18px 20px 22px;
+  }
+
+  /* 窄屏标题区更矮，封面背景同步收短并对齐新的滚动内边距 */
+  #pco-root .pco-cover {
+    top: -18px;
+    height: 320px;
   }
 
   #pco-root .pco-title-row {

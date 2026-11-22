@@ -1,0 +1,329 @@
+/* ============================================================
+   Luma·Gran 流光 —— 社区站点皮肤
+   设计语言：Windows Fluent / Mica 云母 + 极简微光。
+   所有规则收口在 html[data-luma="on"] 下：开关关闭时零影响。
+   颜色优先覆写站点 Nuxt UI 的 --ui-* 令牌，让站点与插件面板一起换肤。
+   ============================================================ */
+
+/* -------------------- 令牌：深色（默认） -------------------- */
+/* :root 叠加一层特异性，确保能盖过站点按主题声明的同名令牌 */
+html[data-luma="on"]:root {
+  --lg-bg-base: #000000;
+  --lg-bg-layer: #0a0a0c;
+  --lg-bg-card: #121216;
+  --lg-bg-card-hover: #1a1a20;
+  --lg-bg-input: rgba(255, 255, 255, 0.06);
+  --lg-mica: rgba(10, 10, 14, 0.65);
+  --lg-acrylic: rgba(20, 20, 26, 0.5);
+
+  --lg-border-subtle: rgba(255, 255, 255, 0.06);
+  --lg-border: rgba(255, 255, 255, 0.1);
+  --lg-border-strong: rgba(255, 255, 255, 0.16);
+
+  --lg-text: #ffffff;
+  --lg-text-2: rgba(255, 255, 255, 0.72);
+  --lg-text-3: rgba(255, 255, 255, 0.45);
+  --lg-text-inverted: #000000;
+
+  --lg-accent: #ffffff;
+  --lg-accent-soft: rgba(255, 255, 255, 0.08);
+  --lg-glow: rgba(255, 255, 255, 0.18);
+  --lg-glow-soft: rgba(255, 255, 255, 0.05);
+
+  --lg-dur: 400ms;
+  --lg-ease-dur: 250ms;
+  --lg-ease: cubic-bezier(0.1, 0.9, 0.2, 1);
+  --lg-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --lg-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* 映射到站点令牌，站点自身与插件面板共用一套颜色 */
+  --ui-bg: var(--lg-bg-base);
+  --ui-bg-muted: var(--lg-bg-layer);
+  --ui-bg-elevated: var(--lg-bg-card);
+  --ui-bg-accented: var(--lg-bg-card-hover);
+  --ui-bg-input: var(--lg-bg-input);
+  --ui-border: var(--lg-border);
+  --ui-border-muted: var(--lg-border-subtle);
+  --ui-border-accented: var(--lg-border-strong);
+  --ui-text: var(--lg-text);
+  --ui-text-muted: var(--lg-text-2);
+  --ui-text-dimmed: var(--lg-text-3);
+  --ui-text-highlighted: var(--lg-text);
+  --ui-text-inverted: var(--lg-text-inverted);
+  /* 强调色（点赞、选中、主按钮）保留站点原有的 Pickcat 红，不参与 Luma 反色 */
+  --ui-radius: 12px;
+  --ui-radius-sm: 8px;
+}
+
+/* -------------------- 令牌：浅色 -------------------- */
+/* 站点用 @nuxtjs/color-mode 的 classSuffix=""，浅色是 html.light（没有 data-theme）；
+   data-theme 分支保留给设置页 / 弹窗等自有页面复用。 */
+html[data-luma="on"].light,
+html[data-luma="on"][data-theme="light"] {
+  --lg-bg-base: #f5f5f7;
+  --lg-bg-layer: #ebebef;
+  --lg-bg-card: #ffffff;
+  --lg-bg-card-hover: #f0f0f4;
+  --lg-bg-input: rgba(0, 0, 0, 0.05);
+  --lg-mica: rgba(245, 245, 247, 0.75);
+  --lg-acrylic: rgba(255, 255, 255, 0.6);
+
+  --lg-border-subtle: rgba(0, 0, 0, 0.06);
+  --lg-border: rgba(0, 0, 0, 0.1);
+  --lg-border-strong: rgba(0, 0, 0, 0.16);
+
+  --lg-text: #000000;
+  --lg-text-2: rgba(0, 0, 0, 0.72);
+  --lg-text-3: rgba(0, 0, 0, 0.45);
+  --lg-text-inverted: #ffffff;
+
+  --lg-accent: #1a1a1a;
+  --lg-accent-soft: rgba(0, 0, 0, 0.06);
+  --lg-glow: rgba(0, 0, 0, 0.14);
+  --lg-glow-soft: rgba(0, 0, 0, 0.04);
+}
+
+/* 跟随系统：浅色系统 */
+@media (prefers-color-scheme: light) {
+  html[data-luma="on"][data-theme="system"] {
+    --lg-bg-base: #f5f5f7;
+    --lg-bg-layer: #ebebef;
+    --lg-bg-card: #ffffff;
+    --lg-bg-card-hover: #f0f0f4;
+    --lg-bg-input: rgba(0, 0, 0, 0.05);
+    --lg-mica: rgba(245, 245, 247, 0.75);
+    --lg-acrylic: rgba(255, 255, 255, 0.6);
+
+    --lg-border-subtle: rgba(0, 0, 0, 0.06);
+    --lg-border: rgba(0, 0, 0, 0.1);
+    --lg-border-strong: rgba(0, 0, 0, 0.16);
+
+    --lg-text: #000000;
+    --lg-text-2: rgba(0, 0, 0, 0.72);
+    --lg-text-3: rgba(0, 0, 0, 0.45);
+    --lg-text-inverted: #ffffff;
+
+    --lg-accent: #1a1a1a;
+    --lg-accent-soft: rgba(0, 0, 0, 0.06);
+    --lg-glow: rgba(0, 0, 0, 0.14);
+    --lg-glow-soft: rgba(0, 0, 0, 0.04);
+  }
+}
+
+/* -------------------- 页面底色与光场 -------------------- */
+html[data-luma="on"] body {
+  background-color: var(--lg-bg-base);
+  background-image:
+    radial-gradient(900px 620px at 12% -8%, var(--lg-glow-soft), transparent 70%),
+    radial-gradient(720px 520px at 100% 0%, var(--lg-glow-soft), transparent 72%),
+    radial-gradient(1100px 760px at 50% 118%, var(--lg-glow-soft), transparent 74%);
+  background-attachment: fixed;
+  color: var(--lg-text);
+  transition: background-color var(--lg-dur, 400ms) var(--lg-ease), color 400ms var(--lg-ease);
+}
+
+html[data-luma="on"] ::selection {
+  background: var(--lg-accent);
+  color: var(--lg-text-inverted);
+}
+
+/* 滚动条：细、半透明，贴合云母材质 */
+html[data-luma="on"] * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--lg-border-strong) transparent;
+}
+html[data-luma="on"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+html[data-luma="on"] ::-webkit-scrollbar-track { background: transparent; }
+html[data-luma="on"] ::-webkit-scrollbar-thumb {
+  background: var(--lg-border-strong);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+/* -------------------- 顶栏：首屏无背景，滚动后云母 -------------------- */
+html[data-luma="on"] header {
+  background-color: transparent;
+  border-bottom: 1px solid transparent;
+  transition: background-color var(--lg-dur, 400ms) var(--lg-ease),
+              border-color var(--lg-dur, 400ms) var(--lg-ease);
+}
+
+html[data-luma="on"].pcl-scrolled header {
+  background-color: var(--lg-mica);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom-color: var(--lg-border-subtle);
+}
+
+/* -------------------- 卡片：云母材质 + 极淡辉光 -------------------- */
+/* 评论楼层（article[aria-label$="的评论"]）不套卡片样式：
+   楼层本身无边框，底色透明，直接与所在浮层评论区保持一致 */
+html[data-luma="on"] article:not([aria-label$="的评论"]) {
+  background-color: var(--lg-bg-card);
+  border: 1px solid var(--lg-border-subtle);
+  border-radius: var(--ui-radius, 12px);
+  transition: border-color var(--lg-ease-dur, 250ms) var(--lg-ease),
+              background-color 250ms var(--lg-ease);
+}
+
+html[data-luma="on"] article:not([aria-label$="的评论"]):hover {
+  background-color: var(--lg-bg-card-hover);
+  border-color: var(--lg-border);
+}
+
+/* 回复分组块（站点用 --ui-comment-replies-bg 铺了一层浅底）同样拍平 */
+html[data-luma="on"] .post-comment-replies {
+  background-color: transparent;
+}
+
+/* 扩展浮层评论区的楼层也是 <article class="pco-comment">，
+   会命中上面的卡片规则：这里拍平，去掉边框与底色，与浮层侧栏同底色 */
+html[data-luma="on"] #pco-root article.pco-comment,
+html[data-luma="on"] #pco-root article.pco-comment:hover {
+  background-color: transparent;
+  border: 0;
+}
+
+/* -------------------- 控件：描边、键盘焦点 -------------------- */
+html[data-luma="on"] :where(button, [role="button"], summary) {
+  border-radius: var(--ui-radius-sm, 8px);
+  transition: background-color 150ms var(--lg-ease), color 150ms var(--lg-ease),
+              border-color 150ms var(--lg-ease);
+}
+
+html[data-luma="on"] :where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--lg-accent);
+  outline-offset: 2px;
+  border-radius: var(--ui-radius-sm, 8px);
+}
+
+/* 输入类：玻璃感底色，聚焦时轻微内发光 */
+html[data-luma="on"] :where(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+  background-color: var(--lg-bg-input);
+  border: 1px solid var(--lg-border-subtle);
+  border-radius: var(--ui-radius-sm, 8px);
+  color: var(--lg-text);
+  transition: border-color 150ms var(--lg-ease),
+              background-color 150ms var(--lg-ease);
+}
+
+html[data-luma="on"] :where(input:not([type="checkbox"]):not([type="radio"]), textarea, select):focus {
+  border-color: var(--lg-border-strong);
+  outline: none;
+}
+
+/* 链接：仅高亮，不位移 */
+html[data-luma="on"] a {
+  transition: color 150ms var(--lg-ease);
+}
+html[data-luma="on"] :where(header, nav) a:hover {
+  color: var(--lg-text);
+}
+
+/* 分隔线 */
+html[data-luma="on"] hr {
+  border: 0;
+  border-top: 1px solid var(--lg-border-subtle);
+}
+
+/* 禁用态统一降低存在感 */
+html[data-luma="on"] :disabled {
+  opacity: 0.45;
+}
+
+/* -------------------- 鼠标球（iPadOS 风格） -------------------- */
+/* 仅 fine pointer 且未开启「减少动态效果」时由脚本挂上 .pcl-cursor-on；
+   pcl-dot-mode 表示已隐藏鼠标球，此时保留系统指针，只把球体缩成小点 */
+html.pcl-cursor-on:not(.pcl-native-cursor):not(.pcl-dot-mode),
+html.pcl-cursor-on:not(.pcl-native-cursor):not(.pcl-dot-mode) * {
+  /* 用 32×32 全透明图片代替 cursor: none。Chromium 在 Windows 上彻底隐藏系统光标后，
+     指针移出窗口时会被系统重新绘制回旧位置（常表现为闪回起点、移不出去）；
+     透明图片仍是一个正常光标，位置始终由系统原生维护。 */
+  cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGklEQVR4nO3BAQEAAACCIP+vbkhAAQAAAO8GECAAARlDNO4AAAAASUVORK5CYII=") 0 0, none !important;
+}
+
+.pcl-cursor-dot {
+  position: fixed;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 2147483647;
+  opacity: 0;
+  will-change: translate, width, height, scale;
+  /* 普通态默认是完整鼠标球；开启“隐藏鼠标球”后由脚本切成 6px 小点 */
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(128, 128, 128, 0.22);
+  border: 1.5px solid rgba(128, 128, 128, 0.5);
+  overflow: hidden;
+  /* 形变时模糊值同步过渡，形成“融球”般的液化过渡；无回弹 */
+  filter: blur(0px);
+  /* 吸附形变用 scale 完成：脚本把 transform-origin 放到指针进入的那条边上，
+     于是光团从进入方向扩散，而不是从控件中心撑开 */
+  scale: 1;
+  transform-origin: 50% 50%;
+  transition: scale 400ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              filter 400ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              background 200ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              border-color 200ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              opacity 150ms ease;
+}
+
+/* 离开控件时：尺寸回到普通小球，这一路才让宽高 / 圆角参与过渡 */
+.pcl-cursor-dot.pcl-shrink {
+  transition: width 400ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              height 400ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              border-radius 400ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              filter 400ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              background 200ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              border-color 200ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)),
+              opacity 150ms ease;
+}
+
+/* 进入控件的一瞬间：尺寸与缩放直接落位，不参与过渡 */
+.pcl-cursor-dot.pcl-instant {
+  transition: none !important;
+}
+
+/* 吸附态：几乎不压暗控件、不画边框，只留一团随形变融开的光 */
+.pcl-cursor-dot.pcl-melt {
+  background: rgba(128, 128, 128, 0.04);
+  border-color: transparent;
+  filter: blur(5px);
+}
+
+/* 鼠标球内部的径向辉光，跟随指针（由脚本写入 --pcl-sx / --pcl-sy / --pcl-sr） */
+.pcl-cursor-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle var(--pcl-sr, 90px) at var(--pcl-sx, 50%) var(--pcl-sy, 50%),
+    rgba(128, 128, 128, 0.16),
+    transparent 70%
+  );
+  transition: opacity 200ms ease;
+}
+
+/* 暗色模式下辉光提亮：中灰在深底上几乎看不见，换成更亮的白光 */
+html[data-luma="on"].dark .pcl-cursor-dot::after {
+  background: radial-gradient(
+    circle var(--pcl-sr, 90px) at var(--pcl-sx, 50%) var(--pcl-sy, 50%),
+    rgba(255, 255, 255, 0.26),
+    transparent 72%
+  );
+}
+
+/* 控件脱离吸附时回位：脚本临时挂类，动画结束后立即移除 */
+html[data-luma="on"] .pcl-return {
+  transition: translate 300ms var(--lg-ease, cubic-bezier(0.1, 0.9, 0.2, 1)) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcl-cursor-dot,
+  .pcl-cursor-dot::after { transition: none !important; }
+  html[data-luma="on"] .pcl-return { transition: none !important; }
+}

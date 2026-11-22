@@ -189,14 +189,20 @@ saveBtn.addEventListener('click', async () => {
     setStatus('未获得该接口域名的访问权限，保存已取消', 'err');
     return;
   }
+  // 先真正写入 storage，成功后再提示，避免写入失败却显示「已保存」
+  try {
+    await setConfig(values);
+  } catch (e) {
+    setStatus('保存失败：' + (e && e.message ? e.message : e), 'err');
+    return;
+  }
+  saveBtn.disabled = true;
+  saveBtn.textContent = '已保存';
   if (values.apiKey === '' && values.provider !== 'ollama') {
     setStatus('已保存，但还没填 API Key，总结会失败', 'err');
   } else {
     setStatus('已保存', 'ok');
   }
-  await setConfig(values);
-  saveBtn.disabled = true;
-  saveBtn.textContent = '已保存';
 });
 
 $('testBtn').addEventListener('click', async () => {
@@ -1021,6 +1027,12 @@ const FONT_CUSTOM_KEY = 'pcr_custom_font';
 const IMAGE_ZOOM_KEY = 'pcr_image_zoom';
 /** 键 pcr_g2_radius：与 content.js 的 RADIUS_KEY 保持一致，控制全站 G2 连续圆角（默认开启） */
 const G2_RADIUS_KEY = 'pcr_g2_radius';
+/** 键 pcr_luma_skin：与 luma/content.js、弹窗保持一致，控制 Luma·Gran 流光外观（默认开启） */
+const LUMA_KEY = 'pcr_luma_skin';
+/** 键 pcr_luma_cursor：与 luma/content.js 保持一致，控制鼠标球光标（默认开启，依赖 Luma·Gran） */
+const LUMA_CURSOR_KEY = 'pcr_luma_cursor';
+/** 键 pcr_luma_cursor_follow：与 luma/content.js 保持一致，控制吸附时控件是否随指针微位移（默认开启） */
+const LUMA_CURSOR_FOLLOW_KEY = 'pcr_luma_cursor_follow';
 /** 键 pcr_plus_link：与 content.js 的 PLUS_LINK_KEY 保持一致，控制是否响应 PICKCAT Plus 的唤起指令 */
 const PLUS_LINK_KEY = 'pcr_plus_link';
 /** 键 pcr_badge_menu：与 api/badge.js 的 ENABLED_KEY 保持一致，控制头像菜单是否使用 3D 工牌（默认关闭） */
@@ -1190,14 +1202,31 @@ async function removeFontFace(id, pending) {
   setStatus('已移除字体文件', 'ok');
 }
 
+/** 设置页自身也跟随开关即时换肤；社区站点由 luma/content.js 同步 */
+function applyLumaState(on) {
+  const root = document.documentElement;
+  if (on) root.dataset.luma = 'on';
+  else delete root.dataset.luma;
+  // 鼠标球及其跟随都依附于 Luma·Gran，总开关关闭时置灰
+  const cursor = $('appearanceLumaCursor');
+  if (cursor) cursor.disabled = !on;
+  const follow = $('appearanceLumaCursorFollow');
+  if (follow) follow.disabled = !on;
+}
+
 async function loadAppearance() {
   const raw = await chrome.storage.local.get([
     HARMONY_FONT_KEY, IMAGE_ZOOM_KEY, FONT_MODE_KEY, FONT_CUSTOM_KEY, G2_RADIUS_KEY, BADGE_MENU_KEY,
-    BADGE_SOUND_KEY
+    BADGE_SOUND_KEY, LUMA_KEY, LUMA_CURSOR_KEY, LUMA_CURSOR_FOLLOW_KEY
   ]);
   $('appearanceHarmonyFont').checked = raw[HARMONY_FONT_KEY] !== false && raw[HARMONY_FONT_KEY] !== '0';
   $('appearanceImageZoom').checked = raw[IMAGE_ZOOM_KEY] !== false && raw[IMAGE_ZOOM_KEY] !== '0';
   $('appearanceG2Radius').checked = raw[G2_RADIUS_KEY] !== false && raw[G2_RADIUS_KEY] !== '0';
+  $('appearanceLuma').checked = raw[LUMA_KEY] !== false && raw[LUMA_KEY] !== '0';
+  $('appearanceLumaCursor').checked = raw[LUMA_CURSOR_KEY] === true;
+  $('appearanceLumaCursorFollow').checked = raw[LUMA_CURSOR_FOLLOW_KEY] !== false
+    && raw[LUMA_CURSOR_FOLLOW_KEY] !== '0';
+  applyLumaState($('appearanceLuma').checked);
   $('appearanceBadgeMenu').checked = raw[BADGE_MENU_KEY] === true;
   $('appearanceBadgeSound').checked = raw[BADGE_SOUND_KEY] === true;
 
@@ -1224,6 +1253,42 @@ $('appearanceHarmonyFont').addEventListener('change', async (e) => {
 $('appearanceG2Radius').addEventListener('change', async (e) => {
   await chrome.storage.local.set({ [G2_RADIUS_KEY]: e.target.checked });
   setStatus(e.target.checked ? '已启用全站 G2 连续圆角' : '已恢复站点原圆角', 'ok');
+});
+
+// Luma·Gran 外观：设置页即时换肤，站点页面通过 storage 变更同步
+$('appearanceLuma').addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ [LUMA_KEY]: e.target.checked });
+  applyLumaState(e.target.checked);
+  setStatus(e.target.checked ? '已启用 墨染江湖 Beta 外观' : '已恢复原始外观', 'ok');
+});
+
+// 隐藏鼠标球：打开后普通态只剩小点，吸附形变与跟随保持不变
+$('appearanceLumaCursor').addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ [LUMA_CURSOR_KEY]: e.target.checked });
+  setStatus(e.target.checked ? '已隐藏鼠标球，只保留小点' : '已恢复完整鼠标球', 'ok');
+});
+
+// 吸附跟随：关闭后控件与选中框静止在控件原位
+$('appearanceLumaCursorFollow').addEventListener('change', async (e) => {
+  await chrome.storage.local.set({ [LUMA_CURSOR_FOLLOW_KEY]: e.target.checked });
+  setStatus(e.target.checked ? '已启用吸附跟随' : '已关闭吸附跟随', 'ok');
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (changes[LUMA_KEY]) {
+    const v = changes[LUMA_KEY].newValue;
+    const on = v !== false && v !== '0';
+    $('appearanceLuma').checked = on;
+    applyLumaState(on);
+  }
+  if (changes[LUMA_CURSOR_KEY]) {
+    $('appearanceLumaCursor').checked = changes[LUMA_CURSOR_KEY].newValue === true;
+  }
+  if (changes[LUMA_CURSOR_FOLLOW_KEY]) {
+    const v = changes[LUMA_CURSOR_FOLLOW_KEY].newValue;
+    $('appearanceLumaCursorFollow').checked = v !== false && v !== '0';
+  }
 });
 
 $('fontModeHarmony').addEventListener('change', async () => {

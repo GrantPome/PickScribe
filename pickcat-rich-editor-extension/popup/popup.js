@@ -24,8 +24,21 @@ async function applyTheme() {
   }
 }
 
+/** Luma·Gran 外观：与设置页 / 站点共用 pcr_luma_skin，默认开启 */
+async function applyLuma() {
+  try {
+    const raw = await chrome.storage.local.get('pcr_luma_skin');
+    const v = raw && raw.pcr_luma_skin;
+    if (v !== false && v !== '0') document.documentElement.dataset.luma = 'on';
+    else delete document.documentElement.dataset.luma;
+  } catch (e) {
+    document.documentElement.dataset.luma = 'on';
+  }
+}
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.pco_theme) applyTheme();
+  if (area === 'local' && changes.pcr_luma_skin) applyLuma();
 });
 
 // ============================ AI 区 ============================
@@ -170,6 +183,7 @@ $('openNotifyOptions').addEventListener('click', () => {
 
 (async () => {
   await applyTheme();
+  await applyLuma();
   config = { ...DEFAULT_CONFIG, ...(await getConfig()) };
   render();
   loadNotifications();

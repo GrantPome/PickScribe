@@ -121,6 +121,78 @@ html.pch-scroll-lock body {
   transform: none;
 }
 
+/* ---- 发帖入口的镜头推进：平移 + 放大，过半时浮现编辑器骨架 ---- */
+
+#pch-root.pch-zooming {
+  pointer-events: none;
+  overflow: hidden;
+}
+
+#pch-root.pch-zooming .pch-shell {
+  will-change: transform;
+}
+
+/* 站点发帖按钮的代理层：克隆按钮后在这里做镜头推进 */
+.pch-zoom-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483600;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pch-zoom-proxy {
+  z-index: 1;
+  transform-origin: 50% 50%;
+  pointer-events: none;
+}
+
+/* 放大末段的同色幕布：盖住被放大的图标文字 */
+.pch-zoom-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: var(--pch-zoom-color, #e0603a);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pch-zoom-layer .pch-zoom-veil {
+  z-index: 2;
+}
+
+/* 真实页面加载期间的站点底色衬底 */
+.pch-zoom-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  background: var(--ui-bg, #ffffff);
+  opacity: 0;
+  will-change: opacity;
+  pointer-events: none;
+}
+
+.pch-zoom-layer .pch-zoom-backdrop {
+  z-index: 3;
+}
+
+/* 真实发帖编辑页预览：同源 iframe，加载完再淡入 */
+.pch-zoom-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--ui-bg, #ffffff);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pch-zoom-layer .pch-zoom-preview {
+  z-index: 4;
+}
+
 /* ============================ 3. 顶栏（纯文字，不设底色） ============================ */
 
 .pch-top {

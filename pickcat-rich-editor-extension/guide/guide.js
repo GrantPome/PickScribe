@@ -296,7 +296,7 @@
         '</label>' +
         '<label class="pcg-cfg-row" data-role="ai-key-row">' +
           '<span class="pcg-cfg-label">API Key</span>' +
-          '<input class="pcg-cfg-input" type="password" data-cfg="aiKey" placeholder="sk-…" autocomplete="off" spellcheck="false" />' +
+          '<input class="pcg-cfg-input" type="password" name="pcai-api-key" data-cfg="aiKey" placeholder="sk-…" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" />' +
         '</label>' +
         '<div class="pcg-cfg-actions">' +
           aiTestFrameHtml() +

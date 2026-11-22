@@ -152,6 +152,25 @@
 
         <div class="divider"></div>
 
+        <h3 class="sub-head">外观风格</h3>
+        <div class="checks">
+          <label class="field switch-row">
+            <span>启用 墨染江湖 Beta 外观（社区站点与插件界面）</span>
+            <input type="checkbox" id="appearanceLuma" />
+          </label>
+          <label class="field switch-row">
+            <span>隐藏鼠标球（只保留指针中心的小点）</span>
+            <input type="checkbox" id="appearanceLumaCursor" />
+          </label>
+          <label class="field switch-row">
+            <span>吸附时控件随指针轻微跟随</span>
+            <input type="checkbox" id="appearanceLumaCursorFollow" />
+          </label>
+        </div>
+        <p class="note">云母玻璃材质、极淡辉光与非线性动效；关闭后立即恢复站点与插件界面的原始外观，无需刷新。鼠标球默认是完整球体，此时隐藏系统指针，吸附控件时放大成形；打开“隐藏鼠标球”后普通态只剩一个小点并显示系统指针。关闭跟随则控件与选中框静止在控件原位。</p>
+
+        <div class="divider"></div>
+
         <h3 class="sub-head">图片</h3>
         <div class="checks">
           <label class="field switch-row">
@@ -504,7 +523,9 @@
           <label class="field span2">
             <span>API Key</span>
             <span class="key-wrap">
-              <input id="apiKey" type="password" placeholder="sk-..." autocomplete="off" />
+              <input id="apiKey" type="password" placeholder="sk-..." name="pcai-api-key"
+                     autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false"
+                     data-lpignore="true" data-1p-ignore="true" data-bwignore="true" />
               <button type="button" id="toggleKey" class="mini">显示</button>
             </span>
           </label>

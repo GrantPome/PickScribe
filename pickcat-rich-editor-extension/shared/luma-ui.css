@@ -1,0 +1,276 @@
+/* ============================================================
+   Luma·Gran 流光 —— 插件自有界面皮肤（设置页 / 弹窗）
+   由 options.css 与 popup.css 在文件顶部 @import。
+   收口在 html[data-luma="on"]，关闭开关后完全回到原有外观。
+   ============================================================ */
+
+/* -------------------- 令牌：浅色（默认） -------------------- */
+html[data-luma="on"]:root {
+  --lg-bg-base: #f5f5f7;
+  --lg-bg-card: #ffffff;
+  --lg-bg-card-hover: #f0f0f4;
+  --lg-bg-input: rgba(0, 0, 0, 0.05);
+  --lg-mica: rgba(245, 245, 247, 0.75);
+
+  --lg-border-subtle: rgba(0, 0, 0, 0.06);
+  --lg-border: rgba(0, 0, 0, 0.1);
+  --lg-border-strong: rgba(0, 0, 0, 0.16);
+
+  --lg-text: #000000;
+  --lg-text-2: rgba(0, 0, 0, 0.72);
+  --lg-text-3: rgba(0, 0, 0, 0.45);
+  --lg-text-inverted: #ffffff;
+
+  --lg-accent: #1a1a1a;
+  --lg-accent-soft: rgba(0, 0, 0, 0.06);
+  --lg-glow: rgba(0, 0, 0, 0.14);
+  --lg-glow-soft: rgba(0, 0, 0, 0.04);
+
+  --lg-shadow-2: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --lg-ease: cubic-bezier(0.1, 0.9, 0.2, 1);
+  --lg-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 覆写设置页令牌 */
+  --ui-primary: var(--lg-accent);
+  --ui-primary-hover: #000000;
+  --ui-bg: var(--lg-bg-card);
+  --ui-bg-muted: var(--lg-bg-base);
+  --ui-bg-elevated: var(--lg-bg-card);
+  --ui-bg-accented: var(--lg-bg-card-hover);
+  --ui-bg-input: var(--lg-bg-input);
+  --ui-border: var(--lg-border);
+  --ui-border-muted: var(--lg-border-subtle);
+  --ui-border-accented: var(--lg-border-strong);
+  --ui-text: var(--lg-text);
+  --ui-text-muted: var(--lg-text-2);
+  --ui-text-dimmed: var(--lg-text-3);
+  --ui-text-highlighted: var(--lg-text);
+  --ui-text-inverted: var(--lg-text-inverted);
+  --ui-radius: 12px;
+  --ui-radius-sm: 8px;
+
+  /* 覆写弹窗令牌 */
+  --bg: var(--lg-bg-card);
+  --border: var(--lg-border);
+  --text: var(--lg-text);
+  --subtle: var(--lg-text-2);
+  --accent: var(--lg-accent);
+  --accent-soft: var(--lg-accent-soft);
+  --canvas: var(--lg-bg-base);
+}
+
+/* -------------------- 令牌：深色 -------------------- */
+html[data-luma="on"][data-theme="dark"] {
+  --lg-bg-base: #000000;
+  --lg-bg-card: #121216;
+  --lg-bg-card-hover: #1a1a20;
+  --lg-bg-input: rgba(255, 255, 255, 0.06);
+  --lg-mica: rgba(10, 10, 14, 0.65);
+
+  --lg-border-subtle: rgba(255, 255, 255, 0.06);
+  --lg-border: rgba(255, 255, 255, 0.1);
+  --lg-border-strong: rgba(255, 255, 255, 0.16);
+
+  --lg-text: #ffffff;
+  --lg-text-2: rgba(255, 255, 255, 0.72);
+  --lg-text-3: rgba(255, 255, 255, 0.45);
+  --lg-text-inverted: #000000;
+
+  --lg-accent: #ffffff;
+  --lg-accent-soft: rgba(255, 255, 255, 0.08);
+  --lg-glow: rgba(255, 255, 255, 0.18);
+  --lg-glow-soft: rgba(255, 255, 255, 0.05);
+
+  --lg-shadow-2: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --ui-primary-hover: #e5e5e5;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-luma="on"][data-theme="system"] {
+    --lg-bg-base: #000000;
+    --lg-bg-card: #121216;
+    --lg-bg-card-hover: #1a1a20;
+    --lg-bg-input: rgba(255, 255, 255, 0.06);
+    --lg-mica: rgba(10, 10, 14, 0.65);
+
+    --lg-border-subtle: rgba(255, 255, 255, 0.06);
+    --lg-border: rgba(255, 255, 255, 0.1);
+    --lg-border-strong: rgba(255, 255, 255, 0.16);
+
+    --lg-text: #ffffff;
+    --lg-text-2: rgba(255, 255, 255, 0.72);
+    --lg-text-3: rgba(255, 255, 255, 0.45);
+    --lg-text-inverted: #000000;
+
+    --lg-accent: #ffffff;
+    --lg-accent-soft: rgba(255, 255, 255, 0.08);
+    --lg-glow: rgba(255, 255, 255, 0.18);
+    --lg-glow-soft: rgba(255, 255, 255, 0.05);
+
+    --lg-shadow-2: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --ui-primary-hover: #e5e5e5;
+  }
+}
+
+/* -------------------- 页面底色与光场 -------------------- */
+html[data-luma="on"] body {
+  background-color: var(--lg-bg-base);
+  background-image:
+    radial-gradient(760px 520px at 10% -12%, var(--lg-glow-soft), transparent 70%),
+    radial-gradient(620px 460px at 100% 0%, var(--lg-glow-soft), transparent 72%);
+  background-attachment: fixed;
+  transition: background-color 400ms var(--lg-ease), color 400ms var(--lg-ease);
+}
+
+html[data-luma="on"] ::selection {
+  background: var(--lg-accent);
+  color: var(--lg-text-inverted);
+}
+
+/* -------------------- 设置页：顶栏与卡片 -------------------- */
+html[data-luma="on"] .topbar {
+  background: color-mix(in srgb, var(--lg-bg-base) 72%, transparent);
+  border-bottom-color: var(--lg-border-subtle);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+
+html[data-luma="on"] .card,
+html[data-luma="on"] .side-card {
+  background: var(--lg-bg-card);
+  border: 1px solid var(--lg-border-subtle);
+  border-radius: 16px;
+  transition: border-color 250ms var(--lg-ease), box-shadow 250ms var(--lg-ease);
+}
+
+html[data-luma="on"] .card:hover,
+html[data-luma="on"] .side-card:hover {
+  border-color: var(--lg-border);
+  box-shadow: 0 0 16px var(--lg-glow-soft);
+}
+
+html[data-luma="on"] .side {
+  background: transparent;
+}
+
+html[data-luma="on"] .nav-item {
+  border-radius: 10px;
+  transition: background-color 150ms var(--lg-ease), color 150ms var(--lg-ease),
+              box-shadow 250ms var(--lg-ease);
+}
+
+html[data-luma="on"] .nav-item:hover {
+  background: var(--lg-bg-card-hover);
+  box-shadow: 0 0 12px var(--lg-glow-soft);
+}
+
+html[data-luma="on"] .nav-item.is-active {
+  background: var(--lg-accent-soft);
+  color: var(--lg-text);
+  box-shadow: inset 0 0 0 1px var(--lg-border-subtle);
+}
+
+/* -------------------- 控件：描边、辉光、回弹 -------------------- */
+html[data-luma="on"] .btn,
+html[data-luma="on"] .mini,
+html[data-luma="on"] .theme-btn {
+  border-radius: 10px;
+  transition: background-color 150ms var(--lg-ease), color 150ms var(--lg-ease),
+              border-color 150ms var(--lg-ease), box-shadow 250ms var(--lg-ease),
+              transform 120ms var(--lg-ease);
+}
+
+html[data-luma="on"] .btn:hover,
+html[data-luma="on"] .mini:hover,
+html[data-luma="on"] .theme-btn:hover {
+  border-color: var(--lg-border-strong);
+  box-shadow: 0 0 12px var(--lg-glow);
+}
+
+html[data-luma="on"] .btn:active,
+html[data-luma="on"] .mini:active {
+  transform: scale(0.97);
+}
+
+html[data-luma="on"] .btn.primary {
+  background: var(--lg-accent);
+  border-color: var(--lg-accent);
+  color: var(--lg-text-inverted);
+  box-shadow: 0 0 12px var(--lg-glow-soft);
+}
+
+html[data-luma="on"] .btn.primary:hover {
+  background: var(--ui-primary-hover);
+  border-color: var(--ui-primary-hover);
+  color: var(--lg-text-inverted);
+}
+
+html[data-luma="on"] .btn.danger {
+  background: transparent;
+  border-color: var(--ui-error);
+  color: var(--ui-error);
+}
+
+html[data-luma="on"] :where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--lg-accent);
+  outline-offset: 2px;
+}
+
+html[data-luma="on"] :where(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+  background-color: var(--lg-bg-input);
+  border: 1px solid var(--lg-border-subtle);
+  border-radius: 8px;
+  color: var(--lg-text);
+  transition: border-color 150ms var(--lg-ease), box-shadow 250ms var(--lg-ease);
+}
+
+html[data-luma="on"] :where(input:not([type="checkbox"]):not([type="radio"]), textarea, select):focus {
+  border-color: var(--lg-border-strong);
+  box-shadow: 0 0 0 3px var(--lg-glow-soft), 0 0 12px var(--lg-glow);
+  outline: none;
+}
+
+html[data-luma="on"] .field.switch-row {
+  border-radius: 8px;
+  transition: background-color 150ms var(--lg-ease);
+}
+
+html[data-luma="on"] .field.switch-row:hover {
+  background: var(--lg-bg-card-hover);
+}
+
+/* 开关滑块：深色下轨道为纯白，滑块改用反色，避免白底白球 */
+html[data-luma="on"] .field.switch-row > input[type="checkbox"]:checked::after,
+html[data-luma="on"] .switch input:checked + .track .knob {
+  background: var(--lg-text-inverted);
+}
+
+html[data-luma="on"] .divider {
+  background: var(--lg-border-subtle);
+}
+
+/* -------------------- 弹窗 / 浮层 -------------------- */
+html[data-luma="on"] .theme-menu {
+  background: color-mix(in srgb, var(--lg-bg-card) 88%, transparent);
+  border-color: var(--lg-border);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--lg-shadow-2);
+}
+
+html[data-luma="on"] .theme-menu button { border-radius: 8px; }
+html[data-luma="on"] .theme-menu button:hover { background: var(--lg-bg-card-hover); }
+html[data-luma="on"] .theme-menu button.is-on { color: var(--lg-text); }
+
+html[data-luma="on"] #sec-notify { border-top-color: var(--lg-border-subtle); }
+
+html[data-luma="on"] .switch input:checked + .track {
+  box-shadow: 0 0 12px var(--lg-glow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-luma="on"] * {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
