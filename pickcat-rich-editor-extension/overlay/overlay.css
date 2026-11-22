@@ -2379,12 +2379,12 @@ html.pco-lock body {
 
 #pco-root .pco-editor img.markdown-emoji {
   display: inline-block;
-  width: var(--pco-emoji-inline);
-  height: var(--pco-emoji-inline);
-  margin: 0 0.08em;
+  width: 3em;
+  height: 3em;
+  margin: 0 0.06em;
   border-radius: 0;
   background: transparent;
-  vertical-align: -0.42em;
+  vertical-align: middle;
 }
 
 #pco-root .pco-editor img.pco-ed-img-ref {

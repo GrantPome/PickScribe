@@ -131,6 +131,14 @@
         '" title="哔哩哔哩视频（提交后由站点渲染为播放器）">哔哩哔哩视频' + (bv ? ' · ' + escapeHtml(bv) : '') + '</span>');
     });
 
+    // 3.6) 站点表情：![emoji:id]，提交后由站点解析。
+    //      必须原样保护并渲染成表情图，否则会被当成普通文字、写回时方括号被转义成 \!\[…\]，
+    //      站点认不出表情，表情就被吞掉了。
+    s = s.replace(/!\[emoji:([A-Za-z0-9_-]+)\]/g, (m, id) =>
+      keep('<img class="' + NS + '-emoji" src="/api/v1/emojis/' + encodeURIComponent(id) +
+        '/image" alt="[emoji:' + escapeAttr(id) + ']" data-emoji="' + escapeAttr(id) +
+        '" contenteditable="false" draggable="false">'));
+
     // 4) 转义剩余文本，避免与后续拼装的 HTML 冲突
     s = escapeHtml(s);
 
@@ -363,6 +371,17 @@
     }
 
     if (tag === 'br') return '  \n';
+
+    // 站点表情：必须原样写回 ![emoji:id]，绝不能转义，否则站点认不出、表情会消失
+    if (tag === 'img') {
+      const alt = node.getAttribute('alt') || '';
+      const src = node.getAttribute('src') || '';
+      const srcId = (src.match(/\/api\/v1\/emojis\/([^/?#]+)\/image/) || [])[1];
+      const emojiId = node.getAttribute('data-emoji') ||
+        ((alt.match(/^\[?emoji:([\w-]+)\]?$/) || [])[1]) ||
+        (srcId ? decodeURIComponent(srcId) : '');
+      if (emojiId) return '![emoji:' + emojiId + ']';
+    }
 
     if (tag === 'img') {
       const src = safeUrl(node.getAttribute('src') || '');
@@ -1283,6 +1302,8 @@
 .${NS}-editor ul,.${NS}-editor ol{margin:.45em 0;padding-left:1.6em;}
 .${NS}-editor li{margin:.2em 0;}
 .${NS}-editor img{max-width:100%;border-radius:var(--pcr-r-control);}
+/* 站点表情：比正文大 3 倍，不做成行内小图标 */
+.${NS}-editor img.${NS}-emoji{width:3em;height:3em;margin:0 .06em;border-radius:0;background:transparent;vertical-align:middle;}
 /* 站点自定义图片引用 ![<id>]（无网址，由站点渲染时解析）/ 哔哩哔哩视频播放器地址：
    编辑器里都显示为占位块，提交时原样写回 */
 .${NS}-editor .${NS}-img-ref,.${NS}-editor .${NS}-video-ref{display:inline-flex;align-items:center;gap:5px;max-width:100%;
