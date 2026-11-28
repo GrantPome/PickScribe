@@ -3,7 +3,7 @@
  *
  * 三种形态：
  *   1. 欢迎流程：首装后在信息流页出现一次，居中模态 + 全屏黑色半透明遮罩。
- *      一屏一个功能大类（欢迎 + 5 类功能 + 准备就绪），只由按钮推进；
+ *      一屏一个功能大类（欢迎 + 5 类功能 + 隐私说明 + 准备就绪），只由按钮推进；
  *      遮罩点击、滚动、Esc 都不会关闭。
  *      在它结束（结束 / 跳过）之前，分步引导不会开始。
  *   2. 分步引导（Tour）：首次打开帖子浮层并落定后播放，卡片贴在目标元素旁边，
@@ -36,8 +36,9 @@
    * 欢迎流程版本：升到这里就重播一次欢迎卡（含首屏粒子与打字动画）。
    * 完成（结束或跳过）后把版本写进记录，之后打开站点不再出现；
    * 没走完就关掉页面，下次打开会重新出卡。
+   * 4.3.0 加入隐私说明屏：已完成旧版本的老用户只补看这一屏，不重播整段流程。
    */
-  const WELCOME_VERSION = '4.0.0';
+  const WELCOME_VERSION = '4.3.0';
   const KEY_STATE = 'pco_guide';
   const KEY_HINTS = 'pco_guide_hints';
   const KEY_CFG = 'pco_config';
@@ -94,7 +95,7 @@
 
   /**
    * 欢迎流程：一屏一个类别，只讲本类别的能力。
-   * 顺序固定为 欢迎 → 刷帖与阅读 → 发帖与回复 → AI 能力 → 站内通知 → 外观与动效 → 准备就绪。
+   * 顺序固定为 欢迎 → 刷帖与阅读 → 发帖与回复 → AI 能力 → 站内通知 → 外观与动效 → 隐私说明 → 准备就绪。
    * 添加 / 删除类别时只改这个数组：屏数、进度点与「结束」判断都会跟着变。
    */
   const WELCOME_FLOW = [
@@ -168,11 +169,46 @@
       ]
     },
     {
+      kind: 'privacy',
+      icon: 'shield',
+      title: '我们非常注重您的隐私',
+      lead: '这一页说明插件会动到哪些数据、存在哪里、发到哪里。勾选下方确认后才能进入下一步。',
+      groups: [
+        {
+          title: '只保存在本机',
+          items: [
+            '设置项、API Key、AI 结果缓存与 Token 用量统计都存在浏览器本地，不做云同步。',
+            '草稿、模板、搜索记录与引导进度存在站点本地存储，卸载插件或在设置页清空后即消失。'
+          ]
+        },
+        {
+          title: '对社区只做页面增强',
+          items: [
+            '浮层阅读、富文本编辑器、字体动效与系统通知只改页面显示，不改服务器上的任何内容。',
+            '点赞、收藏、回复、退出登录只在你手动点击时经站点官方接口提交，插件不会自动操作。'
+          ]
+        },
+        {
+          title: '不会上传的数据',
+          items: [
+            '不读取、不保存、不上传账号密码、Cookie 与登录凭证；插件没有开发者服务器，也没有统计上报。',
+            '帖子正文只有在你主动使用 AI 功能时，才会发往你自己选择的模型服务商；不用 AI 就不会外发。'
+          ]
+        }
+      ],
+      confirm: '我已阅读并了解以上说明，知道数据保存在本机、不会上传'
+    },
+    {
       kind: 'finish',
       title: '一切已准备就绪',
       sub: '打开任意一张帖子卡片，就会看到这层浮层。想改设置时，点右上角头像打开账号菜单，选「PickScribe 设置」。'
     }
   ];
+
+  /** 隐私说明屏：老用户补看时只播这一屏 */
+  const PRIVACY_SCREEN = WELCOME_FLOW.find((screen) => screen.kind === 'privacy') || null;
+  /** 本次实际播放的流程：默认整段；privacyOnly 时只含隐私说明屏 */
+  let welcomeFlow = WELCOME_FLOW;
 
   // ============ 引导内的快捷配置：与设置页共用同一份 chrome.storage.local ============
 
@@ -403,6 +439,7 @@
     type: '<path d="M5 6.5V4.5h14v2"/><path d="M12 4.5V20"/><path d="M9 20h6"/>',
     sliders: '<path d="M4 8h9"/><path d="M17 8h3"/><circle cx="15" cy="8" r="2"/><path d="M4 16h4"/><path d="M12 16h8"/><circle cx="10" cy="16" r="2"/>',
     reduce: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7"/>',
+    shield: '<path d="M12 3.5 5 6.4v5.3c0 4.3 2.9 7.9 7 9.6 4.1-1.7 7-5.3 7-9.6V6.4L12 3.5Z"/><path d="m9.4 12.2 1.8 1.8 3.4-3.6"/>',
     replay: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5V10h5.5"/>'
   };
 
@@ -509,6 +546,7 @@
       done: [],
       welcomeDone: false,
       welcomeVer: '',       // 已完成的欢迎流程版本，与 WELCOME_VERSION 比对
+      privacyOnly: false,   // 只补看隐私说明屏（老用户升级后走这条）
       skipped: false,
       skippedAt: 0,
       replay: false,
@@ -633,9 +671,9 @@
     ? new Path2D('M16.15 9.1H33.75A14.1 14.1 0 0 1 33.75 37.3H27.15C25.75 43.5 23.75 48.7 22.25 53.3Q21.65 54.9 21.05 53.3C19.75 49.3 18.15 44.9 16.15 41.5Z M33.75 16.6a6.6 6.6 0 1 0 0 13.2 6.6 6.6 0 1 0 0-13.2Z')
     : null;
 
-  /** 按 WELCOME_FLOW 生成每一屏；只有第一屏带 is-on，后续只由按钮切换 */
+  /** 按 welcomeFlow 生成每一屏；只有第一屏带 is-on，后续只由按钮切换 */
   function renderWelcomeScreens() {
-    return WELCOME_FLOW.map((screen, index) => {
+    return welcomeFlow.map((screen, index) => {
       const on = index === 0;
       const head = '<section class="pcg-screen' + (on ? ' is-on' : '') + '" data-screen="' + index + '"' +
         (on ? '' : ' aria-hidden="true"') + '>';
@@ -672,6 +710,33 @@
             '<div class="pcg-screen-main">' +
               '<h2 class="pcg-screen-title">' + screen.title + '</h2>' +
               '<p class="pcg-welcome-sub">' + screen.sub + '</p>' +
+            '</div>' +
+          '</div>' +
+        '</section>';
+      }
+
+      // 隐私说明屏：三组说明 + 底部确认勾选框（勾选后才解锁「下一步」）
+      if (screen.kind === 'privacy') {
+        return head +
+          '<div class="pcg-screen-body">' +
+            '<span class="pcg-cat-ico">' + drawIcon(screen.icon) + '</span>' +
+            '<div class="pcg-screen-main">' +
+              '<h2 class="pcg-screen-title">' + screen.title + '</h2>' +
+              '<p class="pcg-screen-lead">' + screen.lead + '</p>' +
+              '<div class="pcg-priv">' +
+                screen.groups.map((group) =>
+                  '<section class="pcg-priv-sec">' +
+                    '<h3 class="pcg-priv-title">' + group.title + '</h3>' +
+                    '<ul class="pcg-priv-list">' +
+                      group.items.map((item) => '<li>' + item + '</li>').join('') +
+                    '</ul>' +
+                  '</section>').join('') +
+              '</div>' +
+              '<label class="pcg-priv-confirm">' +
+                '<input type="checkbox" data-role="privacy-ack" />' +
+                '<span class="pcg-priv-box" aria-hidden="true"></span>' +
+                '<span class="pcg-priv-confirm-text">' + screen.confirm + '</span>' +
+              '</label>' +
             '</div>' +
           '</div>' +
         '</section>';
@@ -1545,6 +1610,8 @@
   function showWelcome() {
     ensureRoot();
     if (welcomeEl) return;
+    // 老用户（已完成过旧版本流程）只补看隐私说明屏，不重播整段欢迎流程
+    welcomeFlow = state.privacyOnly && PRIVACY_SCREEN ? [PRIVACY_SCREEN] : WELCOME_FLOW;
     const scrim = h('div', 'pcg-scrim');
     const modal = h('div', 'pcg-modal');
     modal.setAttribute('role', 'dialog');
@@ -1555,13 +1622,20 @@
       '<button type="button" class="pcg-welcome-skip" data-role="skip">跳过</button>' +
       '<div class="pcg-screens">' + renderWelcomeScreens() + '</div>' +
       '<div class="pcg-welcome-foot">' +
-        '<div class="pcg-dots" data-role="dots" aria-hidden="true">' +
-          WELCOME_FLOW.map((_, i) => '<i' + (i === 0 ? ' class="is-on"' : '') + '></i>').join('') +
-        '</div>' +
-        '<span class="pcg-welcome-tip">之后可在「更多 → 功能引导」重看</span>' +
+        // 只有一屏（老用户补看隐私说明）时不显示进度点
+        (welcomeFlow.length > 1
+          ? '<div class="pcg-dots" data-role="dots" aria-hidden="true">' +
+              welcomeFlow.map((_, i) => '<i' + (i === 0 ? ' class="is-on"' : '') + '></i>').join('') +
+            '</div>'
+          : '') +
+        // 单屏不显示提示文案：底部只留按钮
+        (welcomeFlow.length > 1
+          ? '<span class="pcg-welcome-tip">之后可在「更多 → 功能引导」重看</span>'
+          : '') +
         '<div class="pcg-welcome-actions">' +
           // 首屏专属：重放图标汇聚与打字；换到其它屏时由 setWelcomeScreen 隐藏
           '<button type="button" class="pcg-ghost pcg-replay" data-role="replay" ' +
+            (welcomeFlow[0] && welcomeFlow[0].kind === 'welcome' ? '' : ' hidden ') +
             'title="重播动画" aria-label="重播动画">' + svgIcon('replay') + '</button>' +
           '<button type="button" class="pcg-ghost" data-role="back" hidden>上一步</button>' +
           '<button type="button" class="pcg-primary" data-role="next">下一步</button>' +
@@ -1574,9 +1648,21 @@
     modal.querySelector('[data-role="skip"]').addEventListener('click', () => dismissWelcome());
     const next = modal.querySelector('[data-role="next"]');
     next.addEventListener('click', () => {
-      if (welcomeScreen >= WELCOME_FLOW.length - 1) dismissWelcome();
+      // 隐私屏未勾选确认：不推进，弹吐司说明原因
+      if (nextBlocked()) {
+        showGateToast('请先勾选下方确认项再继续');
+        return;
+      }
+      if (welcomeScreen >= welcomeFlow.length - 1) dismissWelcome();
       else setWelcomeScreen(welcomeScreen + 1);
     });
+    // 隐私屏的确认框：勾选后才解锁「下一步」
+    const ack = modal.querySelector('[data-role="privacy-ack"]');
+    if (ack) {
+      ack.addEventListener('change', () => {
+        syncNextGate();
+      });
+    }
     const back = modal.querySelector('[data-role="back"]');
     back.addEventListener('click', () => {
       if (welcomeScreen > 0) setWelcomeScreen(welcomeScreen - 1);
@@ -1597,7 +1683,13 @@
     state.state = 'welcome';
     persist();
     bindWelcomeConfig(modal);
-    try { next.focus({ preventScroll: true }); } catch (e) { /* noop */ }
+    // 单屏（老用户补看隐私说明）时按钮直接是「结束」；未勾选先置灰并聚焦勾选框
+    if (welcomeFlow.length <= 1) next.textContent = '结束';
+    const gated = syncNextGate();
+    const focusEl = gated ? modal.querySelector('[data-role="privacy-ack"]') : next;
+    if (focusEl) {
+      try { focusEl.focus({ preventScroll: true }); } catch (e) { /* noop */ }
+    }
 
     // 落点：先以「分享你的想法」输入框为锚点，再把它视觉隐藏（保留占位）
     const shareBox = findShareBox();
@@ -1685,6 +1777,62 @@
     modalSizeAnims.push(sizeAnim);
   }
 
+  /** 当前屏是否被确认框挡住：只有隐私屏未勾选时成立 */
+  function nextBlocked() {
+    if (!welcomeEl) return false;
+    const screen = welcomeFlow[welcomeScreen];
+    const ack = welcomeEl.querySelector('[data-role="privacy-ack"]');
+    return !!(screen && screen.kind === 'privacy' && ack && !ack.checked);
+  }
+
+  /**
+   * 隐私屏闸门：未勾选时把「下一步」置灰，但不加 disabled——
+   * 按钮仍可点击，点击时由吐司说明原因；「跳过」不受影响，随时可以离开。
+   */
+  function syncNextGate() {
+    if (!welcomeEl) return false;
+    const next = welcomeEl.querySelector('[data-role="next"]');
+    if (!next) return false;
+    const gated = nextBlocked();
+    next.classList.toggle('is-gated', gated);
+    next.setAttribute('aria-disabled', gated ? 'true' : 'false');
+    return gated;
+  }
+
+  /** 隐私屏吐司：挂在 #pcg-root 下，不受卡片滚动与裁剪影响 */
+  let gateToastEl = null;
+  let gateToastTimer = 0;
+
+  function showGateToast(text) {
+    if (!root) return;
+    if (!gateToastEl || !gateToastEl.isConnected) {
+      gateToastEl = h('div', 'pcg-toast');
+      gateToastEl.setAttribute('role', 'status');
+      gateToastEl.setAttribute('aria-live', 'polite');
+      root.appendChild(gateToastEl);
+    }
+    gateToastEl.textContent = text;
+    // 连续点击时重播入场，保证每次都看得到反馈
+    gateToastEl.classList.remove('is-on');
+    void gateToastEl.offsetWidth;
+    gateToastEl.classList.add('is-on');
+    if (gateToastTimer) clearTimeout(gateToastTimer);
+    const speed = Number(animSpeed) > 0 ? Number(animSpeed) : 1;
+    gateToastTimer = setTimeout(hideGateToast, Math.round(2400 / speed));
+  }
+
+  function hideGateToast() {
+    if (gateToastTimer) { clearTimeout(gateToastTimer); gateToastTimer = 0; }
+    const el = gateToastEl;
+    if (!el) return;
+    el.classList.remove('is-on');
+    gateToastTimer = setTimeout(() => {
+      gateToastTimer = 0;
+      if (el.isConnected) el.remove();
+      if (gateToastEl === el) gateToastEl = null;
+    }, 240);
+  }
+
   /** 只由按钮调用：换屏不换模态，也不重置已看状态 */
   function setWelcomeScreen(index) {
     if (!welcomeEl) return;
@@ -1706,15 +1854,15 @@
     for (let i = 0; i < dots.length; i += 1) dots[i].classList.toggle('is-on', i === index);
 
     // AI 能力屏：屏幕边缘挂一圈彩色光带，由一颗白色光点引导着绕一圈展开
-    const aiScreen = WELCOME_FLOW[index];
+    const aiScreen = welcomeFlow[index];
     if (aiScreen && aiScreen.id === 'ai') startAura();
     else stopAura(false);
 
     const back = welcomeEl.querySelector('[data-role="back"]');
     if (back) back.hidden = index === 0;
-    // 重播只对首屏有意义：换到其它屏时藏起来，首屏时排在「下一步」左侧
+    // 重播只对欢迎首屏有意义：换到其它屏或补看隐私页时藏起来
     const replayBtn = welcomeEl.querySelector('[data-role="replay"]');
-    if (replayBtn) replayBtn.hidden = index !== 0;
+    if (replayBtn) replayBtn.hidden = index !== 0 || !(welcomeFlow[0] && welcomeFlow[0].kind === 'welcome');
 
     // 内容多时内容区可滚动：换屏回到顶部，不从上一屏的滚动位置开始
     const wrap = welcomeEl.querySelector('.pcg-screens');
@@ -1723,11 +1871,16 @@
       syncScreensOverflow();
     }
 
-    const last = WELCOME_FLOW.length - 1;
+    const last = welcomeFlow.length - 1;
     const next = welcomeEl.querySelector('[data-role="next"]');
     if (next) {
       next.textContent = index >= last ? '结束' : '下一步';
-      try { next.focus({ preventScroll: true }); } catch (e) { /* noop */ }
+      // 隐私屏未确认时按钮置灰，焦点改落到勾选框，键盘用户不会被卡住
+      const gated = syncNextGate();
+      const focusEl = gated ? welcomeEl.querySelector('[data-role="privacy-ack"]') : next;
+      if (focusEl) {
+        try { focusEl.focus({ preventScroll: true }); } catch (e) { /* noop */ }
+      }
     }
 
     // 离开收尾屏：清掉纸屑、取消排队与进行中的动画，并复位「播过」标记，
@@ -2125,6 +2278,9 @@
    */
   function dismissWelcome(immediate) {
     if (!welcomeEl) return;
+    // 吐司挂在 root 上，关卡片时一并收掉，不留在页面上
+    if (gateToastEl) { gateToastEl.remove(); gateToastEl = null; }
+    if (gateToastTimer) { clearTimeout(gateToastTimer); gateToastTimer = 0; }
     stopConfetti();
     // 光带先淡出，卡片飞走后再摘掉画布
     stopAura(false);
@@ -2142,6 +2298,7 @@
       restoreShareBox();
       state.welcomeDone = true;
       state.welcomeVer = WELCOME_VERSION;
+      state.privacyOnly = false;   // 补看结束（含跳过），下次不再单独弹隐私页
       if (state.state !== 'done') state.state = 'waiting';
       persist();
       // 欢迎流程结束（结束 / 跳过）后才允许往下走
@@ -2724,8 +2881,10 @@
     }
 
     // 欢迎流程版本门：4.0.0 起，打开插件后先走一遍新手引导；
-    // 记录里已经是当前版本（说明走完了）就不再出卡，没走完下次打开继续出
+    // 记录里已经是当前版本（说明走完了）就不再出卡，没走完下次打开继续出。
+    // 老用户（有旧版本完成记录）只补看新增的隐私说明屏；全新安装走完整流程。
     if (state.welcomeVer !== WELCOME_VERSION) {
+      state.privacyOnly = !!state.welcomeVer && !!PRIVACY_SCREEN;
       state.welcomeDone = false;
       persist();
     }

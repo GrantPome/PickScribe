@@ -916,6 +916,132 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
   color: var(--pcg-dim);
 }
 
+/* ------------------------------------------------------------
+   隐私说明屏：三组「存什么 / 改什么 / 不上传什么」+ 底部确认勾选
+   ------------------------------------------------------------ */
+
+.pcg-priv {
+  width: 100%;
+  margin: var(--pcg-gap-list) 0 0;
+  text-align: left;
+}
+
+.pcg-priv-sec + .pcg-priv-sec {
+  margin-top: var(--pcg-s3);
+}
+
+.pcg-priv-title {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--pcg-text);
+}
+
+.pcg-priv-list {
+  margin: var(--pcg-s1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pcg-priv-list li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--pcg-muted);
+  text-align: left;
+}
+
+.pcg-priv-list li + li {
+  margin-top: 2px;
+}
+
+/* 小圆点：比正文更轻，不抢标题 */
+.pcg-priv-list li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.72em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pcg-text) 34%, transparent);
+}
+
+/* 底部确认：整行可点，勾选后主按钮才可用 */
+.pcg-priv-confirm {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pcg-gap-icon);
+  width: 100%;
+  margin: var(--pcg-gap-config) 0 0;
+  padding-top: var(--pcg-s3);
+  border-top: 1px solid var(--pcg-border);
+  cursor: pointer;
+}
+
+/* 真 checkbox 藏在方块下面，键盘仍可聚焦与切换 */
+.pcg-priv-confirm input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.pcg-priv-box {
+  flex: none;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border: 1.5px solid color-mix(in srgb, var(--pcg-text) 30%, var(--pcg-border));
+  border-radius: 5px;
+  background: var(--pcg-bg);
+  transition: background calc(0.18s * var(--pcg-dur)) var(--pcg-ease),
+              border-color calc(0.18s * var(--pcg-dur)) var(--pcg-ease);
+}
+
+/* 勾：先缩再弹到正常大小，与引导其它控件的节奏一致 */
+.pcg-priv-box::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1.5px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 1.8px 1.8px 0;
+  opacity: 0;
+  transform: rotate(45deg) scale(0.6);
+  transition: opacity calc(0.16s * var(--pcg-dur)) var(--pcg-ease),
+              transform calc(0.16s * var(--pcg-dur)) var(--pcg-move);
+}
+
+.pcg-priv-confirm input:checked + .pcg-priv-box {
+  background: var(--pcg-primary);
+  border-color: var(--pcg-primary);
+}
+
+.pcg-priv-confirm input:checked + .pcg-priv-box::after {
+  opacity: 1;
+  transform: rotate(45deg) scale(1);
+}
+
+.pcg-priv-confirm input:focus-visible + .pcg-priv-box {
+  outline: 2px solid color-mix(in srgb, var(--pcg-primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.pcg-priv-confirm-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--pcg-text);
+}
+
 /* 整块居中：进度点在上、提示居中、主按钮固定在最下 */
 /* 底部一行：进度点与提示靠左，操作按钮推到最右侧，
    右边缘与右栏内容同一条内边距线，不再单独居中 */
@@ -1015,6 +1141,42 @@ html[data-theme="dark"] #pcg-root .pcg-scrim {
 .pcg-primary:focus-visible {
   outline: 2px solid var(--pcg-primary);
   outline-offset: 3px;
+}
+
+/* 隐私屏未确认：主按钮置灰但仍可点击，点了由吐司说明原因 */
+.pcg-primary.is-gated {
+  opacity: 0.45;
+  filter: none;
+}
+
+.pcg-primary.is-gated:active {
+  transform: none;
+}
+
+/* 隐私屏吐司：挂在 #pcg-root 下，固定贴视口底部，不进卡片布局 */
+.pcg-toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--pcg-s12);
+  z-index: 5;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 10px var(--pcg-s4);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pcg-text) 92%, transparent);
+  color: var(--pcg-bg);
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 10px);
+  transition: opacity calc(0.22s * var(--pcg-dur)) var(--pcg-ease),
+              transform calc(0.26s * var(--pcg-dur)) var(--pcg-move);
+}
+
+.pcg-toast.is-on {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 /* ============================ 分步引导（贴目标） ============================ */
